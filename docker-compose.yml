@@ -1,0 +1,114 @@
+version: '3.8'
+
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: rina-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./frontend/build:/usr/share/nginx/html:ro
+      - certbot-data:/etc/letsencrypt:ro
+      - certbot-www:/var/www/certbot:ro
+    depends_on:
+      - backend
+    networks:
+      - rina-network
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rina-backend
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://rina_user:${POSTGRES_PASSWORD}@postgres:5432/rina_db
+      - JWT_SECRET=${JWT_SECRET}
+      - REDIS_URL=redis://redis:6379
+      - MINIO_ENDPOINT=minio
+      - MINIO_PORT=9000
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres
+      - redis
+      - minio
+    networks:
+      - rina-network
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: rina-postgres
+    environment:
+      - POSTGRES_USER=rina_user
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=rina_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - rina-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rina_user -d rina_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: rina-redis
+    networks:
+      - rina-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: rina-minio
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ACCESS_KEY}
+      - MINIO_ROOT_PASSWORD=${MINIO_SECRET_KEY}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      - rina-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # certbot:
+  #   image: certbot/certbot
+  #   container_name: rina-certbot
+  #   volumes:
+  #     - certbot-data:/etc/letsencrypt
+  #     - certbot-www:/var/www/certbot
+  #   entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+  #   networks:
+  #     - rina-network
+
+volumes:
+  postgres_data:
+  minio_data:
+  certbot-data:
+  certbot-www:
+
+networks:
+  rina-network:
+    driver: bridge
