@@ -6,3 +6,7 @@ git commit -m "Updated the backend API and React components"
 
 # 3. Push the changes to GitHub
 git push
+
+
+
+git pull origin main
