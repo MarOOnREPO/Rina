@@ -21,7 +21,7 @@ An enterprise-grade, fully encrypted real-time web application engineered exclus
 
 ---
 
-> **Project Rina** is not a standard web dashboard. It is a highly secure, zero-latency, private ecosystem designed to mimic the fluidity of a premium native iOS/Android application. Built from the ground up for two specific users, it prioritizes absolute privacy, 60fps micro-interactions, and flawless peer-to-peer synchronization over custom VPN tunnels.
+> **Rina** is not a standard web dashboard. It is a highly secure, zero-latency, private ecosystem designed to mimic the fluidity of a premium native iOS/Android application. Built from the ground up for two specific users, it prioritizes absolute privacy, 60fps micro-interactions, and flawless peer-to-peer synchronization over custom VPN tunnels.
 
 ## 🚀 The Architecture
 
