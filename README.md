@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🌹 Project Rina
+#  Rina 💜 Long Distance App
 
 **A Bespoke, Zero-Latency Relationship Ecosystem**
 
