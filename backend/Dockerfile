@@ -25,8 +25,9 @@ COPY --from=builder --chown=node:nodejs /app/dist ./dist
 COPY --from=builder --chown=node:nodejs /app/package*.json ./
 COPY --from=builder --chown=node:nodejs /app/prisma ./prisma
 
-# Install only production dependencies
+# Install only production dependencies & regenerate Prisma Client engine bindings
 RUN npm ci --omit=dev && npm cache clean --force
+RUN npx prisma generate
 
 USER node
 

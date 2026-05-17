@@ -27,9 +27,11 @@ services:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://rina_user:${POSTGRES_PASSWORD}@postgres:5432/rina_db
       - JWT_SECRET=${JWT_SECRET}
+      - COOKIE_SECRET=${COOKIE_SECRET}
       - REDIS_URL=redis://redis:6379
       - MINIO_ENDPOINT=minio
       - MINIO_PORT=9000
+      - MINIO_USE_SSL=${MINIO_USE_SSL:-false}
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
       - S3_BUCKET_NAME=${S3_BUCKET_NAME:-rina-uploads}
@@ -37,6 +39,9 @@ services:
       - TMDB_API_KEY=${TMDB_API_KEY}
       - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY}
+      - CORS_ORIGIN=${CORS_ORIGIN}
+      - COTURN_REALM=${COTURN_REALM}
+      - COTURN_SECRET=${COTURN_SECRET}
     # Backend is NOT exposed to host; only accessible via nginx reverse proxy
     expose:
       - "3000"
@@ -46,7 +51,7 @@ services:
       redis:
         condition: service_healthy
       minio:
-        condition: service_healthy
+        condition: service_started
     networks:
       - rina-network
     restart: unless-stopped
@@ -102,11 +107,7 @@ services:
     networks:
       - rina-network
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
+    # MinIO scratch-based image has no curl/wget; rely on service_started dependency instead
 
   # ─── Coturn (TURN Server for WebRTC) ────────────────────────────
   # In production on AWS Lightsail, run Coturn on a dedicated instance

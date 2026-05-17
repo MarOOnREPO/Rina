@@ -61,6 +61,7 @@ cd ..
 # On your local machine — sync everything except dev artifacts
 rsync -avz \
   --exclude='.git' \
+  --exclude='.env' \
   --exclude='**/node_modules' \
   --exclude='backend/dist' \
   ./ ubuntu@YOUR_LIGHTSAIL_IP:/home/ubuntu/rina
@@ -194,7 +195,7 @@ git pull origin main   # or rsync again
 - [ ] MinIO keys are changed from defaults
 - [ ] SSH key auth only (disable password login)
 - [ ] Automatic security updates: `sudo apt install -y unattended-upgrades`
-- [ ] Coturn server uses `static-auth-secret` for TURN relay
+- [ ] Coturn server uses `--lt-cred-mech` with long-term credentials for TURN relay
 
 ---
 

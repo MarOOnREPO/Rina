@@ -64,7 +64,7 @@ LOG "🗄️ Running database migrations..."
 
 # Build the builder stage (reuses cache from the production build)
 # and run Prisma migrations inside the Docker network.
-docker build --target builder -t rina-backend-builder ./backend >/dev/null 2>&1 || true
+docker build --target builder -t rina-backend-builder ./backend
 
 if ! docker image inspect rina-backend-builder >/dev/null 2>&1; then
   LOG "❌ Failed to build migration image. Ensure backend/Dockerfile has a 'builder' stage."
