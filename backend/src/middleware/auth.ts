@@ -4,8 +4,7 @@ import fp from 'fastify-plugin';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET || JWT_SECRET.length < 32) {
-  console.error('[Fatal] JWT_SECRET must be set and at least 32 characters long');
-  process.exit(1);
+  throw new Error('[Fatal] JWT_SECRET must be set and at least 32 characters long');
 }
 const COOKIE_NAME = 'rina_auth_token';
 

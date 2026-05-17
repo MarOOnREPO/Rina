@@ -6,15 +6,18 @@ import { prisma } from '../services/prisma.js';
 const COOKIE_NAME = 'rina_auth_token';
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
+// Default passwords (change after first login or migrate to DB-managed auth):
+//   maroon -> maroonpass2026!
+//   rina   -> rinapass2026!
 const AUTHORIZED_USERS: Record<string, { username: string; passwordHash: string; displayName: string }> = {
   maroon: {
     username: 'maroon',
-    passwordHash: '$2a$12$R9h/cIPz0gi.URNNX3kh2OPST9/PgBkqquzi.Ss7KIUgO2t0jWMUW',
+    passwordHash: '$2a$12$uuyxtsi5WMRosmaTC2SO6urMOzB5HMu.DOL6.TihhNn0sgkT9A2yC',
     displayName: 'MarOOn'
   },
   rina: {
     username: 'rina',
-    passwordHash: '$2a$12$R9h/cIPz0gi.URNNX3kh2OPST9/PgBkqquzi.Ss7KIUgO2t0jWMUW',
+    passwordHash: '$2a$12$E1hGSTE7Zc0HYrgRFYZ6suuIH4LWNoIpnn6.W3QKhTa7w64OT/dqa',
     displayName: 'Rina'
   }
 };
