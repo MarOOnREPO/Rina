@@ -62,7 +62,7 @@
 
 ```bash
 # 1. Clone and enter the repo
-git clone <repo-url> && cd Rina
+git clone https://github.com/MarOOnREPO/Rina.git && cd Rina
 
 # 2. Install frontend dependencies
 cd frontend && npm install && cd ..

@@ -41,10 +41,39 @@ cd ~/rina
 
 ## 2. Deploy Code to Server
 
-**Option A: GitHub Actions (Recommended)**
+Choose one of the following methods:
+
+### Option A: Git Push to VPS (Recommended for simplicity)
+
+**One-time setup on the VPS:**
+```bash
+ssh ubuntu@YOUR_IP
+cd ~/rina
+./scripts/git-setup.sh
+```
+
+**On your local machine:**
+```bash
+# Add the VPS as a remote
+git remote add vps ssh://ubuntu@YOUR_IP/home/ubuntu/rina.git
+
+# Push to deploy
+git push vps main
+```
+
+The `post-receive` hook on the VPS will automatically:
+1. Checkout the code to `~/rina`
+2. Run `./scripts/deploy.sh`
+
+### Option B: GitHub Actions
 Push to `main`. The workflow will rsync code to `/home/ubuntu/rina` and run `./scripts/deploy.sh`.
 
-**Option B: Manual**
+Requires these secrets in your GitHub repository:
+- `SSH_PRIVATE_KEY`
+- `REMOTE_HOST`
+- `REMOTE_USER`
+
+### Option C: Manual Rsync
 ```bash
 cd ~/rina
 # Copy files from your local machine
@@ -176,14 +205,25 @@ sudo ufw enable
 
 ## 9. Updating the App
 
-Simply push to `main`. GitHub Actions will:
+**If using Git Push:**
+```bash
+git push vps main
+```
+
+**If using GitHub Actions:**
+Push to `main`. The workflow will:
 1. Lint and type-check frontend and backend.
 2. Build the frontend.
 3. Rsync everything (including `frontend/build`) to the server.
 4. Run `./scripts/deploy.sh`.
 5. Verify the health endpoint.
 
-For manual updates, run `./scripts/deploy.sh` again on the server.
+**Manual update:**
+```bash
+ssh ubuntu@YOUR_IP
+cd ~/rina
+./scripts/deploy.sh
+```
 
 ---
 
