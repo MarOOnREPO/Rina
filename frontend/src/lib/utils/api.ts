@@ -245,3 +245,24 @@ export const countdownApi = {
   create: (data: Partial<Countdown>) => api.post<Countdown>('/countdowns', data),
   remove: (id: string) => api.delete<void>(`/countdowns/${id}`)
 };
+
+// ─── Cycle Tracker API ───────────────────────────────────────────
+export interface CycleEntry {
+  id: string;
+  date: string;
+  flowIntensity?: number;
+  symptoms: string[];
+  temperature?: number;
+  notes?: string;
+  createdAt: string;
+}
+
+export const cycleApi = {
+  list: (from?: string, to?: string) =>
+    api.get<{ entries: CycleEntry[] }>(`/cycle?from=${from || ''}&to=${to || ''}`),
+  create: (data: Partial<CycleEntry> & { date: string }) =>
+    api.post<{ entry: CycleEntry }>('/cycle', data),
+  update: (id: string, data: Partial<CycleEntry>) =>
+    api.patch<{ entry: CycleEntry }>(`/cycle/${id}`, data),
+  remove: (id: string) => api.delete<void>(`/cycle/${id}`)
+};

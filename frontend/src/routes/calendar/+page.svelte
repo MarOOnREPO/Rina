@@ -3,7 +3,7 @@
   import { goto } from '$app/navigation';
   import { isAuthenticated, isLoading, currentUser } from '$lib/stores/auth.svelte';
   import { fade, fly, slide } from 'svelte/transition';
-  import { calendarApi, type CalendarEvent } from '$lib/utils/api';
+  import { calendarApi, type CalendarEvent, cycleApi, type CycleEntry } from '$lib/utils/api';
   import GlassCard from '$lib/components/GlassCard.svelte';
   import CountdownTimer from '$lib/components/CountdownTimer.svelte';
   import { countdownApi, type Countdown } from '$lib/utils/api';
@@ -94,47 +94,89 @@
     return type === 'WORK' ? 'bg-rina-indigo' : 'bg-rina-rose';
   }
 
-  // ─── Cycle Tracker (localStorage-backed, not mocked) ───────────
+  // ─── Cycle Tracker (API-backed) ────────────────────────────────
+  let cycleEntries: CycleEntry[] = [];
+  let showCycleSettings = $state(false);
   let cycleStartStr = $state('');
   let cycleLength = $state(28);
-  let showCycleSettings = $state(false);
+  let cycleLoading = false;
+
+  function getCycleEntryForDate(dateStr: string): CycleEntry | undefined {
+    return cycleEntries.find((e) => e.date === dateStr);
+  }
+
+  function getLastPeriodStart(): string | null {
+    const periodEntries = cycleEntries
+      .filter((e) => (e.flowIntensity ?? 0) > 0)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return periodEntries[0]?.date ?? null;
+  }
 
   function isPeriodDay(day: number): boolean {
-    if (!cycleStartStr) return false;
-    const start = new Date(cycleStartStr);
-    const check = new Date(year, month, day);
-    const diff = Math.floor((check.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-    if (diff < 0) return false;
-    return diff % cycleLength < 5; // Period lasts ~5 days
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const entry = getCycleEntryForDate(dateStr);
+    return (entry?.flowIntensity ?? 0) > 0;
   }
 
   function isFertileDay(day: number): boolean {
-    if (!cycleStartStr) return false;
-    const start = new Date(cycleStartStr);
+    const lastStart = getLastPeriodStart();
+    if (!lastStart) return false;
+    const start = new Date(lastStart);
     const check = new Date(year, month, day);
     const diff = Math.floor((check.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
     if (diff < 0) return false;
-    const fertileStart = 14; // ~14 days after period start
+    const fertileStart = 14;
     const fertileEnd = fertileStart + 5;
     const dayInCycle = diff % cycleLength;
     return dayInCycle >= fertileStart && dayInCycle < fertileEnd;
   }
 
-  function saveCycleSettings() {
-    if (cycleStartStr) localStorage.setItem('rina_cycle_start', cycleStartStr);
-    localStorage.setItem('rina_cycle_length', String(cycleLength));
-    showCycleSettings = false;
+  async function loadCycleData() {
+    try {
+      cycleLoading = true;
+      const from = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+      const toDate = new Date(year, month + 1, 0);
+      const to = `${toDate.getFullYear()}-${String(toDate.getMonth() + 1).padStart(2, '0')}-${String(toDate.getDate()).padStart(2, '0')}`;
+      const { entries } = await cycleApi.list(from, to);
+      cycleEntries = entries;
+    } catch {
+      // ignore
+    } finally {
+      cycleLoading = false;
+    }
   }
 
-  onMount(() => {
-    cycleStartStr = localStorage.getItem('rina_cycle_start') ?? '';
-    cycleLength = Number(localStorage.getItem('rina_cycle_length') || '28');
+  async function saveCycleSettings() {
+    if (!cycleStartStr) {
+      showCycleSettings = false;
+      return;
+    }
+    try {
+      await cycleApi.create({
+        date: cycleStartStr,
+        flowIntensity: 4,
+        symptoms: [],
+        notes: 'Period start'
+      });
+      showCycleSettings = false;
+      await loadCycleData();
+    } catch {
+      // ignore error
+    }
+  }
+
+  // Reload cycle data when month changes
+  $effect(() => {
+    if (typeof window !== 'undefined') {
+      const _ = year + month; // track dependency
+      loadCycleData();
+    }
   });
 
   // Redirect if not authenticated (wait for auth loading to finish)
   $effect(() => {
     if (!isLoading && !isAuthenticated && typeof window !== 'undefined') {
-    goto('/login');
+      goto('/login');
     }
   });
 
