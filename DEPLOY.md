@@ -26,8 +26,8 @@ sudo apt update && sudo apt upgrade -y
 
 # Install Docker
 sudo apt install -y apt-transport-https ca-certificates curl gnupg lsb-release
- curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
- echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 sudo apt update
 sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
@@ -44,22 +44,37 @@ docker compose version
 
 Point your domain (e.g., `rina.yourdomain.com`) to your Lightsail **static IP** using an A record.
 
-### 4. Application Deploy
+### 4. Build Frontend Locally
+
+Nginx serves the pre-built frontend from `frontend/build`. You must build it on your local machine **before** syncing to the server:
 
 ```bash
-# On your local machine, copy the project to the server
-rsync -avz --exclude='node_modules' --exclude='.git' --exclude='dist' --exclude='build' \
+cd frontend
+npm ci
+npm run build
+cd ..
+```
+
+### 5. Copy Project to Server
+
+```bash
+# On your local machine — sync everything except dev artifacts
+rsync -avz \
+  --exclude='.git' \
+  --exclude='**/node_modules' \
+  --exclude='backend/dist' \
   ./ ubuntu@YOUR_LIGHTSAIL_IP:/home/ubuntu/rina
 
 # SSH in
+ssh ubuntu@YOUR_LIGHTSAIL_IP
 cd /home/ubuntu/rina
 
-# Create environment file
+# Create and edit environment file
 cp .env.example .env
 nano .env
 ```
 
-### 5. Environment Variables (.env)
+### 6. Environment Variables (.env)
 
 ```env
 # ─── Database ───
@@ -67,6 +82,12 @@ POSTGRES_PASSWORD=change_this_to_a_secure_random_string_64_chars
 
 # ─── JWT Authentication ───
 JWT_SECRET=generate_a_random_64_char_string_here_maroonlovesrina2026
+
+# ─── Cookie Signing (must differ from JWT_SECRET) ───
+COOKIE_SECRET=generate_another_random_64_char_string
+
+# ─── CORS Origin ───
+CORS_ORIGIN=https://rina.yourdomain.com
 
 # ─── MinIO / S3-Compatible Storage ───
 MINIO_ACCESS_KEY=rina_minio_access_32chars
@@ -77,7 +98,7 @@ AWS_REGION=us-east-1
 # ─── TMDB API (get free key at https://www.themoviedb.org/settings/api) ───
 TMDB_API_KEY=your_tmdb_api_key_here
 
-# ─── Mapbox (get token at https://account.mapbox.com) ───
+# ─── Mapbox (Frontend Build Variable) ───
 # This goes in frontend/.env.local for build time:
 # VITE_MAPBOX_TOKEN=pk.your_mapbox_token
 
@@ -94,7 +115,17 @@ COTURN_SECRET=generate_a_random_turn_secret_here
 NODE_ENV=production
 ```
 
-### 6. Build & Run
+### 7. Build & Run
+
+**Option A — Use the deploy script (recommended):**
+
+```bash
+cd /home/ubuntu/rina
+chmod +x scripts/deploy.sh
+./scripts/deploy.sh
+```
+
+**Option B — Manual steps:**
 
 ```bash
 cd /home/ubuntu/rina
@@ -102,15 +133,20 @@ cd /home/ubuntu/rina
 # Build and start everything
 docker compose up -d --build
 
+# Wait for Postgres, then run migrations inside the Docker network
+docker build --target builder -t rina-backend-builder ./backend
+docker run --rm \
+  --network rina-network \
+  -e DATABASE_URL="postgresql://rina_user:${POSTGRES_PASSWORD}@postgres:5432/rina_db" \
+  rina-backend-builder \
+  npx prisma migrate deploy
+
 # Check logs
 docker compose logs -f backend
 docker compose logs -f nginx
-
-# Create database tables and seed
- cd backend && npx prisma migrate deploy && npx prisma db seed
 ```
 
-### 7. SSL / HTTPS (Let's Encrypt)
+### 8. SSL / HTTPS (Let's Encrypt)
 
 ```bash
 # Install Certbot
@@ -127,7 +163,7 @@ docker run -it --rm \
 docker compose exec nginx nginx -s reload
 ```
 
-### 8. Auto-Renewal (CRON)
+### 9. Auto-Renewal (CRON)
 
 ```bash
 sudo crontab -e
@@ -135,14 +171,15 @@ sudo crontab -e
 0 3 * * * docker run --rm -v certbot-data:/etc/letsencrypt -v certbot-www:/var/www/certbot certbot/certbot renew --quiet && docker compose exec nginx nginx -s reload
 ```
 
-### 9. Updating After Code Changes
+### 10. Updating After Code Changes
+
+1. Build the frontend locally (`cd frontend && npm run build`).
+2. Re-run the deploy script on the server:
 
 ```bash
 cd /home/ubuntu/rina
-git pull origin main  # or rsync again
-docker compose down
-docker compose up -d --build
-cd backend && npx prisma migrate deploy
+git pull origin main   # or rsync again
+./scripts/deploy.sh
 ```
 
 ---
@@ -153,7 +190,24 @@ cd backend && npx prisma migrate deploy
 - [ ] `.env` file has `chmod 600 .env`
 - [ ] `POSTGRES_PASSWORD` is 32+ random characters
 - [ ] `JWT_SECRET` is 32+ random characters
+- [ ] `COOKIE_SECRET` is different from `JWT_SECRET`
 - [ ] MinIO keys are changed from defaults
 - [ ] SSH key auth only (disable password login)
 - [ ] Automatic security updates: `sudo apt install -y unattended-upgrades`
 - [ ] Coturn server uses `static-auth-secret` for TURN relay
+
+---
+
+## 🛠️ Troubleshooting
+
+**Backend crashes with "Prisma Client could not be found"**
+> The backend Dockerfile must generate the Prisma Client in the production stage. If the runner stage does not run `npx prisma generate` after `npm ci --omit=dev`, add the following line to `backend/Dockerfile` after the production `npm ci`:
+> ```dockerfile
+> RUN npx prisma generate
+> ```
+
+**Nginx serves a blank page**
+> Ensure `frontend/build` exists on the server and was synced by rsync. The rsync command above explicitly keeps `frontend/build` while excluding `backend/dist`.
+
+**Migrations fail with "connection refused"**
+> Do not run `npx prisma migrate deploy` directly on the host — Postgres is not exposed to the host. Use the builder container method shown in Step 7 or run `./scripts/deploy.sh`.
