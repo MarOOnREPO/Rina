@@ -2,7 +2,7 @@
 git add .
 
 # 2. Commit the changes with a message
-git commit -m "Updated the backend API and React components"
+git commit -m "Updated the core"
 
 # 3. Push the changes to GitHub
 git push
