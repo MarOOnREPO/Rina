@@ -48,6 +48,43 @@ export const cache = {
   }
 };
 
+// ─── Presence & Socket Registry (Redis-backed for multi-node scaling) ──
+const SOCKET_TTL = 3600; // 1 hour
+const PRESENCE_TTL = 300; // 5 minutes
+
+export const presence = {
+  async setSocket(username: string, socketId: string): Promise<void> {
+    await redis.setex(`rina:socket:${username}`, SOCKET_TTL, socketId);
+  },
+
+  async getSocket(username: string): Promise<string | null> {
+    return redis.get(`rina:socket:${username}`);
+  },
+
+  async delSocket(username: string): Promise<void> {
+    await redis.del(`rina:socket:${username}`);
+  },
+
+  async setStatus(
+    username: string,
+    data: { status: 'online' | 'away' | 'typing'; lastSeen: Date; displayName: string }
+  ): Promise<void> {
+    await redis.setex(`rina:presence:${username}`, PRESENCE_TTL, JSON.stringify(data));
+  },
+
+  async getStatus(
+    username: string
+  ): Promise<{ status: 'online' | 'away' | 'typing'; lastSeen: Date; displayName: string } | null> {
+    const data = await redis.get(`rina:presence:${username}`);
+    if (!data) return null;
+    try {
+      return JSON.parse(data) as { status: 'online' | 'away' | 'typing'; lastSeen: Date; displayName: string };
+    } catch {
+      return null;
+    }
+  }
+};
+
 // ─── Socket.io Redis Adapter ─────────────────────────────────────
 export function setupSocketAdapter(io: SocketIOServer): void {
   const pubClient = new Redis(REDIS_URL, {

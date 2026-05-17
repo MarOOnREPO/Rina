@@ -8,7 +8,7 @@ import rateLimit from '@fastify/rate-limit';
 import { Server as SocketIOServer, Socket } from 'socket.io';
 
 import { prisma } from './src/services/prisma.js';
-import { redis, setupSocketAdapter } from './src/services/redis.js';
+import { redis, setupSocketAdapter, presence } from './src/services/redis.js';
 import { createYjsWSS } from './src/services/yjs-server.js';
 import { authPlugin, verifyToken, type JWTPayload } from './src/middleware/auth.js';
 
@@ -162,17 +162,14 @@ io.use((socket: Socket, next: (err?: Error) => void) => {
 });
 
 // ─── Presence & Socket State ───────────────────────────────────
-// NOTE: userSockets and userPresence are node-local Maps.
-// For true horizontal scaling, migrate these to Redis hashes.
-const userSockets = new Map<string, string>();
-const userPresence = new Map<string, { status: 'online' | 'away' | 'typing'; lastSeen: Date }>();
+// Redis-backed for horizontal scaling and survival across restarts.
 
 io.on('connection', (socket: Socket) => {
   const user = socket.data.user as JWTPayload;
   console.log(`[Socket] ${user.displayName} connected (${socket.id})`);
 
-  userSockets.set(user.username, socket.id);
-  userPresence.set(user.username, { status: 'online', lastSeen: new Date() });
+  await presence.setSocket(user.username, socket.id);
+  await presence.setStatus(user.username, { status: 'online', lastSeen: new Date(), displayName: user.displayName });
 
   // Notify partner of online status
   socket.broadcast.emit('presence:update', {
@@ -183,16 +180,16 @@ io.on('connection', (socket: Socket) => {
   });
 
   // ─── Typing Indicators ─────────────────────────────────────
-  socket.on('typing:start', (data: { channel: string }) => {
-    userPresence.set(user.username, { status: 'typing', lastSeen: new Date() });
+  socket.on('typing:start', async (data: { channel: string }) => {
+    await presence.setStatus(user.username, { status: 'typing', lastSeen: new Date(), displayName: user.displayName });
     socket.to(data.channel).emit('typing:start', {
       username: user.username,
       displayName: user.displayName
     });
   });
 
-  socket.on('typing:stop', (data: { channel: string }) => {
-    userPresence.set(user.username, { status: 'online', lastSeen: new Date() });
+  socket.on('typing:stop', async (data: { channel: string }) => {
+    await presence.setStatus(user.username, { status: 'online', lastSeen: new Date(), displayName: user.displayName });
     socket.to(data.channel).emit('typing:stop', {
       username: user.username,
       displayName: user.displayName
@@ -216,16 +213,16 @@ io.on('connection', (socket: Socket) => {
     }
 
     const partnerUsername = user.username === 'maroon' ? 'rina' : 'maroon';
-    const partnerSocketId = userSockets.get(partnerUsername);
+    const partnerSocketId = await presence.getSocket(partnerUsername);
     if (partnerSocketId) {
       io.to(partnerSocketId).emit('chat:message', msg);
     }
   });
 
   // ─── "Thinking of You" Ping ────────────────────────────────
-  socket.on('ping:partner', () => {
+  socket.on('ping:partner', async () => {
     const partnerUsername = user.username === 'maroon' ? 'rina' : 'maroon';
-    const partnerSocketId = userSockets.get(partnerUsername);
+    const partnerSocketId = await presence.getSocket(partnerUsername);
     if (partnerSocketId) {
       io.to(partnerSocketId).emit('ping:received', {
         from: user.displayName,
@@ -236,8 +233,8 @@ io.on('connection', (socket: Socket) => {
   });
 
   // ─── WebRTC Signaling ──────────────────────────────────────
-  socket.on('webrtc:offer', (data: { target: string; offer: { type: 'offer'; sdp: string } }) => {
-    const targetSocket = userSockets.get(data.target);
+  socket.on('webrtc:offer', async (data: { target: string; offer: { type: 'offer'; sdp: string } }) => {
+    const targetSocket = await presence.getSocket(data.target);
     if (targetSocket) {
       io.to(targetSocket).emit('webrtc:offer', {
         sender: user.username,
@@ -247,8 +244,8 @@ io.on('connection', (socket: Socket) => {
     }
   });
 
-  socket.on('webrtc:answer', (data: { target: string; answer: { type: 'answer'; sdp: string } }) => {
-    const targetSocket = userSockets.get(data.target);
+  socket.on('webrtc:answer', async (data: { target: string; answer: { type: 'answer'; sdp: string } }) => {
+    const targetSocket = await presence.getSocket(data.target);
     if (targetSocket) {
       io.to(targetSocket).emit('webrtc:answer', {
         sender: user.username,
@@ -258,8 +255,8 @@ io.on('connection', (socket: Socket) => {
     }
   });
 
-  socket.on('webrtc:ice-candidate', (data: { target: string; candidate: { candidate: string; sdpMid: string | null; sdpMLineIndex: number | null } }) => {
-    const targetSocket = userSockets.get(data.target);
+  socket.on('webrtc:ice-candidate', async (data: { target: string; candidate: { candidate: string; sdpMid: string | null; sdpMLineIndex: number | null } }) => {
+    const targetSocket = await presence.getSocket(data.target);
     if (targetSocket) {
       io.to(targetSocket).emit('webrtc:ice-candidate', {
         sender: user.username,
@@ -269,9 +266,9 @@ io.on('connection', (socket: Socket) => {
   });
 
   // ─── Listen Together (Synced Media) ────────────────────────
-  socket.on('media:sync', (data: { action: string; time: number; videoId: string }) => {
+  socket.on('media:sync', async (data: { action: string; time: number; videoId: string }) => {
     const partnerUsername = user.username === 'maroon' ? 'rina' : 'maroon';
-    const partnerSocketId = userSockets.get(partnerUsername);
+    const partnerSocketId = await presence.getSocket(partnerUsername);
     if (partnerSocketId) {
       io.to(partnerSocketId).emit('media:sync', {
         ...data,
@@ -283,10 +280,13 @@ io.on('connection', (socket: Socket) => {
   });
 
   // ─── Disconnection ─────────────────────────────────────────
-  socket.on('disconnect', (reason: string) => {
+  socket.on('disconnect', async (reason: string) => {
     console.log(`[Socket] ${user.displayName} disconnected (${reason})`);
-    userSockets.delete(user.username);
-    userPresence.set(user.username, { status: 'away', lastSeen: new Date() });
+    const currentSocketId = await presence.getSocket(user.username);
+    if (currentSocketId === socket.id) {
+      await presence.delSocket(user.username);
+    }
+    await presence.setStatus(user.username, { status: 'away', lastSeen: new Date(), displayName: user.displayName });
 
     socket.broadcast.emit('presence:update', {
       username: user.username,
