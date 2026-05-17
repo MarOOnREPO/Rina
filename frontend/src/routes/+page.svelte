@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { isAuthenticated, currentUser } from '$lib/stores/auth';
+  import { isAuthenticated, isLoading, currentUser } from '$lib/stores/auth';
   import { socketStore, pingReceived } from '$lib/stores/socket';
   import { fly, fade, scale } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
@@ -88,8 +88,8 @@
     return () => clearInterval(interval);
   });
 
-  // Redirect if not authenticated
-  $: if (!$isAuthenticated && typeof window !== 'undefined') {
+  // Redirect if not authenticated (wait for auth loading to finish)
+  $: if (!$isLoading && !$isAuthenticated && typeof window !== 'undefined') {
     goto('/login');
   }
 </script>

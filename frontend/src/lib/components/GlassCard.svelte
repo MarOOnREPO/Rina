@@ -1,7 +1,13 @@
 <script lang="ts">
-  export let hover = true;
-  export let padding: 'none' | 'sm' | 'md' | 'lg' = 'md';
-  export let className = '';
+  interface Props {
+    hover?: boolean;
+    padding?: 'none' | 'sm' | 'md' | 'lg';
+    class?: string;
+    children?: import('svelte').Snippet;
+    [key: string]: unknown;
+  }
+
+  let { hover = true, padding = 'md', class: className = '', children, ...rest }: Props = $props();
 
   const paddingClasses = {
     none: '',
@@ -13,7 +19,7 @@
 
 <div
   class="glass rounded-2xl {paddingClasses[padding]} {hover ? 'hover:bg-white/[0.04] transition-colors' : ''} {className}"
-  {...$$restProps}
+  {...rest}
 >
-  <slot />
+  {@render children?.()}
 </div>

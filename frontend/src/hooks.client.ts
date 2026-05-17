@@ -1,4 +1,2 @@
-import { auth } from '$lib/stores/auth';
-
-// Initialize auth on client-side app start
-auth.init();
+// Client hooks run before the app mounts.
+// Auth initialization is handled in +layout.svelte to avoid double API calls.

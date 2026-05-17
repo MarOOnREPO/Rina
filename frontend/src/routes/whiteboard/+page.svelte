@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
-  import { isAuthenticated } from '$lib/stores/auth';
+  import { isAuthenticated, isLoading } from '$lib/stores/auth';
   import { fade } from 'svelte/transition';
   import * as Y from 'yjs';
   import { WebsocketProvider } from 'y-websocket';
@@ -121,12 +121,12 @@
     }
   }
 
-  onMount(() => {
-    if (!$isAuthenticated) {
-      goto('/login');
-      return;
-    }
+  // Redirect if not authenticated (wait for auth loading to finish)
+  $: if (!$isLoading && !$isAuthenticated && typeof window !== 'undefined') {
+    goto('/login');
+  }
 
+  onMount(() => {
     initCanvas();
     window.addEventListener('resize', initCanvas);
 

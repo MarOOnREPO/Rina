@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { isAuthenticated } from '$lib/stores/auth';
+  import { isAuthenticated, isLoading } from '$lib/stores/auth';
   import { fade, scale } from 'svelte/transition';
   import GlassCard from '$lib/components/GlassCard.svelte';
 
@@ -72,9 +72,10 @@
     meals = meals.filter((_, i) => i !== index);
   }
 
-  onMount(() => {
-    if (!$isAuthenticated) goto('/login');
-  });
+  // Redirect if not authenticated (wait for auth loading to finish)
+  $: if (!$isLoading && !$isAuthenticated && typeof window !== 'undefined') {
+    goto('/login');
+  }
 </script>
 
 {#if $isAuthenticated}

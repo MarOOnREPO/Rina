@@ -8,14 +8,10 @@
   import PingOverlay from '$lib/components/PingOverlay.svelte';
   import TranslationTooltip from '$lib/components/TranslationTooltip.svelte';
 
-  // Initialize auth and sockets on client
+  // Initialize sockets on client (auth.init runs in hooks.client.ts)
   onMount(() => {
     if (browser) {
-      auth.init().then(() => {
-        if (auth) {
-          initializeSockets();
-        }
-      });
+      initializeSockets();
     }
 
     return () => {

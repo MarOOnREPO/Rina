@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
   import { goto } from '$app/navigation';
-  import { isAuthenticated, currentUser } from '$lib/stores/auth';
+  import { isAuthenticated, isLoading, currentUser } from '$lib/stores/auth';
   import { socketStore, typing } from '$lib/stores/socket';
   import { fly, fade, slide } from 'svelte/transition';
   import { messageApi, type ChatMessage } from '$lib/utils/api';
@@ -68,11 +68,12 @@
     tick().then(scrollToBottom);
   }
 
+  // Redirect if not authenticated (wait for auth loading to finish)
+  $: if (!$isLoading && !$isAuthenticated && typeof window !== 'undefined') {
+    goto('/login');
+  }
+
   onMount(() => {
-    if (!$isAuthenticated) {
-      goto('/login');
-      return;
-    }
     loadHistory();
 
     const sock = socketStore.getSocket();

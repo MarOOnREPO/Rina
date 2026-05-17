@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { isAuthenticated } from '$lib/stores/auth';
+  import { isAuthenticated, isLoading } from '$lib/stores/auth';
   import { fade, scale } from 'svelte/transition';
   import { capsuleApi, type TimeCapsule } from '$lib/utils/api';
   import GlassCard from '$lib/components/GlassCard.svelte';
@@ -67,9 +67,13 @@
     return `${days}d ${hours}h remaining`;
   }
 
+  // Redirect if not authenticated (wait for auth loading to finish)
+  $: if (!$isLoading && !$isAuthenticated && typeof window !== 'undefined') {
+    goto('/login');
+  }
+
   onMount(() => {
-    if (!$isAuthenticated) goto('/login');
-    else loadCapsules();
+    loadCapsules();
   });
 </script>
 

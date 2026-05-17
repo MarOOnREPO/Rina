@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { isAuthenticated } from '$lib/stores/auth';
+  import { isAuthenticated, isLoading } from '$lib/stores/auth';
   import { fade } from 'svelte/transition';
   import GlassCard from '$lib/components/GlassCard.svelte';
 
@@ -18,12 +18,12 @@
     { lat: 48.8566, lng: 2.3522, caption: 'Paris Together', url: '', year: 2023 },
   ];
 
-  onMount(() => {
-    if (!$isAuthenticated) {
-      goto('/login');
-      return;
-    }
+  // Redirect if not authenticated (wait for auth loading to finish)
+  $: if (!$isLoading && !$isAuthenticated && typeof window !== 'undefined') {
+    goto('/login');
+  }
 
+  onMount(() => {
     // If no Mapbox token, show a placeholder globe visualization
     if (!MAPBOX_TOKEN) {
       loading = false;

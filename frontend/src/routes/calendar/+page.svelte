@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { isAuthenticated, currentUser } from '$lib/stores/auth';
+  import { isAuthenticated, isLoading, currentUser } from '$lib/stores/auth';
   import { fade, fly, slide } from 'svelte/transition';
   import { calendarApi, type CalendarEvent } from '$lib/utils/api';
   import GlassCard from '$lib/components/GlassCard.svelte';
@@ -105,9 +105,13 @@
     return (day + month * 31) % 28 === 19;
   }
 
+  // Redirect if not authenticated (wait for auth loading to finish)
+  $: if (!$isLoading && !$isAuthenticated && typeof window !== 'undefined') {
+    goto('/login');
+  }
+
   onMount(() => {
-    if (!$isAuthenticated) goto('/login');
-    else loadData();
+    loadData();
   });
 </script>
 

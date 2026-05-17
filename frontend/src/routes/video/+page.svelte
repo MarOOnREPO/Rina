@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
-  import { isAuthenticated, currentUser } from '$lib/stores/auth';
+  import { isAuthenticated, isLoading, currentUser } from '$lib/stores/auth';
   import { socketStore } from '$lib/stores/socket';
   import { fade, scale } from 'svelte/transition';
   import GlassCard from '$lib/components/GlassCard.svelte';
@@ -173,12 +173,12 @@
     callState = 'idle';
   }
 
-  onMount(() => {
-    if (!$isAuthenticated) {
-      goto('/login');
-      return;
-    }
+  // Redirect if not authenticated (wait for auth loading to finish)
+  $: if (!$isLoading && !$isAuthenticated && typeof window !== 'undefined') {
+    goto('/login');
+  }
 
+  onMount(() => {
     loadIceServers();
 
     const sock = socketStore.getSocket();

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
-  import { isAuthenticated, currentUser } from '$lib/stores/auth';
+  import { isAuthenticated, isLoading, currentUser } from '$lib/stores/auth';
   import { socketStore, mediaSync } from '$lib/stores/socket';
   import { fade, scale } from 'svelte/transition';
   import GlassCard from '$lib/components/GlassCard.svelte';
@@ -94,11 +94,12 @@
     return (match && match[2].length === 11) ? match[2] : url;
   }
 
+  // Redirect if not authenticated (wait for auth loading to finish)
+  $: if (!$isLoading && !$isAuthenticated && typeof window !== 'undefined') {
+    goto('/login');
+  }
+
   onMount(async () => {
-    if (!$isAuthenticated) {
-      goto('/login');
-      return;
-    }
     await loadYouTubeAPI();
 
     const sock = socketStore.getSocket();
