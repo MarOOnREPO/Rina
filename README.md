@@ -1,52 +1,53 @@
 <div align="center">
 
-#  Rina 💜 Long Distance App
+# Rina 💜 Long Distance App
 
 **A Bespoke, Zero-Latency Relationship Ecosystem**
 
 <br />
 
-[![SvelteKit](https://img.shields.io/badge/SvelteKit-FF3E00?style=for-the-badge&logo=svelte&logoColor=white)](#)
+[![Svelte 5](https://img.shields.io/badge/Svelte_5-FF3E00?style=for-the-badge&logo=svelte&logoColor=white)](#)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](#)
-[![Node.js](https://img.shields.io/badge/Node.js-43853D?style=for-the-badge&logo=node.js&logoColor=white)](#)
+[![Fastify](https://img.shields.io/badge/Fastify-000000?style=for-the-badge&logo=fastify&logoColor=white)](#)
 [![Prisma](https://img.shields.io/badge/Prisma-2D3748?style=for-the-badge&logo=prisma&logoColor=white)](#)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)](#)
+[![Redis](https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white)](#)
 [![WebRTC](https://img.shields.io/badge/WebRTC-333333?style=for-the-badge&logo=webrtc&logoColor=white)](#)
-[![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)](#)
-[![AWS](https://img.shields.io/badge/AWS-%23FF9900.svg?style=for-the-badge&logo=amazon-aws&logoColor=white)](#)
+[![Docker](https://img.shields.io/badge/Docker-0DB7ED?style=for-the-badge&logo=docker&logoColor=white)](#)
 
-An enterprise-grade, fully encrypted real-time web application engineered exclusively to bridge the distance between Kenitra and Perm.
+*Bridging the distance between Kenitra and Perm with absolute privacy, 60fps micro-interactions, and peer-to-peer synchronization.*
 
 </div>
 
 ---
 
-> **Rina** is not a standard web dashboard. It is a highly secure, zero-latency, private ecosystem designed to mimic the fluidity of a premium native iOS/Android application. Built from the ground up for two specific users, it prioritizes absolute privacy, 60fps micro-interactions, and flawless peer-to-peer synchronization over custom VPN tunnels.
+> **Project Rina** is not a standard web dashboard. It is an enterprise-grade, highly secure, private ecosystem designed to mimic the fluidity of a premium native iOS/Android application. Built from the ground up for two specific users, it leverages cutting-edge web technologies to eliminate distance.
 
-## 🚀 The Architecture
+## 🚀 The Optimized Stack
 
 ### 🎨 Frontend (Fluidity & Motion)
-* **Framework:** `SvelteKit` (Svelte 5) + `Vite` for compiler-level optimization and zero virtual DOM overhead.
+* **Framework:** `SvelteKit` (Svelte 5) utilizing **Runes** (`$state`, `$derived`) for fine-grained, compiler-level reactivity.
 * **Styling:** `Tailwind CSS` (via PostCSS) leveraging custom utility classes for advanced Glassmorphism.
 * **Animation:** Svelte Native Transitions + `GSAP` for buttery-smooth 60fps micro-interactions.
 
-### 🧠 Backend (Type-Safety & Logic)
-* **Environment:** `Node.js` + `Express.js`.
+### 🧠 Backend (Type-Safety & Speed)
+* **API Engine:** `Node.js` + `Fastify` for maximum JSON processing speed and strict schema validation.
 * **Language:** 100% strictly typed `TypeScript`.
 * **Database:** `PostgreSQL` managed by `Prisma ORM` for flawless relational integrity.
+* **In-Memory Cache:** `Redis` for Socket.io session recovery and high-speed API caching.
 * **Authentication:** Stateless JSON Web Tokens (JWT) stored in strict `HttpOnly` cookies.
 
 ### ⚡ Real-Time & Communications
-* **Signaling & Sync:** `Socket.io` for instant UI state synchronization (chat, presence, notifications).
+* **Signaling & Sync:** `Socket.io` paired with Redis for instant UI state synchronization (chat, presence, notifications).
 * **Conflict Resolution:** `Yjs` (CRDT Framework) ensuring mathematical precision for asynchronous shared canvas and game states.
 * **P2P Video:** Native `WebRTC` API routing directly between devices.
 * **NAT Traversal:** Self-hosted AWS `Coturn` server (STUN/TURN) configured to bypass strict firewalls and VLESS/Reality VPN tunnels.
 
 ### 🛠️ DevOps & Infrastructure
 * **Hosting:** AWS Lightsail (Ubuntu VPS).
-* **Containerization:** `Docker` & `Docker Compose` for isolated, reproducible environments.
+* **Containerization:** `Docker Compose` orchestrating isolated containers for Fastify, Postgres, Redis, MinIO, and Nginx.
 * **Proxy & Security:** `Nginx` reverse proxy with Let's Encrypt SSL certificates.
-* **Storage:** AWS S3 / Dockerized MinIO for high-resolution, uncompressed media.
+* **Media Pipeline:** `Tus Protocol` for resumable uploads streaming directly into an `AWS S3 / MinIO` high-resolution vault.
 
 ---
 
