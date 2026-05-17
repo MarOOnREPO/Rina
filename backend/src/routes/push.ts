@@ -1,9 +1,19 @@
 import { z } from 'zod';
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
+import webPush from 'web-push';
 import { prisma } from '../services/prisma.js';
 import { authenticateJWT } from '../middleware/auth.js';
 
 const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY || '';
+const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || '';
+
+if (VAPID_PUBLIC && VAPID_PRIVATE) {
+  webPush.setVapidDetails(
+    'mailto:admin@rina.app',
+    VAPID_PUBLIC,
+    VAPID_PRIVATE
+  );
+}
 
 const subSchema = z.object({
   endpoint: z.string().url(),
@@ -64,6 +74,10 @@ export default async function pushRoutes(fastify: FastifyInstance, _opts: Fastif
 
   fastify.post('/notify', { preValidation: [authenticateJWT] }, async (request, reply) => {
     try {
+      if (!VAPID_PUBLIC || !VAPID_PRIVATE) {
+        return reply.status(503).send({ error: 'Push notifications are not configured (VAPID keys missing)' });
+      }
+
       const body = notifySchema.parse(request.body);
       const partnerUsername = request.user!.username === 'maroon' ? 'rina' : 'maroon';
       const partner = await prisma.user.findUnique({
@@ -75,8 +89,6 @@ export default async function pushRoutes(fastify: FastifyInstance, _opts: Fastif
         return reply.status(404).send({ error: 'Partner has no push subscriptions' });
       }
 
-      // NOTE: Actual web-push sending is not yet implemented.
-      // Install web-push and implement sendNotification here.
       const payload = JSON.stringify({
         title: body.title || 'Rina 💕',
         body: body.body || 'Your partner sent you a message',
@@ -84,10 +96,29 @@ export default async function pushRoutes(fastify: FastifyInstance, _opts: Fastif
         url: body.url || '/'
       });
 
+      const results = await Promise.allSettled(
+        partner.pushSubs.map((sub) =>
+          webPush.sendNotification(
+            {
+              endpoint: sub.endpoint,
+              keys: {
+                p256dh: sub.p256dh,
+                auth: sub.auth
+              }
+            },
+            payload
+          )
+        )
+      );
+
+      const succeeded = results.filter((r) => r.status === 'fulfilled').length;
+      const failed = results.filter((r) => r.status === 'rejected').length;
+
       return reply.send({
-        message: 'Push notification queued (sending not yet implemented)',
+        message: 'Push notifications sent',
         recipients: partner.pushSubs.length,
-        payload
+        succeeded,
+        failed
       });
     } catch (error) {
       if (error instanceof z.ZodError) {

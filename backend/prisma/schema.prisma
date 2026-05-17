@@ -199,7 +199,7 @@ model Goal {
 // Actual stroke data lives in Yjs; this stores session metadata.
 model WhiteboardSession {
   id        String   @id @default(cuid())
-  name      String   @db.VarChar(200)
+  name      String   @unique @db.VarChar(200)
   createdBy String
   ydocState Bytes?   // optional snapshot backup
   createdAt DateTime @default(now())

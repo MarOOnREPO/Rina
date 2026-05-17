@@ -23,6 +23,7 @@ import scrapbookRoutes from './src/routes/scrapbook.js';
 import pushRoutes from './src/routes/push.js';
 import uploadRoutes from './src/routes/uploads.js';
 import rtcRoutes from './src/routes/rtc.js';
+import whiteboardRoutes from './src/routes/whiteboard.js';
 
 // ─── Secret Validation ─────────────────────────────────────────
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -350,6 +351,7 @@ await app.register(scrapbookRoutes, { prefix: '/api/scrapbook' });
 await app.register(pushRoutes, { prefix: '/api/push' });
 await app.register(uploadRoutes, { prefix: '/api/upload' });
 await app.register(rtcRoutes, { prefix: '/api/rtc' });
+await app.register(whiteboardRoutes, { prefix: '/api/whiteboard' });
 
 // ─── Global Error Handler ──────────────────────────────────────
 app.setErrorHandler((error, _request, reply) => {

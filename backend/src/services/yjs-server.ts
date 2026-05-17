@@ -5,6 +5,7 @@ import * as syncProtocol from 'y-protocols/sync';
 import * as encoding from 'lib0/encoding';
 import * as decoding from 'lib0/decoding';
 import type { IncomingMessage } from 'http';
+import { prisma } from './prisma.js';
 
 // ─── Message Types (y-websocket protocol) ────────────────────────
 const messageSync = 0;
@@ -13,11 +14,58 @@ const messageAwareness = 1;
 // ─── Document Store ──────────────────────────────────────────────
 const docs = new Map<string, Y.Doc>();
 const awarenessMap = new Map<string, awarenessProtocol.Awareness>();
+const saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+async function loadDocState(room: string, doc: Y.Doc): Promise<void> {
+  try {
+    const session = await prisma.whiteboardSession.findFirst({
+      where: { name: room },
+      select: { ydocState: true }
+    });
+    if (session?.ydocState) {
+      const update = new Uint8Array(session.ydocState);
+      Y.applyUpdate(doc, update);
+      console.log(`[Yjs] Loaded persisted state for room: ${room}`);
+    }
+  } catch (err) {
+    console.error(`[Yjs] Failed to load state for room ${room}:`, err);
+  }
+}
+
+async function saveDocState(room: string, doc: Y.Doc): Promise<void> {
+  try {
+    const update = Y.encodeStateAsUpdate(doc);
+    await prisma.whiteboardSession.upsert({
+      where: { name: room },
+      update: { ydocState: Buffer.from(update), updatedAt: new Date() },
+      create: {
+        name: room,
+        createdBy: 'system', // Will be overwritten by proper auth later
+        ydocState: Buffer.from(update)
+      }
+    });
+    console.log(`[Yjs] Persisted state for room: ${room}`);
+  } catch (err) {
+    console.error(`[Yjs] Failed to save state for room ${room}:`, err);
+  }
+}
+
+function debouncedSave(room: string, doc: Y.Doc): void {
+  const existing = saveTimers.get(room);
+  if (existing) clearTimeout(existing);
+  const timer = setTimeout(() => {
+    saveDocState(room, doc);
+    saveTimers.delete(room);
+  }, 2000);
+  saveTimers.set(room, timer);
+}
 
 function getDoc(room: string): Y.Doc {
   if (!docs.has(room)) {
     const doc = new Y.Doc();
     docs.set(room, doc);
+    // Load persisted state asynchronously
+    loadDocState(room, doc);
   }
   return docs.get(room)!;
 }
@@ -64,11 +112,12 @@ function send(ws: WebSocket, message: Uint8Array) {
   }
 }
 
-function updateHandler(update: Uint8Array, origin: unknown, _doc: Y.Doc, room: string) {
+function updateHandler(update: Uint8Array, origin: unknown, doc: Y.Doc, room: string) {
   const message = new Uint8Array(1 + update.length);
   message[0] = messageSync;
   message.set(update, 1);
   broadcast(room, message, origin);
+  debouncedSave(room, doc);
 }
 
 // ─── Setup Yjs WebSocket Server ──────────────────────────────────
@@ -132,6 +181,13 @@ export function createYjsWSS(): WebSocketServer {
       conns.delete(ws);
       doc.off('update', docUpdateHandler);
       awarenessProtocol.removeAwarenessStates(awareness, [ws as unknown as number], ws);
+
+      // Save immediately when the last client leaves
+      if (conns.size === 0) {
+        const timer = saveTimers.get(room);
+        if (timer) clearTimeout(timer);
+        saveDocState(room, doc);
+      }
     });
 
     ws.on('error', (err) => {
