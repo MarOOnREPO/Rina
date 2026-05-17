@@ -260,21 +260,34 @@ export interface CycleEntry {
 export interface SetupStatus {
   timestamp: string;
   healthy: boolean;
-  environment: {
-    domain: string | null;
-    corsOrigin: string | null;
-    bucketName: string;
-    nodeEnv: string;
-  };
   checks: {
+    env: boolean;
     database: boolean;
     redis: boolean;
     s3: boolean;
   };
 }
 
+export interface SetupEnvResponse {
+  env: Record<string, string>;
+  exists: boolean;
+}
+
+export interface SetupCommandResponse {
+  success: boolean;
+  output?: string;
+  error?: string;
+  message?: string;
+}
+
 export const setupApi = {
-  status: () => api.get<SetupStatus>('/setup/status')
+  status: () => api.get<SetupStatus>('/setup-wizard/status'),
+  getEnv: () => api.get<SetupEnvResponse>('/setup-wizard/env'),
+  saveEnv: (env: Record<string, string>) => api.post<SetupCommandResponse>('/setup-wizard/env', env),
+  runSSL: (domain: string, email: string) =>
+    api.post<SetupCommandResponse>('/setup-wizard/ssl', { domain, email }),
+  runDeploy: () => api.post<SetupCommandResponse>('/setup-wizard/deploy'),
+  runBackup: () => api.post<SetupCommandResponse>('/setup-wizard/backup')
 };
 
 export const cycleApi = {

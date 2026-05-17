@@ -28,6 +28,6 @@
       "@types/*": ["src/types/*"]
     }
   },
-  "include": ["server.ts", "src/**/*", "prisma/**/*"],
+  "include": ["server.ts", "setup-server.ts", "src/**/*", "prisma/**/*"],
   "exclude": ["node_modules", "dist"]
 }
