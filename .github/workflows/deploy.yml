@@ -53,7 +53,7 @@ jobs:
           REMOTE_USER: ${{ secrets.REMOTE_USER }}
           SOURCE: './'
           TARGET: '/home/ubuntu/rina'
-          EXCLUDE: 'backend/node_modules,frontend/node_modules,frontend/.svelte-kit,backend/dist,frontend/build,.git,.env'
+          EXCLUDE: 'backend/node_modules,frontend/node_modules,frontend/.svelte-kit,backend/dist,.git,.env'
 
       - name: Restart services via SSH
         if: github.ref == 'refs/heads/main'
@@ -65,3 +65,9 @@ jobs:
           script: |
             cd /home/ubuntu/rina
             ./scripts/deploy.sh
+
+      - name: Post-deploy Health Check
+        if: github.ref == 'refs/heads/main'
+        run: |
+          sleep 10
+          curl -sf "https://${{ secrets.REMOTE_HOST }}/api/health" || (echo "❌ Health check failed" && exit 1)

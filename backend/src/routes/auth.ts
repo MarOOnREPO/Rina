@@ -7,16 +7,23 @@ import { prisma } from '../services/prisma.js';
 const COOKIE_NAME = 'rina_auth_token';
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
-// Hardcoded authorized users — migrate to DB-managed auth for multi-user support.
+const MAROON_PASSWORD_HASH = process.env.MAROON_PASSWORD_HASH;
+const RINA_PASSWORD_HASH = process.env.RINA_PASSWORD_HASH;
+
+if (!MAROON_PASSWORD_HASH || !RINA_PASSWORD_HASH) {
+  console.error('[Fatal] MAROON_PASSWORD_HASH and RINA_PASSWORD_HASH must be set');
+  process.exit(1);
+}
+
 const AUTHORIZED_USERS: Record<string, { username: string; passwordHash: string; displayName: string }> = {
   maroon: {
     username: 'maroon',
-    passwordHash: '$2a$12$uuyxtsi5WMRosmaTC2SO6urMOzB5HMu.DOL6.TihhNn0sgkT9A2yC',
+    passwordHash: MAROON_PASSWORD_HASH,
     displayName: 'MarOOn'
   },
   rina: {
     username: 'rina',
-    passwordHash: '$2a$12$E1hGSTE7Zc0HYrgRFYZ6suuIH4LWNoIpnn6.W3QKhTa7w64OT/dqa',
+    passwordHash: RINA_PASSWORD_HASH,
     displayName: 'Rina'
   }
 };

@@ -25,6 +25,7 @@ import uploadRoutes from './src/routes/uploads.js';
 import rtcRoutes from './src/routes/rtc.js';
 import whiteboardRoutes from './src/routes/whiteboard.js';
 import cycleRoutes from './src/routes/cycle.js';
+import setupRoutes from './src/routes/setup.js';
 
 // ─── Secret Validation ─────────────────────────────────────────
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -36,6 +37,13 @@ if (!JWT_SECRET || JWT_SECRET.length < 32) {
 const COOKIE_SECRET = process.env.COOKIE_SECRET;
 if (!COOKIE_SECRET || COOKIE_SECRET.length < 32) {
   console.error('[Fatal] COOKIE_SECRET must be set and at least 32 characters long');
+  process.exit(1);
+}
+
+const MAROON_PASSWORD_HASH = process.env.MAROON_PASSWORD_HASH;
+const RINA_PASSWORD_HASH = process.env.RINA_PASSWORD_HASH;
+if (!MAROON_PASSWORD_HASH || !RINA_PASSWORD_HASH) {
+  console.error('[Fatal] MAROON_PASSWORD_HASH and RINA_PASSWORD_HASH must be set');
   process.exit(1);
 }
 
@@ -72,7 +80,10 @@ function parseCookies(header: string): Record<string, string> {
 const server = createServer();
 
 const app: FastifyInstance = fastify({
-  logger: NODE_ENV === 'development',
+  logger: {
+    level: NODE_ENV === 'production' ? 'info' : 'debug',
+    redact: ['req.headers.authorization', 'req.headers.cookie']
+  },
   bodyLimit: 50 * 1024 * 1024,
   trustProxy: 1,
   serverFactory: (handler) => {
@@ -361,6 +372,7 @@ await app.register(uploadRoutes, { prefix: '/api/upload' });
 await app.register(rtcRoutes, { prefix: '/api/rtc' });
 await app.register(whiteboardRoutes, { prefix: '/api/whiteboard' });
 await app.register(cycleRoutes, { prefix: '/api/cycle' });
+await app.register(setupRoutes, { prefix: '/api/setup' });
 
 // ─── Global Error Handler ──────────────────────────────────────
 app.setErrorHandler((error, _request, reply) => {
@@ -379,15 +391,25 @@ app.setNotFoundHandler((_request, reply) => {
 // ─── Graceful Startup & Shutdown ───────────────────────────────
 const startServer = async (): Promise<void> => {
   try {
-    await prisma.$connect();
-    console.log('[Prisma] Database connected successfully');
+    // Retry Prisma connection up to 5 times (Postgres may need a moment)
+    for (let i = 0; i < 5; i++) {
+      try {
+        await prisma.$connect();
+        app.log.info('[Prisma] Database connected successfully');
+        break;
+      } catch (err) {
+        if (i === 4) throw err;
+        app.log.warn(`[Prisma] Connection attempt ${i + 1} failed, retrying in 3s...`);
+        await new Promise((r) => setTimeout(r, 3000));
+      }
+    }
 
     await app.listen({ port: PORT, host: '0.0.0.0' });
-    console.log(`[Server] HTTP server running on port ${PORT} (${NODE_ENV})`);
-    console.log(`[Socket.io] WebSocket server initialized at path /socket.io`);
-    console.log(`[Yjs] WebSocket server initialized at path /yjs`);
+    app.log.info(`[Server] HTTP server running on port ${PORT} (${NODE_ENV})`);
+    app.log.info('[Socket.io] WebSocket server initialized at path /socket.io');
+    app.log.info('[Yjs] WebSocket server initialized at path /yjs');
   } catch (error) {
-    console.error('[Fatal] Failed to start server:', error);
+    app.log.error(`[Fatal] Failed to start server: ${error}`);
     process.exit(1);
   }
 };

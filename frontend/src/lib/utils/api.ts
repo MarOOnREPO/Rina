@@ -257,6 +257,26 @@ export interface CycleEntry {
   createdAt: string;
 }
 
+export interface SetupStatus {
+  timestamp: string;
+  healthy: boolean;
+  environment: {
+    domain: string | null;
+    corsOrigin: string | null;
+    bucketName: string;
+    nodeEnv: string;
+  };
+  checks: {
+    database: boolean;
+    redis: boolean;
+    s3: boolean;
+  };
+}
+
+export const setupApi = {
+  status: () => api.get<SetupStatus>('/setup/status')
+};
+
 export const cycleApi = {
   list: (from?: string, to?: string) =>
     api.get<{ entries: CycleEntry[] }>(`/cycle?from=${from || ''}&to=${to || ''}`),

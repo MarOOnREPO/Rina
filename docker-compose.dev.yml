@@ -2,7 +2,7 @@
 # so the backend dev server (running on the host) can reach them.
 #
 # Usage:
-#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres redis minio
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres redis
 
 services:
   postgres:
@@ -12,8 +12,3 @@ services:
   redis:
     ports:
       - "6379:6379"
-
-  minio:
-    ports:
-      - "9000:9000"
-      - "9001:9001"

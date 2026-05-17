@@ -45,9 +45,9 @@
 
 ### 🛠️ DevOps & Infrastructure
 * **Hosting:** AWS Lightsail (Ubuntu VPS).
-* **Containerization:** `Docker Compose` orchestrating isolated containers for Fastify, Postgres, Redis, MinIO, and Nginx.
+* **Containerization:** `Docker Compose` orchestrating isolated containers for Fastify, Postgres, Redis, and Nginx.
 * **Proxy & Security:** `Nginx` reverse proxy with Let's Encrypt SSL certificates.
-* **Media Pipeline:** `Tus Protocol` for resumable uploads streaming directly into an `AWS S3 / MinIO` high-resolution vault.
+* **Media Pipeline:** `Tus Protocol` for resumable uploads streaming directly into `AWS S3`.
 
 ---
 
@@ -74,9 +74,9 @@ cd backend && npm install && cd ..
 cp .env.example .env
 # Edit .env — at minimum set POSTGRES_PASSWORD, JWT_SECRET, COOKIE_SECRET
 
-# 5. Start infrastructure (Postgres, Redis, MinIO) with exposed ports
+# 5. Start infrastructure (Postgres, Redis) with exposed ports
 #    so the backend dev server on the host can reach them.
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres redis minio
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres redis
 
 # 6. Run Prisma migrations (in backend directory)
 cd backend
@@ -116,7 +116,7 @@ npm run db:studio  # Open Prisma Studio
 ## ✨ Core Ecosystem Features
 
 ### 🔒 Absolute Privacy & Security
-- **Hardcoded Auth:** Application access is cryptographically locked to two exact identities.
+- **Environment-Locked Auth:** Application access is cryptographically locked to two exact identities via bcrypt hashes stored in environment variables.
 - **Time Capsules:** Web Audio/Video recordings encrypted client-side using **AES-256-GCM (Web Crypto API)**, physically unlockable only upon server-validated timestamps.
 
 ### 🌐 Zero-Latency Connection

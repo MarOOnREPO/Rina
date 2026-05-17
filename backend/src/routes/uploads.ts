@@ -4,28 +4,24 @@ import { S3Store } from '@tus/s3-store';
 import { authenticateJWT } from '../middleware/auth.js';
 import { getPresignedDownloadUrl } from '../services/s3.js';
 
-const MINIO_ENDPOINT = process.env.MINIO_ENDPOINT;
-const MINIO_PORT = parseInt(process.env.MINIO_PORT || '9000', 10);
-const MINIO_ACCESS_KEY = process.env.MINIO_ACCESS_KEY;
-const MINIO_SECRET_KEY = process.env.MINIO_SECRET_KEY;
-const MINIO_USE_SSL = process.env.MINIO_USE_SSL === 'true';
+const AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID;
+const AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY;
+const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
 const BUCKET_NAME = process.env.S3_BUCKET_NAME || 'rina-uploads';
 
-if (!MINIO_ENDPOINT || !MINIO_ACCESS_KEY || !MINIO_SECRET_KEY) {
-  console.error('[Fatal] MINIO_ENDPOINT, MINIO_ACCESS_KEY, and MINIO_SECRET_KEY must be set');
+if (!AWS_ACCESS_KEY_ID || !AWS_SECRET_ACCESS_KEY) {
+  console.error('[Fatal] AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be set');
   process.exit(1);
 }
 
 // ─── Tus Server with S3 Store ────────────────────────────────────
 const s3Store = new S3Store({
   s3ClientConfig: {
-    region: process.env.AWS_REGION || 'us-east-1',
-    endpoint: `http${MINIO_USE_SSL ? 's' : ''}://${MINIO_ENDPOINT}:${MINIO_PORT}`,
+    region: AWS_REGION,
     credentials: {
-      accessKeyId: MINIO_ACCESS_KEY,
-      secretAccessKey: MINIO_SECRET_KEY
+      accessKeyId: AWS_ACCESS_KEY_ID,
+      secretAccessKey: AWS_SECRET_ACCESS_KEY
     },
-    forcePathStyle: true,
     bucket: BUCKET_NAME
   },
   partSize: 8 * 1024 * 1024 // 8MB multipart chunks

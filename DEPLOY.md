@@ -1,26 +1,26 @@
-# 🚀 Project Rina — Deployment Guide
+# Deploy Rina on AWS Lightsail (Docker-only)
 
-> ⚠️ **MANDATORY FOR PRODUCTION:** HTTPS must be enabled before going live.
-> The backend sets `secure: true` on auth cookies. Browsers will reject login
-> cookies over plain HTTP, breaking authentication entirely.
+This guide assumes a fresh Ubuntu 22.04+ Lightsail instance with only **Docker** and **Docker Compose** installed.
 
-## AWS Lightsail VPS (Ubuntu 22.04+)
+---
 
-### 1. Instance Setup
+## Prerequisites
 
-**Lightsail Ports to Open:**
-| Port | Protocol | Purpose |
-|------|----------|---------|
-| 22   | TCP      | SSH access |
-| 80   | TCP      | HTTP → redirects to HTTPS |
-| 443  | TCP      | HTTPS (Nginx) |
-| 3478 | UDP/TCP  | Coturn STUN/TURN (WebRTC NAT traversal) |
-| 5349 | UDP/TCP  | Coturn TLS relay |
-| 49152-65535 | UDP | Coturn media relay ports |
+- AWS Lightsail instance (minimum 1 vCPU, 2GB RAM recommended)
+- Domain name with A-record pointing to your Lightsail public IP
+- AWS S3 bucket created for file uploads and database backups
+- AWS IAM user with programmatic access and the following S3 permissions:
+  - `s3:PutObject`
+  - `s3:GetObject`
+  - `s3:DeleteObject`
+- GitHub repository secrets configured (for CI/CD):
+  - `SSH_PRIVATE_KEY`
+  - `REMOTE_HOST` (your domain or IP)
+  - `REMOTE_USER` (e.g., `ubuntu`)
 
-> **Do NOT open port 3000 or 9000 to the public.** These are internal Docker ports only.
+---
 
-### 2. Server Provisioning
+## 1. Server Setup
 
 SSH into your Lightsail instance and run:
 
@@ -28,223 +28,193 @@ SSH into your Lightsail instance and run:
 # Update system
 sudo apt update && sudo apt upgrade -y
 
-# Install Docker
-sudo apt install -y apt-transport-https ca-certificates curl gnupg lsb-release
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-sudo apt update
-sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-
-# Add user to docker group
-sudo usermod -aG docker $USER
-newgrp docker
-
-# Verify
+# Ensure Docker & Docker Compose are installed
 docker --version
 docker compose version
+
+# Create project directory
+mkdir -p ~/rina
+cd ~/rina
 ```
 
-### 3. Domain & DNS Setup
+---
 
-1. **Register a domain** (e.g., via Namecheap, Cloudflare, or Route 53).
-2. **Create a static IP** in the Lightsail console and attach it to your instance.
-3. **Point your domain** (e.g., `rina.yourdomain.com`) to your Lightsail **static IP** using an A record.
-4. **Wait for DNS propagation** (can take a few minutes to 48 hours). Verify with:
-   ```bash
-   dig +short rina.yourdomain.com
-   ```
+## 2. Deploy Code to Server
 
-### 4. SSL / HTTPS (Let's Encrypt) — REQUIRED
+**Option A: GitHub Actions (Recommended)**
+Push to `main`. The workflow will rsync code to `/home/ubuntu/rina` and run `./scripts/deploy.sh`.
 
-**Auth will NOT work over HTTP.** Certbot requires Nginx to be running so it can serve the `.well-known/acme-challenge/` directory. Run Certbot **after** `docker compose up`:
-
+**Option B: Manual**
 ```bash
-# 1. Start the stack first (nginx must be running)
-cd /home/ubuntu/rina
-docker compose up -d
-
-# 2. Run Certbot
-docker run -it --rm \
-  -v certbot-data:/etc/letsencrypt \
-  -v certbot-www:/var/www/certbot \
-  certbot/certbot certonly --webroot \
-  --webroot-path=/var/www/certbot \
-  -d rina.yourdomain.com \
-  --agree-tos --no-eff-email -m your-email@example.com
+cd ~/rina
+# Copy files from your local machine
+rsync -avz --exclude='node_modules' --exclude='.git' ./ ubuntu@YOUR_IP:~/rina
 ```
 
-Then update `nginx/default.conf`:
-1. Replace `server_name _;` with `server_name rina.yourdomain.com;`
-2. Uncomment the HTTPS server block and update the certificate paths.
-3. Uncomment the `return 301 https://$host$request_uri;` line in the HTTP block.
-4. Reload Nginx: `docker compose exec nginx nginx -s reload`
+---
 
-### 5. GitHub Actions CI/CD Secrets
-
-For automatic deployment on push to `main`, add these secrets in your GitHub repo:
-
-| Secret | Value |
-|--------|-------|
-| `SSH_PRIVATE_KEY` | The private key for `ubuntu@YOUR_LIGHTSAIL_IP` |
-| `REMOTE_HOST` | Your Lightsail static IP |
-| `REMOTE_USER` | `ubuntu` |
-
-Generate a deploy key pair (do NOT use your personal SSH key):
-```bash
-ssh-keygen -t ed25519 -C "rina-deploy" -f rina-deploy-key
-# Add rina-deploy-key.pub to ~/.ssh/authorized_keys on the server
-# Add the contents of rina-deploy-key as the SSH_PRIVATE_KEY secret
-```
-
-### 6. Build Frontend Locally
-
-Nginx serves the pre-built frontend from `frontend/build`. You must build it on your local machine **before** syncing to the server:
+## 3. Configure Environment
 
 ```bash
-cd frontend
-npm ci
-npm run build
-cd ..
-```
-
-### 7. Copy Project to Server
-
-```bash
-# On your local machine — sync everything except dev artifacts
-rsync -avz \
-  --exclude='.git' \
-  --exclude='.env' \
-  --exclude='**/node_modules' \
-  --exclude='backend/dist' \
-  ./ ubuntu@YOUR_LIGHTSAIL_IP:/home/ubuntu/rina
-
-# SSH in
-ssh ubuntu@YOUR_LIGHTSAIL_IP
-cd /home/ubuntu/rina
-
-# Create and edit environment file
+cd ~/rina
 cp .env.example .env
+chmod 600 .env
 nano .env
 ```
 
-### 8. Environment Variables (.env)
+**You MUST fill in every value.** Critical fields:
 
-```env
-# ─── Database ───
-POSTGRES_PASSWORD=change_this_to_a_secure_random_string_64_chars
+| Variable | How to set |
+|----------|------------|
+| `DOMAIN` | Your public domain (e.g., `rina.example.com`) |
+| `POSTGRES_PASSWORD` | `openssl rand -hex 32` |
+| `JWT_SECRET` | `openssl rand -base64 64 \| tr -d '\n'` |
+| `COOKIE_SECRET` | Different from JWT_SECRET, same generation command |
+| `AWS_ACCESS_KEY_ID` | From AWS IAM user |
+| `AWS_SECRET_ACCESS_KEY` | From AWS IAM user |
+| `S3_BUCKET_NAME` | Name of your S3 bucket |
+| `MAROON_PASSWORD_HASH` | `node -e "require('bcryptjs').hash('your_password', 12).then(console.log)"` |
+| `RINA_PASSWORD_HASH` | Same as above for the second user |
+| `CORS_ORIGIN` | `https://your-domain.com` |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | `npx web-push generate-vapid-keys` |
 
-# ─── JWT Authentication ───
-JWT_SECRET=generate_a_random_64_char_string_here_maroonlovesrina2026
+Save and exit (`Ctrl+O`, `Enter`, `Ctrl+X`).
 
-# ─── Cookie Signing (must differ from JWT_SECRET) ───
-COOKIE_SECRET=generate_another_random_64_char_string
+---
 
-# ─── CORS Origin ───
-CORS_ORIGIN=https://rina.yourdomain.com
+## 4. Initialize SSL Certificates
 
-# ─── MinIO / S3-Compatible Storage ───
-MINIO_ACCESS_KEY=rina_minio_access_32chars
-MINIO_SECRET_KEY=rina_minio_secret_64chars_change_me
-S3_BUCKET_NAME=rina-uploads
-AWS_REGION=us-east-1
-
-# ─── TMDB API (get free key at https://www.themoviedb.org/settings/api) ───
-TMDB_API_KEY=your_tmdb_api_key_here
-
-# ─── Mapbox (Frontend Build Variable) ───
-# This goes in frontend/.env.local for build time:
-# VITE_MAPBOX_TOKEN=pk.your_mapbox_token
-
-# ─── Web Push VAPID Keys ───
-# Generate with: npx web-push generate-vapid-keys
-VAPID_PUBLIC_KEY=your_vapid_public_key
-VAPID_PRIVATE_KEY=your_vapid_private_key
-
-# ─── Coturn TURN Server (WebRTC) ───
-COTURN_REALM=your-domain.com
-COTURN_SECRET=generate_a_random_turn_secret_here
-
-# ─── Application ───
-NODE_ENV=production
-```
-
-### 9. Build & Run
-
-**Option A — Use the deploy script (recommended):**
+**Do this BEFORE the first deploy.** The app requires HTTPS for authentication.
 
 ```bash
-cd /home/ubuntu/rina
-chmod +x scripts/deploy.sh
+cd ~/rina
+./scripts/init-ssl.sh your-domain.com your-email@example.com
+```
+
+What this does:
+1. Starts a temporary nginx on HTTP (port 80) to serve ACME challenges.
+2. Runs Certbot (Let's Encrypt) via Docker.
+3. Restores the full HTTPS nginx template and restarts nginx.
+4. Adds your `DOMAIN` to `.env`.
+
+The `certbot` container in `docker-compose.yml` will automatically renew the certificate every 12 hours.
+
+---
+
+## 5. Deploy the Application
+
+```bash
+cd ~/rina
 ./scripts/deploy.sh
 ```
 
-**Option B — Manual steps:**
+What this does:
+1. Starts Postgres and waits for it to be ready.
+2. Builds the backend builder image and runs Prisma migrations.
+3. Builds and starts all services (`docker compose up -d --build`).
+4. Performs a health check on `https://your-domain.com/api/health`.
+5. Cleans up dangling Docker images.
 
+---
+
+## 6. Verify
+
+Open your browser:
+- App: `https://your-domain.com`
+- Health: `https://your-domain.com/api/health`
+
+Check container status:
 ```bash
-cd /home/ubuntu/rina
-
-# Build and start everything
-docker compose up -d --build
-
-# Wait for Postgres, then run migrations inside the Docker network
-docker build --target builder -t rina-backend-builder ./backend
-docker run --rm \
-  --network rina-network \
-  -e DATABASE_URL="postgresql://rina_user:${POSTGRES_PASSWORD}@postgres:5432/rina_db" \
-  rina-backend-builder \
-  npx prisma migrate deploy
-
-# Check logs
+cd ~/rina
+docker compose ps
 docker compose logs -f backend
-docker compose logs -f nginx
-```
-
-### 10. Auto-Renewal (CRON)
-
-```bash
-sudo crontab -e
-# Add:
-0 3 * * * cd /home/ubuntu/rina && docker run --rm -v certbot-data:/etc/letsencrypt -v certbot-www:/var/www/certbot certbot/certbot renew --quiet && docker compose exec nginx nginx -s reload
-```
-
-### 11. Updating After Code Changes
-
-1. Build the frontend locally (`cd frontend && npm run build`).
-2. Re-run the deploy script on the server:
-
-```bash
-cd /home/ubuntu/rina
-git pull origin main   # or rsync again
-./scripts/deploy.sh
 ```
 
 ---
 
-## 🛡️ Security Checklist
+## 7. Setup Automated Backups
 
-- [ ] UFW firewall active: `sudo ufw enable && sudo ufw allow 22/tcp && sudo ufw allow 80/tcp && sudo ufw allow 443/tcp`
-- [ ] `.env` file has `chmod 600 .env`
-- [ ] `POSTGRES_PASSWORD` is 32+ random characters
-- [ ] `JWT_SECRET` is 32+ random characters
-- [ ] `COOKIE_SECRET` is different from `JWT_SECRET`
-- [ ] MinIO keys are changed from defaults
-- [ ] SSH key auth only (disable password login)
-- [ ] Automatic security updates: `sudo apt install -y unattended-upgrades`
-- [ ] Coturn server uses `--lt-cred-mech` with long-term credentials for TURN relay
-- [ ] HTTPS is enabled and HTTP redirects to HTTPS
+Your database runs inside Docker. Back it up nightly to S3.
+
+```bash
+crontab -e
+```
+
+Add this line:
+```cron
+0 3 * * * /home/ubuntu/rina/scripts/backup-db.sh >> /home/ubuntu/rina/backups/backup.log 2>&1
+```
+
+This runs at 3 AM daily:
+- Dumps Postgres to a gzip file.
+- Uploads to `s3://your-bucket/backups/`.
+- Keeps only the last 7 local backup files.
+
+Test it manually first:
+```bash
+./scripts/backup-db.sh
+```
 
 ---
 
-## 🛠️ Troubleshooting
+## 8. Firewall (UFW)
 
-**Backend crashes with "Prisma Client could not be found"**
-> The backend Dockerfile must generate the Prisma Client in the production stage. If the runner stage does not run `npx prisma generate` after `npm ci --omit=dev`, add the following line to `backend/Dockerfile` after the production `npm ci`:
-> ```dockerfile
-> RUN npx prisma generate
-> ```
+Only open what you need:
 
-**Nginx serves a blank page**
-> Ensure `frontend/build` exists on the server and was synced by rsync. The rsync command above explicitly keeps `frontend/build` while excluding `backend/dist`.
+```bash
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow ssh      # or 'sudo ufw allow 22'
+sudo ufw allow http     # port 80
+sudo ufw allow https    # port 443
+sudo ufw enable
+```
 
-**Migrations fail with "connection refused"**
-> Do not run `npx prisma migrate deploy` directly on the host — Postgres is not exposed to the host. Use the builder container method shown in Step 9 or run `./scripts/deploy.sh`.
+**Do NOT** open port 3000 (backend) or 9000/9001 (old MinIO) to the public. Nginx is the only entrypoint.
+
+---
+
+## 9. Updating the App
+
+Simply push to `main`. GitHub Actions will:
+1. Lint and type-check frontend and backend.
+2. Build the frontend.
+3. Rsync everything (including `frontend/build`) to the server.
+4. Run `./scripts/deploy.sh`.
+5. Verify the health endpoint.
+
+For manual updates, run `./scripts/deploy.sh` again on the server.
+
+---
+
+## 10. Troubleshooting
+
+| Problem | Likely Cause | Fix |
+|---------|-------------|-----|
+| **Blank white page** | `frontend/build` missing or not synced | Check CI logs. Run `ls ~/rina/frontend/build` on server. |
+| **502 Bad Gateway** | Backend crashed or unhealthy | `docker compose logs -f backend` |
+| **Login fails** | HTTP instead of HTTPS, or wrong password hash | Ensure SSL is active. Check `MAROON_PASSWORD_HASH` / `RINA_PASSWORD_HASH`. |
+| **SSL certificate error** | Certs missing or expired | Re-run `./scripts/init-ssl.sh`. Check `docker compose logs -f certbot`. |
+| **Uploads fail** | Wrong AWS credentials or bucket policy | Verify IAM permissions and `S3_BUCKET_NAME`. |
+| **Disk full** | Logs or backups growing | Check `docker system df`. Logs auto-rotate at 10MB x 3 files per container. |
+| **Out of Memory** | Lightsail instance too small | Add swap: `sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile` |
+
+---
+
+## 11. Rollback
+
+If a deploy breaks the app:
+
+```bash
+cd ~/rina
+docker compose logs backend
+# To revert to the previous Docker image:
+docker compose pull   # if using registry images
+docker image tag rina-backend:previous rina-backend:latest  # if you tagged manually
+```
+
+Since this is a single-instance setup, the fastest recovery is usually to fix the code, push again, and re-deploy.
+
+---
+
+**End of Guide.**

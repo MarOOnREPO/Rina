@@ -1,16 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
-# Project Rina — Production Deploy Script
-# Run this on your Lightsail server after receiving code updates.
+PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$PROJECT_DIR"
 
 LOG() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
 }
-
-# Resolve project root (scripts/ -> root)
-PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$PROJECT_DIR"
 
 LOG "🚀 Starting Rina deployment..."
 
@@ -25,28 +21,35 @@ if ! docker info > /dev/null 2>&1; then
   exit 1
 fi
 
-# Load POSTGRES_PASSWORD for constructing DATABASE_URL
-POSTGRES_PASSWORD=""
-if grep -q '^POSTGRES_PASSWORD=' .env; then
-  POSTGRES_PASSWORD="$(grep '^POSTGRES_PASSWORD=' .env | cut -d '=' -f 2-)"
-fi
+# Robustly load .env
+set -a
+source .env
+set +a
 
-if [ -z "$POSTGRES_PASSWORD" ]; then
+if [ -z "${POSTGRES_PASSWORD:-}" ]; then
   LOG "❌ POSTGRES_PASSWORD is not set in .env."
   exit 1
 fi
 
+if [ -z "${DOMAIN:-}" ]; then
+  LOG "⚠️  DOMAIN is not set in .env. Set it for SSL and health checks."
+fi
+
 DATABASE_URL="postgresql://rina_user:${POSTGRES_PASSWORD}@postgres:5432/rina_db"
 
-# ─── Stop old containers ─────────────────────────────────────────
-LOG "📦 Stopping old containers..."
-docker compose down
+# ─── SSL Check (warn only) ───────────────────────────────────────
+if [ -n "${DOMAIN:-}" ]; then
+  CERT_FILE="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
+  if ! docker compose run --rm -v certbot-data:/etc/letsencrypt nginx test -f "$CERT_FILE" >/dev/null 2>&1; then
+    LOG "⚠️  SSL certificate not found for $DOMAIN."
+    LOG "   Run: ./scripts/init-ssl.sh $DOMAIN your-email@example.com"
+  fi
+fi
 
 # ─── Start Postgres first (migrations need it) ───────────────────
 LOG "🐘 Starting Postgres..."
 docker compose up -d postgres
 
-# ─── Wait for Postgres ───────────────────────────────────────────
 LOG "⏳ Waiting for Postgres to be ready..."
 for i in {1..30}; do
   if docker compose exec -T postgres pg_isready -U rina_user -d rina_db >/dev/null 2>&1; then
@@ -60,20 +63,13 @@ for i in {1..30}; do
   sleep 2
 done
 
-# ─── Database migrations (before backend starts) ─────────────────
+# ─── Database migrations ─────────────────────────────────────────
 LOG "🗄️ Running database migrations..."
 
-# Build the builder stage (reuses cache from the production build)
-# and run Prisma migrations inside the Docker network.
 docker build --target builder -t rina-backend-builder ./backend
 
-if ! docker image inspect rina-backend-builder >/dev/null 2>&1; then
-  LOG "❌ Failed to build migration image. Ensure backend/Dockerfile has a 'builder' stage."
-  exit 1
-fi
-
 docker run --rm \
-  --network rina-network \
+  --network rina-data \
   -e DATABASE_URL="$DATABASE_URL" \
   rina-backend-builder \
   npx prisma migrate deploy
@@ -82,7 +78,18 @@ docker run --rm \
 LOG "🏗️ Building and starting all services..."
 docker compose up -d --build
 
-# ─── Cleanup & status ────────────────────────────────────────────
+# ─── Health Check ────────────────────────────────────────────────
+if [ -n "${DOMAIN:-}" ]; then
+  LOG "⏳ Waiting for services to stabilize..."
+  sleep 5
+  if curl -sf "https://${DOMAIN}/api/health" >/dev/null 2>&1; then
+    LOG "✅ Health check passed: https://${DOMAIN}/api/health"
+  else
+    LOG "⚠️  Health check failed. Check logs: docker compose logs -f backend"
+  fi
+fi
+
+# ─── Cleanup ─────────────────────────────────────────────────────
 LOG "🧹 Cleaning up dangling images..."
 docker image prune -f
 

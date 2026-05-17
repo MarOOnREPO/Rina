@@ -1,33 +1,24 @@
 import { S3Client, GetObjectCommand, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-const MINIO_ENDPOINT = process.env.MINIO_ENDPOINT;
-const MINIO_PORT = parseInt(process.env.MINIO_PORT || '9000', 10);
-const MINIO_ACCESS_KEY = process.env.MINIO_ACCESS_KEY;
-const MINIO_SECRET_KEY = process.env.MINIO_SECRET_KEY;
-const MINIO_USE_SSL = process.env.MINIO_USE_SSL === 'true';
+const AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID;
+const AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY;
+const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
 
-if (!MINIO_ENDPOINT) {
-  console.error('[Fatal] MINIO_ENDPOINT must be set');
-  process.exit(1);
-}
-
-if (!MINIO_ACCESS_KEY || !MINIO_SECRET_KEY) {
-  console.error('[Fatal] MINIO_ACCESS_KEY and MINIO_SECRET_KEY must be set');
+if (!AWS_ACCESS_KEY_ID || !AWS_SECRET_ACCESS_KEY) {
+  console.error('[Fatal] AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be set');
   process.exit(1);
 }
 
 const BUCKET_NAME = process.env.S3_BUCKET_NAME || 'rina-uploads';
 
-// ─── S3-Compatible Client (MinIO / AWS S3) ───────────────────────
+// ─── AWS S3 Client ───────────────────────────────────────────────
 export const s3Client = new S3Client({
-  region: process.env.AWS_REGION || 'us-east-1',
-  endpoint: `http${MINIO_USE_SSL ? 's' : ''}://${MINIO_ENDPOINT}:${MINIO_PORT}`,
+  region: AWS_REGION,
   credentials: {
-    accessKeyId: MINIO_ACCESS_KEY,
-    secretAccessKey: MINIO_SECRET_KEY
-  },
-  forcePathStyle: true // Required for MinIO
+    accessKeyId: AWS_ACCESS_KEY_ID,
+    secretAccessKey: AWS_SECRET_ACCESS_KEY
+  }
 });
 
 // ─── Presigned URL Helpers ───────────────────────────────────────

@@ -47,13 +47,9 @@ sw.addEventListener('fetch', (event) => {
 
   const url = new URL(event.request.url);
 
-  // API requests: network first
+  // API requests: network only (never cache sensitive auth/chat data)
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/socket.io/')) {
-    event.respondWith(
-      fetch(event.request).catch(() => {
-        return caches.match(event.request) as Promise<Response>;
-      })
-    );
+    event.respondWith(fetch(event.request));
     return;
   }
 

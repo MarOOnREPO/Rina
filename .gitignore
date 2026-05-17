@@ -30,3 +30,9 @@ kimi-backup/
 
 # Personal scratch files
 g
+
+# Generated configs
+nginx/default.conf
+
+# Local backups
+backups/
