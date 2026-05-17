@@ -74,7 +74,7 @@ const server = createServer();
 const app: FastifyInstance = fastify({
   logger: NODE_ENV === 'development',
   bodyLimit: 50 * 1024 * 1024,
-  trustProxy: true,
+  trustProxy: 1,
   serverFactory: (handler) => {
     server.on('request', handler);
     return server;
@@ -315,6 +315,12 @@ const yjsWss = createYjsWSS();
 server.on('upgrade', (request, socket, head) => {
   if (request.url?.startsWith('/yjs')) {
     try {
+      const origin = request.headers.origin;
+      if (origin && !allowedOrigins.includes(origin)) {
+        socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+        socket.destroy();
+        return;
+      }
       const cookies = parseCookies(request.headers.cookie || '');
       const token = cookies[COOKIE_NAME];
       if (!token) {
@@ -322,8 +328,9 @@ server.on('upgrade', (request, socket, head) => {
         socket.destroy();
         return;
       }
-      verifyToken(token);
+      const payload = verifyToken(token);
       yjsWss.handleUpgrade(request, socket, head, (ws) => {
+        (ws as unknown as Record<string, unknown>).userId = payload.id;
         yjsWss.emit('connection', ws, request);
       });
     } catch {

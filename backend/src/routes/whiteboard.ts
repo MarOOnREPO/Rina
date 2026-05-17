@@ -35,9 +35,10 @@ export default async function whiteboardRoutes(fastify: FastifyInstance, _opts: 
   // Get a single whiteboard session
   fastify.get('/:id', { preValidation: [authenticateJWT] }, async (request, reply) => {
     try {
-      const { id } = request.params as { id: string };
+      const paramsSchema = z.object({ id: z.string().cuid() });
+      const params = paramsSchema.parse(request.params);
       const session = await prisma.whiteboardSession.findUnique({
-        where: { id },
+        where: { id: params.id },
         select: {
           id: true,
           name: true,
@@ -51,6 +52,9 @@ export default async function whiteboardRoutes(fastify: FastifyInstance, _opts: 
       }
       return reply.send({ session });
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
       console.error('[Whiteboard Error]', error);
       return reply.status(500).send({ error: 'Failed to get whiteboard session' });
     }
@@ -79,16 +83,20 @@ export default async function whiteboardRoutes(fastify: FastifyInstance, _opts: 
   // Update a whiteboard session
   fastify.patch('/:id', { preValidation: [authenticateJWT] }, async (request, reply) => {
     try {
-      const { id } = request.params as { id: string };
+      const paramsSchema = z.object({ id: z.string().cuid() });
+      const params = paramsSchema.parse(request.params);
       const data = updateSchema.parse(request.body);
 
-      const existing = await prisma.whiteboardSession.findUnique({ where: { id } });
+      const existing = await prisma.whiteboardSession.findUnique({ where: { id: params.id } });
       if (!existing) {
         return reply.status(404).send({ error: 'Whiteboard session not found' });
       }
+      if (existing.createdBy !== request.user!.id) {
+        return reply.status(403).send({ error: 'Not authorized to update this whiteboard session' });
+      }
 
       const session = await prisma.whiteboardSession.update({
-        where: { id },
+        where: { id: params.id },
         data: { name: data.name }
       });
       return reply.send({ session });
@@ -104,14 +112,21 @@ export default async function whiteboardRoutes(fastify: FastifyInstance, _opts: 
   // Delete a whiteboard session
   fastify.delete('/:id', { preValidation: [authenticateJWT] }, async (request, reply) => {
     try {
-      const { id } = request.params as { id: string };
-      const existing = await prisma.whiteboardSession.findUnique({ where: { id } });
+      const paramsSchema = z.object({ id: z.string().cuid() });
+      const params = paramsSchema.parse(request.params);
+      const existing = await prisma.whiteboardSession.findUnique({ where: { id: params.id } });
       if (!existing) {
         return reply.status(404).send({ error: 'Whiteboard session not found' });
       }
-      await prisma.whiteboardSession.delete({ where: { id } });
+      if (existing.createdBy !== request.user!.id) {
+        return reply.status(403).send({ error: 'Not authorized to delete this whiteboard session' });
+      }
+      await prisma.whiteboardSession.delete({ where: { id: params.id } });
       return reply.status(204).send();
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
       console.error('[Whiteboard Error]', error);
       return reply.status(500).send({ error: 'Failed to delete whiteboard session' });
     }

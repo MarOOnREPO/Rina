@@ -77,11 +77,13 @@ export const auth = {
 };
 
 // ─── Derived Signals ─────────────────────────────────────────────
-export const isAuthenticated = $derived(!!state.user);
-export const isLoading = $derived(state.loading);
-export const currentUser = $derived(state.user);
+// Exported as functions because Svelte 5 does not allow exporting $derived
+// directly from .svelte.ts modules. Calling these in templates is fully reactive.
+export const isAuthenticated = () => !!state.user;
+export const isLoading = () => state.loading;
+export const currentUser = () => state.user;
 
-export const partnerName = $derived.by(() => {
+export const partnerName = () => {
   if (!state.user) return null;
   return state.user.username === 'maroon' ? 'Rina' : 'MarOOn';
-});
+};

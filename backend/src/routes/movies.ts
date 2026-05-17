@@ -76,11 +76,6 @@ export default async function movieRoutes(fastify: FastifyInstance, _opts: Fasti
       const schema = z.object({ tmdbId: z.number().int().positive() });
       const { tmdbId } = schema.parse(request.body);
 
-      const existing = await prisma.movie.findUnique({ where: { tmdbId } });
-      if (existing) {
-        return reply.status(409).send({ error: 'Movie already in watchlist' });
-      }
-
       let title = `Movie #${tmdbId}`;
       let overview: string | null = null;
       let posterPath: string | null = null;
@@ -104,19 +99,26 @@ export default async function movieRoutes(fastify: FastifyInstance, _opts: Fasti
         }
       }
 
-      const movie = await prisma.movie.create({
-        data: {
-          tmdbId,
-          title,
-          overview,
-          posterPath,
-          backdropPath,
-          releaseDate,
-          addedBy: request.user!.id
+      try {
+        const movie = await prisma.movie.create({
+          data: {
+            tmdbId,
+            title,
+            overview,
+            posterPath,
+            backdropPath,
+            releaseDate,
+            addedBy: request.user!.id
+          }
+        });
+        return reply.status(201).send(movie);
+      } catch (createError: unknown) {
+        const err = createError as { code?: string };
+        if (err.code === 'P2002') {
+          return reply.status(409).send({ error: 'Movie already in watchlist' });
         }
-      });
-
-      return reply.status(201).send(movie);
+        throw createError;
+      }
     } catch (error) {
       if (error instanceof z.ZodError) {
         return reply.status(400).send({ error: error.errors });
@@ -148,7 +150,8 @@ export default async function movieRoutes(fastify: FastifyInstance, _opts: Fasti
       if (error instanceof z.ZodError) {
         return reply.status(400).send({ error: error.errors });
       }
-      return reply.status(404).send({ error: 'Movie not found' });
+      console.error('[Movie Error]', error);
+      return reply.status(500).send({ error: 'Failed to update movie' });
     }
   });
 
@@ -176,7 +179,8 @@ export default async function movieRoutes(fastify: FastifyInstance, _opts: Fasti
       if (error instanceof z.ZodError) {
         return reply.status(400).send({ error: error.errors });
       }
-      return reply.status(404).send({ error: 'Movie not found' });
+      console.error('[Movie Error]', error);
+      return reply.status(500).send({ error: 'Failed to rate movie' });
     }
   });
 
@@ -199,7 +203,8 @@ export default async function movieRoutes(fastify: FastifyInstance, _opts: Fasti
       if (error instanceof z.ZodError) {
         return reply.status(400).send({ error: error.errors });
       }
-      return reply.status(404).send({ error: 'Movie not found' });
+      console.error('[Movie Error]', error);
+      return reply.status(500).send({ error: 'Failed to delete movie' });
     }
   });
 }

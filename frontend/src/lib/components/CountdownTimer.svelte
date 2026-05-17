@@ -2,19 +2,23 @@
   import { onMount, onDestroy } from 'svelte';
   import { scale } from 'svelte/transition';
 
-  export let targetDate: string;
-  export let title: string;
+  interface Props {
+    targetDate: string;
+    title: string;
+  }
 
-  let now = Date.now();
+  let { targetDate, title }: Props = $props();
+
+  let now = $state(Date.now());
   let interval: ReturnType<typeof setInterval>;
 
-  $: target = new Date(targetDate).getTime();
-  $: diff = Math.max(0, target - now);
+  const target = $derived(new Date(targetDate).getTime());
+  const diff = $derived(Math.max(0, target - now));
 
-  $: days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  $: hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-  $: minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-  $: seconds = Math.floor((diff % (1000 * 60)) / 1000);
+  const days = $derived(Math.floor(diff / (1000 * 60 * 60 * 24)));
+  const hours = $derived(Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)));
+  const minutes = $derived(Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)));
+  const seconds = $derived(Math.floor((diff % (1000 * 60)) / 1000));
 
   onMount(() => {
     interval = setInterval(() => {

@@ -13,7 +13,10 @@ const STATIC_ASSETS = [
   '/video',
   '/whiteboard',
   '/capsules',
-  '/map'
+  '/map',
+  '/listen',
+  '/roulette',
+  '/goals'
 ];
 
 // Install: cache static assets
@@ -61,7 +64,7 @@ sw.addEventListener('fetch', (event) => {
         cached ||
         fetch(event.request).then((response) => {
           const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone)).catch(() => {});
           return response;
         })
       );

@@ -17,13 +17,13 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Create non-root user
-RUN addgroup -g 1001 -S nodejs && adduser -S node -u 1001
+# Use the existing non-root 'node' user provided by the base image (uid 1000)
+# Do NOT create a new user — 'node' already exists in node:20-alpine
 
 # Copy only necessary artifacts
-COPY --from=builder --chown=node:nodejs /app/dist ./dist
-COPY --from=builder --chown=node:nodejs /app/package*.json ./
-COPY --from=builder --chown=node:nodejs /app/prisma ./prisma
+COPY --from=builder --chown=node:node /app/dist ./dist
+COPY --from=builder --chown=node:node /app/package*.json ./
+COPY --from=builder --chown=node:node /app/prisma ./prisma
 
 # Install only production dependencies & regenerate Prisma Client engine bindings
 RUN npm ci --omit=dev && npm cache clean --force

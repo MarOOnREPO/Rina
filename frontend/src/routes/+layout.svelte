@@ -6,11 +6,13 @@
   import { initializeSockets, socketStore } from '$lib/stores/socket.svelte';
   import GlassNav from '$lib/components/GlassNav.svelte';
   import PingOverlay from '$lib/components/PingOverlay.svelte';
-  import TranslationTooltip from '$lib/components/TranslationTooltip.svelte';
 
-  // Initialize sockets on client (auth.init runs in hooks.client.ts)
+  let { children } = $props();
+
+  // Initialize auth and sockets on client
   onMount(() => {
     if (browser) {
+      auth.init();
       initializeSockets();
     }
 
@@ -27,8 +29,7 @@
 <GlassNav />
 
 <main class="min-h-screen pt-14 md:pb-0 pb-20">
-  <slot />
+  {@render children()}
 </main>
 
 <PingOverlay />
-<TranslationTooltip />

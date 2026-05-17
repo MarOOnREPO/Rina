@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import { z } from 'zod';
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { generateToken, authenticateJWT } from '../middleware/auth.js';
 import { prisma } from '../services/prisma.js';
@@ -6,9 +7,7 @@ import { prisma } from '../services/prisma.js';
 const COOKIE_NAME = 'rina_auth_token';
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
-// Default passwords (change after first login or migrate to DB-managed auth):
-//   maroon -> maroonpass2026!
-//   rina   -> rinapass2026!
+// Hardcoded authorized users — migrate to DB-managed auth for multi-user support.
 const AUTHORIZED_USERS: Record<string, { username: string; passwordHash: string; displayName: string }> = {
   maroon: {
     username: 'maroon',
@@ -81,5 +80,43 @@ export default async function authRoutes(fastify: FastifyInstance, _opts: Fastif
 
   fastify.get('/me', { preValidation: [authenticateJWT] }, async (request, reply) => {
     return reply.status(200).send({ user: request.user });
+  });
+
+  fastify.patch('/me', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const updateSchema = z.object({
+        displayName: z.string().min(1).max(100).optional(),
+        avatarUrl: z.string().url().optional().nullable(),
+        timezone: z.string().max(50).optional()
+      });
+      const data = updateSchema.parse(request.body);
+
+      const user = await prisma.user.update({
+        where: { id: request.user!.id },
+        data
+      });
+
+      const token = generateToken({
+        id: user.id,
+        username: user.username,
+        displayName: user.displayName
+      });
+
+      reply.setCookie(COOKIE_NAME, token, {
+        httpOnly: true,
+        secure: NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        path: '/'
+      });
+
+      return reply.status(200).send({ user });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
+      console.error('[Auth Error]', error);
+      return reply.status(500).send({ error: 'Failed to update profile' });
+    }
   });
 }

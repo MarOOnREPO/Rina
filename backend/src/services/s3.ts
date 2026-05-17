@@ -7,6 +7,11 @@ const MINIO_ACCESS_KEY = process.env.MINIO_ACCESS_KEY;
 const MINIO_SECRET_KEY = process.env.MINIO_SECRET_KEY;
 const MINIO_USE_SSL = process.env.MINIO_USE_SSL === 'true';
 
+if (!MINIO_ENDPOINT) {
+  console.error('[Fatal] MINIO_ENDPOINT must be set');
+  process.exit(1);
+}
+
 if (!MINIO_ACCESS_KEY || !MINIO_SECRET_KEY) {
   console.error('[Fatal] MINIO_ACCESS_KEY and MINIO_SECRET_KEY must be set');
   process.exit(1);

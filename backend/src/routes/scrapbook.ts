@@ -13,6 +13,12 @@ const photoSchema = z.object({
   takenAt: z.string().datetime().optional()
 });
 
+const updateSchema = z.object({
+  caption: z.string().max(500).optional(),
+  lat: z.number().min(-90).max(90).optional(),
+  lng: z.number().min(-180).max(180).optional()
+});
+
 export default async function scrapbookRoutes(fastify: FastifyInstance, _opts: FastifyPluginOptions) {
   fastify.get('/', { preValidation: [authenticateJWT] }, async (_request, reply) => {
     try {
@@ -43,6 +49,34 @@ export default async function scrapbookRoutes(fastify: FastifyInstance, _opts: F
       }
       console.error('[Scrapbook Error]', error);
       return reply.status(500).send({ error: 'Failed to upload photo' });
+    }
+  });
+
+  fastify.patch('/:id', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const paramsSchema = z.object({ id: z.string().cuid() });
+      const params = paramsSchema.parse(request.params);
+      const data = updateSchema.parse(request.body);
+
+      const existing = await prisma.scrapbookPhoto.findUnique({ where: { id: params.id } });
+      if (!existing) {
+        return reply.status(404).send({ error: 'Photo not found' });
+      }
+      if (existing.uploadedBy !== request.user!.id) {
+        return reply.status(403).send({ error: 'Not authorized to update this photo' });
+      }
+
+      const photo = await prisma.scrapbookPhoto.update({
+        where: { id: params.id },
+        data
+      });
+      return reply.send(photo);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
+      console.error('[Scrapbook Error]', error);
+      return reply.status(500).send({ error: 'Failed to update photo' });
     }
   });
 

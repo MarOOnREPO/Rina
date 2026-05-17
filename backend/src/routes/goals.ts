@@ -7,10 +7,12 @@ const goalSchema = z.object({
   title: z.string().min(1).max(200),
   targetAmount: z.number().int().positive(),
   currentAmount: z.number().int().min(0).default(0),
-  currency: z.string().default('EUR'),
+  currency: z.string().max(3).default('EUR'),
   deadline: z.string().datetime().optional(),
   icon: z.string().max(50).optional()
 });
+
+const updateSchema = goalSchema.partial().omit({ currentAmount: true });
 
 export default async function goalRoutes(fastify: FastifyInstance, _opts: FastifyPluginOptions) {
   fastify.get('/', { preValidation: [authenticateJWT] }, async (request, reply) => {
@@ -42,6 +44,34 @@ export default async function goalRoutes(fastify: FastifyInstance, _opts: Fastif
     }
   });
 
+  fastify.patch('/:id', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const paramsSchema = z.object({ id: z.string().cuid() });
+      const params = paramsSchema.parse(request.params);
+      const data = updateSchema.parse(request.body);
+
+      const existing = await prisma.goal.findUnique({ where: { id: params.id } });
+      if (!existing) {
+        return reply.status(404).send({ error: 'Goal not found' });
+      }
+      if (existing.createdBy !== request.user!.id) {
+        return reply.status(403).send({ error: 'Not authorized to update this goal' });
+      }
+
+      const goal = await prisma.goal.update({
+        where: { id: params.id },
+        data
+      });
+      return reply.send(goal);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
+      console.error('[Goal Error]', error);
+      return reply.status(500).send({ error: 'Failed to update goal' });
+    }
+  });
+
   fastify.patch('/:id/contribute', { preValidation: [authenticateJWT] }, async (request, reply) => {
     try {
       const schema = z.object({ amount: z.number().int().positive() });
@@ -62,10 +92,19 @@ export default async function goalRoutes(fastify: FastifyInstance, _opts: Fastif
         return reply.status(400).send({ error: 'Contribution exceeds target amount' });
       }
 
-      const goal = await prisma.goal.update({
-        where: { id: params.id },
+      const updated = await prisma.goal.updateMany({
+        where: {
+          id: params.id,
+          currentAmount: existing.currentAmount
+        },
         data: { currentAmount: newAmount }
       });
+
+      if (updated.count === 0) {
+        return reply.status(409).send({ error: 'Goal was updated concurrently, please retry' });
+      }
+
+      const goal = await prisma.goal.findUnique({ where: { id: params.id } });
       return reply.send(goal);
     } catch (error) {
       if (error instanceof z.ZodError) {

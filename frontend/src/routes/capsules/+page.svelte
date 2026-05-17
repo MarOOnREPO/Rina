@@ -4,17 +4,19 @@
   import { isAuthenticated, isLoading } from '$lib/stores/auth.svelte';
   import { fade, scale } from 'svelte/transition';
   import { capsuleApi, type TimeCapsule } from '$lib/utils/api';
+  import { encryptText, decryptText } from '$lib/utils/crypto';
   import GlassCard from '$lib/components/GlassCard.svelte';
 
-  let capsules: TimeCapsule[] = [];
-  let loading = true;
-  let showAdd = false;
-  let newCapsule: Partial<TimeCapsule> & { encryptedData?: string } = {
+  let capsules: TimeCapsule[] = $state([]);
+  let loading = $state(true);
+  let showAdd = $state(false);
+  let passphrase = $state('');
+  let newCapsule: Partial<TimeCapsule> & { encryptedData?: string } = $state({
     title: '',
     description: '',
     mediaType: 'text',
     unlockAt: ''
-  };
+  });
 
   async function loadCapsules() {
     try {
@@ -27,13 +29,14 @@
   }
 
   async function createCapsule() {
-    if (!newCapsule.title || !newCapsule.unlockAt) return;
+    if (!newCapsule.title || !newCapsule.unlockAt || !passphrase) return;
     try {
-      // In production, encrypt client-side with Web Crypto API
-      const encrypted = btoa(newCapsule.description || ''); // Mock encryption
+      const encrypted = await encryptText(newCapsule.description || '', passphrase);
       await capsuleApi.create({
-        ...newCapsule,
-        encryptedData: encrypted
+        title: newCapsule.title,
+        encryptedData: encrypted,
+        mediaType: newCapsule.mediaType,
+        unlockAt: newCapsule.unlockAt
       });
       showAdd = false;
       newCapsule = { title: '', description: '', mediaType: 'text', unlockAt: '' };
@@ -47,7 +50,10 @@
     try {
       const result = await capsuleApi.unlock(capsule.id);
       if (result.decrypted) {
-        alert(`Unlocked: ${atob(result.data)}`);
+        const pp = passphrase || window.prompt('Enter capsule passphrase to decrypt:');
+        if (!pp) return;
+        const text = await decryptText(result.data, pp);
+        alert(`Unlocked: ${text}`);
       }
     } catch (err: unknown) {
       const msg = (err as { message?: string }).message || 'Failed to unlock';
@@ -69,7 +75,7 @@
 
   // Redirect if not authenticated (wait for auth loading to finish)
   $effect(() => {
-    if (!isLoading && !isAuthenticated && typeof window !== 'undefined') {
+    if (!isLoading() && !isAuthenticated() && typeof window !== 'undefined') {
     goto('/login');
     }
   });
@@ -79,12 +85,12 @@
   });
 </script>
 
-{#if isAuthenticated}
+{#if isAuthenticated()}
   <div class="max-w-3xl mx-auto px-4 py-6" in:fade>
     <div class="flex items-center justify-between mb-6">
       <h2 class="text-2xl font-bold">⏳ Time Capsules</h2>
       <button
-        on:click={() => showAdd = true}
+        onclick={() => showAdd = true}
         class="px-4 py-2 rounded-xl bg-rina-rose text-white text-sm font-medium hover:opacity-90 transition-opacity"
       >
         + New Capsule
@@ -94,7 +100,7 @@
     {#if loading}
       <div class="text-center py-12 text-rina-slate">Loading capsules...</div>
     {:else if capsules.length === 0}
-      <GlassCard className="text-center py-12">
+      <GlassCard class="text-center py-12">
         <p class="text-4xl mb-3">📦</p>
         <p class="text-rina-slate">No time capsules yet. Lock a memory for the future.</p>
       </GlassCard>
@@ -114,7 +120,7 @@
                 </div>
               </div>
               <button
-                on:click={() => tryUnlock(capsule)}
+                onclick={() => tryUnlock(capsule)}
                 disabled={isLocked(capsule.unlockAt)}
                 class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all
                   {isLocked(capsule.unlockAt)
@@ -134,8 +140,8 @@
     {/if}
 
     {#if showAdd}
-      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" transition:fade on:click={() => showAdd = false}>
-        <div class="glass-strong rounded-2xl p-6 w-full max-w-sm" transition:scale on:click|stopPropagation>
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" transition:fade onclick={() => showAdd = false}>
+        <div class="glass-strong rounded-2xl p-6 w-full max-w-sm" transition:scale onclick={(e) => e.stopPropagation()}>
           <h3 class="text-lg font-semibold mb-4">New Time Capsule</h3>
           <div class="space-y-4">
             <div>
@@ -147,12 +153,16 @@
               <textarea bind:value={newCapsule.description} rows={3} class="w-full px-3 py-2 rounded-lg bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50"></textarea>
             </div>
             <div>
+              <label class="block text-xs text-rina-slate mb-1">Passphrase (shared secret)</label>
+              <input type="password" bind:value={passphrase} class="w-full px-3 py-2 rounded-lg bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50" />
+            </div>
+            <div>
               <label class="block text-xs text-rina-slate mb-1">Unlock Date</label>
               <input type="datetime-local" bind:value={newCapsule.unlockAt} class="w-full px-3 py-2 rounded-lg bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50" />
             </div>
             <div class="flex gap-2 pt-2">
-              <button on:click={() => showAdd = false} class="flex-1 py-2 rounded-lg border border-rina-border text-sm hover:bg-white/5">Cancel</button>
-              <button on:click={createCapsule} class="flex-1 py-2 rounded-lg bg-rina-rose text-white text-sm font-medium hover:opacity-90">Lock</button>
+              <button onclick={() => showAdd = false} class="flex-1 py-2 rounded-lg border border-rina-border text-sm hover:bg-white/5">Cancel</button>
+              <button onclick={createCapsule} class="flex-1 py-2 rounded-lg bg-rina-rose text-white text-sm font-medium hover:opacity-90">Lock</button>
             </div>
           </div>
         </div>

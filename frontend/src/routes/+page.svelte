@@ -7,14 +7,14 @@
   import { cubicOut } from 'svelte/easing';
 
   // ─── Time & Weather ────────────────────────────────────────────
-  let now = new Date();
-  let kenitraTime = '';
-  let permTime = '';
-  let weatherLoaded = false;
-  let kenitraTemp = '--';
-  let permTemp = '--';
-  let kenitraCode = 0;
-  let permCode = 0;
+  let now = $state(new Date());
+  let kenitraTime = $state('');
+  let permTime = $state('');
+  let weatherLoaded = $state(false);
+  let kenitraTemp = $state('--');
+  let permTemp = $state('--');
+  let kenitraCode = $state(0);
+  let permCode = $state(0);
 
   function updateClocks() {
     now = new Date();
@@ -90,13 +90,13 @@
 
   // Redirect if not authenticated (wait for auth loading to finish)
   $effect(() => {
-    if (!isLoading && !isAuthenticated && typeof window !== 'undefined') {
+    if (!isLoading() && !isAuthenticated() && typeof window !== 'undefined') {
     goto('/login');
     }
   });
 </script>
 
-{#if isAuthenticated}
+{#if isAuthenticated()}
   <div class="max-w-7xl mx-auto px-4 py-6 space-y-6" in:fade={{ duration: 300 }}>
     <!-- Header Section -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -125,7 +125,7 @@
 
       <!-- Heart Ping Button -->
       <button
-        on:click={sendPing}
+        onclick={sendPing}
         class="glass rounded-2xl p-5 flex flex-col items-center justify-center gap-2
           hover:bg-rina-rose/10 active:scale-95 transition-all group cursor-pointer"
         in:fly={{ y: 20, delay: 200 }}
@@ -144,7 +144,7 @@
     <!-- Welcome -->
     <div in:fly={{ y: 20, delay: 300 }}>
       <h2 class="text-2xl font-bold mb-1">
-        Hello, <span class="text-gradient">{currentUser?.displayName || 'Love'}</span>
+        Hello, <span class="text-gradient">{currentUser()?.displayName || 'Love'}</span>
       </h2>
       <p class="text-rina-slate text-sm">
         {now.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}

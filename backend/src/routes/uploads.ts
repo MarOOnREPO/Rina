@@ -47,7 +47,15 @@ export default async function uploadRoutes(fastify: FastifyInstance, _opts: Fast
   fastify.all('/*', { preValidation: [authenticateJWT] }, async (request, reply) => {
     // Hijack Fastify response so Tus can handle it directly
     reply.hijack();
-    await tusServer.handle(request.raw, reply.raw);
+    try {
+      await tusServer.handle(request.raw, reply.raw);
+    } catch (err) {
+      console.error('[Tus Error]', err);
+      if (!reply.raw.writableEnded) {
+        reply.raw.writeHead(500, { 'Content-Type': 'application/json' });
+        reply.raw.end(JSON.stringify({ error: 'Upload processing failed' }));
+      }
+    }
   });
 
   // Presigned download URL helper

@@ -22,7 +22,7 @@ export default async function calendarRoutes(fastify: FastifyInstance, _opts: Fa
   fastify.get('/', { preValidation: [authenticateJWT] }, async (request, reply) => {
     try {
       const query = querySchema.parse(request.query);
-      const where: Record<string, unknown> = {};
+      const where: Record<string, unknown> = { creatorId: request.user!.id };
 
       if (query.from || query.to) {
         where.startTime = {};

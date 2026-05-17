@@ -10,11 +10,11 @@
   let localVideo: HTMLVideoElement;
   let remoteVideo: HTMLVideoElement;
   let peerConnection: RTCPeerConnection | null = null;
-  let localStream: MediaStream | null = null;
-  let callState: 'idle' | 'calling' | 'incoming' | 'connected' | 'ended' = 'idle';
-  let error = '';
-  let audioEnabled = true;
-  let videoEnabled = true;
+  let localStream: MediaStream | null = $state(null);
+  let callState: 'idle' | 'calling' | 'incoming' | 'connected' | 'ended' = $state('idle');
+  let error = $state('');
+  let audioEnabled = $state(true);
+  let videoEnabled = $state(true);
   let iceServers: RTCIceServer[] = [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' }
@@ -23,7 +23,7 @@
   // Incoming call state
   let incomingOffer: RTCSessionDescriptionInit | null = null;
   let incomingSender = '';
-  let incomingDisplayName = '';
+  let incomingDisplayName = $state('');
 
   async function loadIceServers() {
     try {
@@ -39,7 +39,7 @@
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
-        const partner = currentUser?.username === 'maroon' ? 'rina' : 'maroon';
+        const partner = currentUser()?.username === 'maroon' ? 'rina' : 'maroon';
         socketStore.emit('webrtc:ice-candidate', {
           target: partner,
           candidate: event.candidate.toJSON()
@@ -82,7 +82,7 @@
       const offer = await peerConnection.createOffer();
       await peerConnection.setLocalDescription(offer);
 
-      const partner = currentUser?.username === 'maroon' ? 'rina' : 'maroon';
+      const partner = currentUser()?.username === 'maroon' ? 'rina' : 'maroon';
       socketStore.emit('webrtc:offer', {
         target: partner,
         offer: { type: offer.type, sdp: offer.sdp! }
@@ -100,7 +100,7 @@
   }
 
   async function cancelCall() {
-    const partner = currentUser?.username === 'maroon' ? 'rina' : 'maroon';
+    const partner = currentUser()?.username === 'maroon' ? 'rina' : 'maroon';
     socketStore.emit('webrtc:decline', { target: partner });
     endCall();
   }
@@ -222,7 +222,7 @@
 
   // Redirect if not authenticated (wait for auth loading to finish)
   $effect(() => {
-    if (!isLoading && !isAuthenticated && typeof window !== 'undefined') {
+    if (!isLoading() && !isAuthenticated() && typeof window !== 'undefined') {
       goto('/login');
     }
   });
@@ -251,7 +251,7 @@
   });
 </script>
 
-{#if isAuthenticated}
+{#if isAuthenticated()}
   <div class="max-w-5xl mx-auto px-4 py-6" in:fade>
     <h2 class="text-2xl font-bold mb-6">📹 Video Call</h2>
 
@@ -261,7 +261,7 @@
       </div>
     {/if}
 
-    <GlassCard className="relative aspect-video bg-rina-bg overflow-hidden mb-4">
+    <GlassCard class="relative aspect-video bg-rina-bg overflow-hidden mb-4">
       <!-- Remote video (full area) -->
       <video
         bind:this={remoteVideo}
@@ -286,13 +286,13 @@
             <p class="text-lg font-medium">{incomingDisplayName} is calling</p>
             <div class="flex gap-3 mt-6">
               <button
-                on:click={acceptCall}
+                onclick={acceptCall}
                 class="px-6 py-2 rounded-full bg-green-500 text-white font-semibold hover:bg-green-600 active:scale-95 transition-all"
               >
                 Accept
               </button>
               <button
-                on:click={declineCall}
+                onclick={declineCall}
                 class="px-6 py-2 rounded-full bg-red-500 text-white font-semibold hover:bg-red-600 active:scale-95 transition-all"
               >
                 Decline
@@ -326,14 +326,14 @@
     <div class="flex items-center justify-center gap-3" in:scale>
       {#if callState === 'idle'}
         <button
-          on:click={startCall}
+          onclick={startCall}
           class="px-8 py-3 rounded-full bg-rina-rose text-white font-semibold hover:opacity-90 active:scale-95 transition-all flex items-center gap-2"
         >
           <span>📞</span> Start Call
         </button>
       {:else if callState === 'calling'}
         <button
-          on:click={cancelCall}
+          onclick={cancelCall}
           class="px-6 py-3 rounded-full bg-red-500 text-white font-semibold hover:bg-red-600 active:scale-95 transition-all flex items-center gap-2"
         >
           <span>📵</span> Cancel
@@ -341,14 +341,14 @@
       {:else if callState === 'incoming'}
         <div class="flex gap-3">
           <button
-            on:click={acceptCall}
+            onclick={acceptCall}
             class="w-14 h-14 rounded-full bg-green-500 flex items-center justify-center text-xl hover:bg-green-600 active:scale-95 transition-all"
             title="Accept"
           >
             📞
           </button>
           <button
-            on:click={declineCall}
+            onclick={declineCall}
             class="w-14 h-14 rounded-full bg-red-500 flex items-center justify-center text-xl hover:bg-red-600 active:scale-95 transition-all"
             title="Decline"
           >
@@ -357,21 +357,21 @@
         </div>
       {:else}
         <button
-          on:click={toggleAudio}
+          onclick={toggleAudio}
           class="w-12 h-12 rounded-full glass flex items-center justify-center text-xl hover:bg-white/10 transition-colors"
           title={audioEnabled ? 'Mute' : 'Unmute'}
         >
           {audioEnabled ? '🎤' : '🎤❌'}
         </button>
         <button
-          on:click={toggleVideo}
+          onclick={toggleVideo}
           class="w-12 h-12 rounded-full glass flex items-center justify-center text-xl hover:bg-white/10 transition-colors"
           title={videoEnabled ? 'Turn off video' : 'Turn on video'}
         >
           {videoEnabled ? '📷' : '📷❌'}
         </button>
         <button
-          on:click={endCall}
+          onclick={endCall}
           class="w-14 h-14 rounded-full bg-red-500 flex items-center justify-center text-xl hover:bg-red-600 active:scale-95 transition-all"
           title="End call"
         >

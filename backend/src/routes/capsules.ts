@@ -11,10 +11,13 @@ const capsuleSchema = z.object({
   unlockAt: z.string().datetime()
 });
 
+const updateSchema = capsuleSchema.partial();
+
 export default async function capsuleRoutes(fastify: FastifyInstance, _opts: FastifyPluginOptions) {
-  fastify.get('/', { preValidation: [authenticateJWT] }, async (_request, reply) => {
+  fastify.get('/', { preValidation: [authenticateJWT] }, async (request, reply) => {
     try {
       const capsules = await prisma.timeCapsule.findMany({
+        where: { creatorId: request.user!.id },
         orderBy: { unlockAt: 'asc' }
       });
       return reply.send(capsules);
@@ -43,6 +46,34 @@ export default async function capsuleRoutes(fastify: FastifyInstance, _opts: Fas
     }
   });
 
+  fastify.patch('/:id', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const paramsSchema = z.object({ id: z.string().cuid() });
+      const params = paramsSchema.parse(request.params);
+      const data = updateSchema.parse(request.body);
+
+      const existing = await prisma.timeCapsule.findUnique({ where: { id: params.id } });
+      if (!existing) {
+        return reply.status(404).send({ error: 'Capsule not found' });
+      }
+      if (existing.creatorId !== request.user!.id) {
+        return reply.status(403).send({ error: 'Not authorized to update this capsule' });
+      }
+
+      const capsule = await prisma.timeCapsule.update({
+        where: { id: params.id },
+        data
+      });
+      return reply.send(capsule);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
+      console.error('[Capsule Error]', error);
+      return reply.status(500).send({ error: 'Failed to update capsule' });
+    }
+  });
+
   fastify.get('/:id/unlock', { preValidation: [authenticateJWT] }, async (request, reply) => {
     try {
       const paramsSchema = z.object({ id: z.string().cuid() });
@@ -50,6 +81,10 @@ export default async function capsuleRoutes(fastify: FastifyInstance, _opts: Fas
       const capsule = await prisma.timeCapsule.findUnique({ where: { id: params.id } });
       if (!capsule) {
         return reply.status(404).send({ error: 'Capsule not found' });
+      }
+
+      if (capsule.creatorId !== request.user!.id) {
+        return reply.status(403).send({ error: 'Not authorized to unlock this capsule' });
       }
 
       const now = new Date();

@@ -15,7 +15,7 @@
   $: currentPath = $page.url.pathname;
 </script>
 
-{#if isAuthenticated}
+{#if isAuthenticated()}
   <!-- Desktop Header -->
   <header class="fixed top-0 left-0 right-0 z-50 glass border-b border-rina-border">
     <div class="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">

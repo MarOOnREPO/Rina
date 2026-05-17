@@ -9,11 +9,11 @@
   let canvas: HTMLCanvasElement;
   let ctx: CanvasRenderingContext2D | null = null;
   let drawing = false;
-  let color = '#fb7185';
-  let brushSize = 3;
+  let color = $state('#fb7185');
+  let brushSize = $state(3);
   let ydoc: Y.Doc;
   let yArray: Y.Array<{ x: number; y: number; color: string; size: number; type: 'start' | 'move' | 'end' }>;
-  let provider: WebsocketProvider | null = null;
+  let provider: WebsocketProvider | null = $state(null);
 
   const COLORS = ['#fb7185', '#818cf8', '#34d399', '#fbbf24', '#ffffff'];
 
@@ -123,7 +123,7 @@
 
   // Redirect if not authenticated (wait for auth loading to finish)
   $effect(() => {
-    if (!isLoading && !isAuthenticated && typeof window !== 'undefined') {
+    if (!isLoading() && !isAuthenticated() && typeof window !== 'undefined') {
     goto('/login');
     }
   });
@@ -161,14 +161,14 @@
   });
 </script>
 
-{#if isAuthenticated}
+{#if isAuthenticated()}
   <div class="fixed inset-0 pt-14 pb-16 md:pb-0 flex flex-col" in:fade>
     <!-- Toolbar -->
     <div class="glass border-b border-rina-border px-4 py-2 flex items-center gap-3 shrink-0 z-10">
       <div class="flex items-center gap-1.5">
         {#each COLORS as c}
           <button
-            on:click={() => color = c}
+            onclick={() => color = c}
             class="w-6 h-6 rounded-full border-2 transition-transform hover:scale-110
               {color === c ? 'border-white scale-110' : 'border-transparent'}"
             style="background-color: {c};"
@@ -187,13 +187,13 @@
       <span class="text-xs text-rina-slate w-4">{brushSize}</span>
       <div class="w-px h-6 bg-rina-border"></div>
       <button
-        on:click={clearCanvas}
+        onclick={clearCanvas}
         class="px-3 py-1.5 rounded-lg text-xs font-medium glass hover:bg-white/5 transition-colors"
       >
         Clear
       </button>
       <button
-        on:click={saveCanvas}
+        onclick={saveCanvas}
         class="px-3 py-1.5 rounded-lg text-xs font-medium bg-rina-rose/20 text-rina-rose hover:bg-rina-rose/30 transition-colors"
       >
         Save
@@ -213,13 +213,13 @@
       <canvas
         bind:this={canvas}
         class="absolute inset-0 w-full h-full cursor-crosshair touch-none"
-        on:mousedown={startStroke}
-        on:mousemove={moveStroke}
-        on:mouseup={endStroke}
-        on:mouseleave={endStroke}
-        on:touchstart={startStroke}
-        on:touchmove={moveStroke}
-        on:touchend={endStroke}
+        onmousedown={startStroke}
+        onmousemove={moveStroke}
+        onmouseup={endStroke}
+        onmouseleave={endStroke}
+        ontouchstart={startStroke}
+        ontouchmove={moveStroke}
+        ontouchend={endStroke}
       ></canvas>
       <div class="absolute bottom-4 left-4 pointer-events-none">
         <p class="text-xs text-rina-slate-dark">Draw together • Yjs synced</p>

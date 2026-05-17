@@ -3,9 +3,10 @@
   import { auth, isLoading } from '$lib/stores/auth.svelte';
   import { scale, fade } from 'svelte/transition';
 
-  let username = '';
-  let password = '';
-  let showPassword = false;
+  let username = $state('');
+  let password = $state('');
+  let showPassword = $state(false);
+  let error = $derived(auth.error);
 
   async function handleLogin(e: SubmitEvent) {
     e.preventDefault();
@@ -16,8 +17,6 @@
       // Error handled in store
     }
   }
-
-  $: error = auth.error;
 </script>
 
 <div class="min-h-screen flex items-center justify-center px-4 relative overflow-hidden">
@@ -34,7 +33,7 @@
       <p class="text-rina-slate text-sm">Project Rina — Private Sanctuary</p>
     </div>
 
-    <form on:submit={handleLogin} class="space-y-5">
+    <form onsubmit={handleLogin} class="space-y-5">
       <div>
         <label for="username" class="block text-xs font-medium text-rina-slate mb-1.5 uppercase tracking-wider">
           Username
@@ -66,7 +65,7 @@
           />
           <button
             type="button"
-            on:click={() => (showPassword = !showPassword)}
+            onclick={() => (showPassword = !showPassword)}
             class="absolute right-3 top-1/2 -translate-y-1/2 text-rina-slate-dark hover:text-rina-slate transition-colors"
             aria-label={showPassword ? 'Hide password' : 'Show password'}
           >
@@ -83,11 +82,11 @@
 
       <button
         type="submit"
-        disabled={isLoading}
+        disabled={isLoading()}
         class="w-full py-3 rounded-xl bg-gradient-to-r from-rina-rose to-rina-indigo text-white font-semibold
           hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {#if isLoading}
+        {#if isLoading()}
           <span class="inline-block animate-spin mr-2">⏳</span>
           Entering...
         {:else}

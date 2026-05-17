@@ -20,7 +20,7 @@
 
   // Redirect if not authenticated (wait for auth loading to finish)
   $effect(() => {
-    if (!isLoading && !isAuthenticated && typeof window !== 'undefined') {
+    if (!isLoading() && !isAuthenticated() && typeof window !== 'undefined') {
     goto('/login');
     }
   });
@@ -81,7 +81,7 @@
   {/if}
 </svelte:head>
 
-{#if isAuthenticated}
+{#if isAuthenticated()}
   <div class="fixed inset-0 pt-14 pb-16 md:pb-0 flex flex-col" in:fade>
     <div class="relative flex-1">
       {#if MAPBOX_TOKEN}
@@ -116,7 +116,7 @@
 
       <!-- Overlay UI -->
       <div class="absolute top-4 left-4 z-10">
-        <GlassCard padding="sm" className="max-w-xs">
+        <GlassCard padding="sm" class="max-w-xs">
           <h3 class="text-sm font-semibold mb-1">🌍 Scrapbook Map</h3>
           <p class="text-xs text-rina-slate">Photos pinned by EXIF location data.</p>
           {#if !MAPBOX_TOKEN}

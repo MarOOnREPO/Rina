@@ -6,11 +6,11 @@
   import { fade, scale } from 'svelte/transition';
   import GlassCard from '$lib/components/GlassCard.svelte';
 
-  let videoId = '';
+  let videoId = $state('');
   let player: YT.Player | null = null;
-  let playerReady = false;
-  let isSyncing = false;
-  let currentVideoTitle = '';
+  let playerReady = $state(false);
+  let isSyncing = $state(false);
+  let currentVideoTitle = $state('');
 
   // Load YouTube IFrame API
   function loadYouTubeAPI(): Promise<void> {
@@ -58,7 +58,7 @@
   }
 
   function handleSync(event: { action: 'play' | 'pause' | 'seek'; time: number; videoId: string; sender: string }) {
-    if (event.sender === currentUser?.username) return;
+    if (event.sender === currentUser()?.username) return;
     if (!playerReady || !player) return;
 
     isSyncing = true;
@@ -96,7 +96,7 @@
 
   // Redirect if not authenticated (wait for auth loading to finish)
   $effect(() => {
-    if (!isLoading && !isAuthenticated && typeof window !== 'undefined') {
+    if (!isLoading() && !isAuthenticated() && typeof window !== 'undefined') {
     goto('/login');
     }
   });
@@ -109,10 +109,7 @@
   onMount(() => {
     loadYouTubeAPI();
 
-    const sock = socketStore.getSocket();
-    if (sock) {
-      mediaSync.init(sock);
-    }
+    // mediaSync is already initialized by initializeSockets() in +layout.svelte
   });
 
   onDestroy(() => {
@@ -123,21 +120,21 @@
 
 
 
-{#if isAuthenticated}
+{#if isAuthenticated()}
   <div class="max-w-5xl mx-auto px-4 py-6" in:fade>
     <h2 class="text-2xl font-bold mb-6">🎵 Listen Together</h2>
 
-    <GlassCard className="mb-6">
+    <GlassCard class="mb-6">
       <div class="flex gap-2">
         <input
           bind:value={videoId}
           placeholder="Paste YouTube URL or Video ID..."
           class="flex-1 px-4 py-3 rounded-xl bg-rina-bg border border-rina-border text-white placeholder-rina-slate-dark
             focus:outline-none focus:border-rina-rose/50 transition-all"
-          on:keydown={(e) => e.key === 'Enter' && loadVideo()}
+          onkeydown={(e) => e.key === 'Enter' && loadVideo()}
         />
         <button
-          on:click={loadVideo}
+          onclick={loadVideo}
           class="px-6 py-3 rounded-xl bg-rina-rose text-white font-medium hover:opacity-90 transition-opacity"
         >
           Load

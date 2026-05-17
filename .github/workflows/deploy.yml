@@ -4,9 +4,14 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -16,34 +21,43 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            frontend/package-lock.json
+            backend/package-lock.json
 
-      - name: Build Frontend
+      - name: Lint & Type Check Frontend
         working-directory: ./frontend
         run: |
           npm ci
-          npm run build
+          npm run lint
+          npm run check
 
-      - name: Build Backend
+      - name: Build & Test Backend
         working-directory: ./backend
         run: |
           npm ci
           npm run db:generate
           npm run build
 
+      - name: Build Frontend for Production
+        working-directory: ./frontend
+        run: npm run build
+
       - name: Deploy to Server (rsync)
         if: github.ref == 'refs/heads/main'
-        uses: easingthemes/ssh-deploy@main
+        uses: easingthemes/ssh-deploy@2cc5b27bf3029d0455dd5e09fe02633904031447
         with:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
           REMOTE_USER: ${{ secrets.REMOTE_USER }}
           SOURCE: './'
           TARGET: '/home/ubuntu/rina'
-          EXCLUDE: 'backend/node_modules,frontend/node_modules,frontend/.svelte-kit,backend/dist,.git'
+          EXCLUDE: 'backend/node_modules,frontend/node_modules,frontend/.svelte-kit,backend/dist,frontend/build,.git,.env'
 
       - name: Restart services via SSH
         if: github.ref == 'refs/heads/main'
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262
         with:
           host: ${{ secrets.REMOTE_HOST }}
           username: ${{ secrets.REMOTE_USER }}

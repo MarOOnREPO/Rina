@@ -6,10 +6,10 @@
   import { goalApi, type Goal } from '$lib/utils/api';
   import GlassCard from '$lib/components/GlassCard.svelte';
 
-  let goals: Goal[] = [];
-  let loading = true;
-  let showAdd = false;
-  let newGoal: Partial<Goal> = { title: '', targetAmount: 0, currency: 'EUR', icon: '🎯' };
+  let goals: Goal[] = $state([]);
+  let loading = $state(true);
+  let showAdd = $state(false);
+  let newGoal: Partial<Goal> = $state({ title: '', targetAmount: 0, currency: 'EUR', icon: '🎯' });
 
   async function loadGoals() {
     try {
@@ -52,7 +52,7 @@
 
   // Redirect if not authenticated (wait for auth loading to finish)
   $effect(() => {
-    if (!isLoading && !isAuthenticated && typeof window !== 'undefined') {
+    if (!isLoading() && !isAuthenticated() && typeof window !== 'undefined') {
     goto('/login');
     }
   });
@@ -62,12 +62,12 @@
   });
 </script>
 
-{#if isAuthenticated}
+{#if isAuthenticated()}
   <div class="max-w-3xl mx-auto px-4 py-6" in:fade>
     <div class="flex items-center justify-between mb-6">
       <h2 class="text-2xl font-bold">🎯 Goals</h2>
       <button
-        on:click={() => showAdd = true}
+        onclick={() => showAdd = true}
         class="px-4 py-2 rounded-xl bg-rina-rose text-white text-sm font-medium hover:opacity-90 transition-opacity"
       >
         + New Goal
@@ -77,7 +77,7 @@
     {#if loading}
       <div class="text-center py-12 text-rina-slate">Loading goals...</div>
     {:else if goals.length === 0}
-      <GlassCard className="text-center py-12">
+      <GlassCard class="text-center py-12">
         <p class="text-4xl mb-3">🎯</p>
         <p class="text-rina-slate">No goals yet. Start dreaming together.</p>
       </GlassCard>
@@ -139,19 +139,19 @@
 
             <div class="flex gap-2 mt-3">
               <button
-                on:click={() => contribute(goal.id, 1000)}
+                onclick={() => contribute(goal.id, 1000)}
                 class="px-3 py-1.5 rounded-lg text-xs bg-rina-rose/20 text-rina-rose hover:bg-rina-rose/30 transition-colors"
               >
                 +€10
               </button>
               <button
-                on:click={() => contribute(goal.id, 5000)}
+                onclick={() => contribute(goal.id, 5000)}
                 class="px-3 py-1.5 rounded-lg text-xs bg-rina-indigo/20 text-rina-indigo hover:bg-rina-indigo/30 transition-colors"
               >
                 +€50
               </button>
               <button
-                on:click={() => contribute(goal.id, 10000)}
+                onclick={() => contribute(goal.id, 10000)}
                 class="px-3 py-1.5 rounded-lg text-xs bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors"
               >
                 +€100
@@ -164,8 +164,8 @@
     {/if}
 
     {#if showAdd}
-      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" transition:fade on:click={() => showAdd = false}>
-        <div class="glass-strong rounded-2xl p-6 w-full max-w-sm" transition:scale on:click|stopPropagation>
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" transition:fade onclick={() => showAdd = false}>
+        <div class="glass-strong rounded-2xl p-6 w-full max-w-sm" transition:scale onclick={(e) => e.stopPropagation()}>
           <h3 class="text-lg font-semibold mb-4">New Goal</h3>
           <div class="space-y-4">
             <div>
@@ -177,8 +177,8 @@
               <input type="number" bind:value={newGoal.targetAmount} class="w-full px-3 py-2 rounded-lg bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50" />
             </div>
             <div class="flex gap-2 pt-2">
-              <button on:click={() => showAdd = false} class="flex-1 py-2 rounded-lg border border-rina-border text-sm hover:bg-white/5">Cancel</button>
-              <button on:click={addGoal} class="flex-1 py-2 rounded-lg bg-rina-rose text-white text-sm font-medium hover:opacity-90">Save</button>
+              <button onclick={() => showAdd = false} class="flex-1 py-2 rounded-lg border border-rina-border text-sm hover:bg-white/5">Cancel</button>
+              <button onclick={addGoal} class="flex-1 py-2 rounded-lg bg-rina-rose text-white text-sm font-medium hover:opacity-90">Save</button>
             </div>
           </div>
         </div>

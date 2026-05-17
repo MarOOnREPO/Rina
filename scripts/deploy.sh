@@ -38,12 +38,13 @@ fi
 
 DATABASE_URL="postgresql://rina_user:${POSTGRES_PASSWORD}@postgres:5432/rina_db"
 
-# ─── Build & deploy ──────────────────────────────────────────────
+# ─── Stop old containers ─────────────────────────────────────────
 LOG "📦 Stopping old containers..."
 docker compose down
 
-LOG "🏗️ Building and starting services..."
-docker compose up -d --build
+# ─── Start Postgres first (migrations need it) ───────────────────
+LOG "🐘 Starting Postgres..."
+docker compose up -d postgres
 
 # ─── Wait for Postgres ───────────────────────────────────────────
 LOG "⏳ Waiting for Postgres to be ready..."
@@ -59,7 +60,7 @@ for i in {1..30}; do
   sleep 2
 done
 
-# ─── Database migrations ─────────────────────────────────────────
+# ─── Database migrations (before backend starts) ─────────────────
 LOG "🗄️ Running database migrations..."
 
 # Build the builder stage (reuses cache from the production build)
@@ -76,6 +77,10 @@ docker run --rm \
   -e DATABASE_URL="$DATABASE_URL" \
   rina-backend-builder \
   npx prisma migrate deploy
+
+# ─── Build & start all services ──────────────────────────────────
+LOG "🏗️ Building and starting all services..."
+docker compose up -d --build
 
 # ─── Cleanup & status ────────────────────────────────────────────
 LOG "🧹 Cleaning up dangling images..."

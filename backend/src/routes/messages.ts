@@ -100,4 +100,28 @@ export default async function messageRoutes(fastify: FastifyInstance, _opts: Fas
       return reply.status(500).send({ error: 'Failed to edit message' });
     }
   });
+
+  fastify.delete('/:id', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const paramsSchema = z.object({ id: z.string().cuid() });
+      const params = paramsSchema.parse(request.params);
+
+      const existing = await prisma.message.findUnique({ where: { id: params.id } });
+      if (!existing) {
+        return reply.status(404).send({ error: 'Message not found' });
+      }
+      if (existing.senderId !== request.user!.id) {
+        return reply.status(403).send({ error: 'Not authorized to delete this message' });
+      }
+
+      await prisma.message.delete({ where: { id: params.id } });
+      return reply.status(204).send();
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
+      console.error('[Message Error]', error);
+      return reply.status(500).send({ error: 'Failed to delete message' });
+    }
+  });
 }

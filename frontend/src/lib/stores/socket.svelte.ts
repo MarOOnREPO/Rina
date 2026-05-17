@@ -151,12 +151,12 @@ export const presence = {
 };
 
 // ─── Partner Presence ─────────────────────────────────────────────
-export const partnerPresence = $derived.by(() => {
-  const user = currentUser;
+export const partnerPresence = () => {
+  const user = currentUser();
   if (!user) return undefined;
   const partnerUsername = user.username === 'maroon' ? 'rina' : 'maroon';
   return presenceState[partnerUsername];
-});
+};
 
 // ─── Ping State ───────────────────────────────────────────────────
 let pingState = $state<PingEvent | null>(null);

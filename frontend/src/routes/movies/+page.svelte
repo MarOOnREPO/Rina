@@ -7,12 +7,12 @@
   import { movieApi, type Movie } from '$lib/utils/api';
   import GlassCard from '$lib/components/GlassCard.svelte';
 
-  let movies: Movie[] = [];
-  let searchQuery = '';
-  let searchResults: Array<{ tmdbId: number; title: string; posterPath?: string; releaseDate?: string }> = [];
-  let loading = true;
-  let searching = false;
-  let watchedFilter: 'all' | 'watched' | 'unwatched' = 'all';
+  let movies: Movie[] = $state([]);
+  let searchQuery = $state('');
+  let searchResults: Array<{ tmdbId: number; title: string; posterPath?: string; releaseDate?: string }> = $state([]);
+  let loading = $state(true);
+  let searching = $state(false);
+  let watchedFilter: 'all' | 'watched' | 'unwatched' = $state('all');
 
   async function loadMovies() {
     try {
@@ -81,7 +81,7 @@
 
   // Redirect if not authenticated (wait for auth loading to finish)
   $effect(() => {
-    if (!isLoading && !isAuthenticated && typeof window !== 'undefined') {
+    if (!isLoading() && !isAuthenticated() && typeof window !== 'undefined') {
     goto('/login');
     }
   });
@@ -91,16 +91,16 @@
   });
 </script>
 
-{#if isAuthenticated}
+{#if isAuthenticated()}
   <div class="max-w-5xl mx-auto px-4 py-6" in:fade>
     <h2 class="text-2xl font-bold mb-6">🎬 Movie Watchlist</h2>
 
     <!-- Search -->
-    <GlassCard className="mb-6">
+    <GlassCard class="mb-6">
       <div class="relative">
         <input
           bind:value={searchQuery}
-          on:input={handleSearchInput}
+          oninput={handleSearchInput}
           placeholder="Search TMDB for movies..."
           class="w-full px-4 py-3 pr-10 rounded-xl bg-rina-bg border border-rina-border text-white placeholder-rina-slate-dark
             focus:outline-none focus:border-rina-rose/50 transition-all"
@@ -117,16 +117,16 @@
           {#each searchResults as result (result.tmdbId)}
             <div class="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 transition-colors">
               {#if result.posterPath}
-                <img src={result.posterPath} alt={result.title} class="w-12 h-18 object-cover rounded-lg bg-rina-bg" loading="lazy" />
+                <img src={result.posterPath} alt={result.title} class="w-12 h-16 object-cover rounded-lg bg-rina-bg" loading="lazy" />
               {:else}
-                <div class="w-12 h-18 rounded-lg bg-rina-bg flex items-center justify-center text-lg">🎬</div>
+                <div class="w-12 h-16 rounded-lg bg-rina-bg flex items-center justify-center text-lg">🎬</div>
               {/if}
               <div class="flex-1 min-w-0">
                 <p class="text-sm font-medium truncate">{result.title}</p>
                 <p class="text-xs text-rina-slate">{result.releaseDate || 'Unknown year'}</p>
               </div>
               <button
-                on:click={() => addMovie(result.tmdbId)}
+                onclick={() => addMovie(result.tmdbId)}
                 class="px-3 py-1.5 rounded-lg bg-rina-rose/20 text-rina-rose text-xs font-medium hover:bg-rina-rose/30 transition-colors"
               >
                 Add
@@ -141,7 +141,7 @@
     <div class="flex gap-2 mb-4">
       {#each [['all', 'All'], ['unwatched', 'To Watch'], ['watched', 'Watched']] as [filter, label]}
         <button
-          on:click={() => watchedFilter = filter as typeof watchedFilter}
+          onclick={() => watchedFilter = filter as typeof watchedFilter}
           class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all
             {watchedFilter === filter ? 'bg-rina-rose/20 text-rina-rose' : 'glass text-rina-slate hover:text-white'}"
         >
@@ -154,7 +154,7 @@
     {#if loading}
       <div class="text-center py-12 text-rina-slate">Loading movies...</div>
     {:else if filteredMovies.length === 0}
-      <GlassCard className="text-center py-12">
+      <GlassCard class="text-center py-12">
         <p class="text-4xl mb-3">🍿</p>
         <p class="text-rina-slate">No movies in this list yet.</p>
       </GlassCard>
@@ -195,14 +195,14 @@
               <!-- Actions -->
               <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
                 <button
-                  on:click={() => toggleWatched(movie)}
+                  onclick={() => toggleWatched(movie)}
                   class="w-8 h-8 rounded-full bg-black/60 backdrop-blur text-white text-xs hover:bg-rina-rose transition-colors"
                   title={movie.watched ? 'Mark unwatched' : 'Mark watched'}
                 >
                   {movie.watched ? '↩️' : '✓'}
                 </button>
                 <button
-                  on:click={() => removeMovie(movie.id)}
+                  onclick={() => removeMovie(movie.id)}
                   class="w-8 h-8 rounded-full bg-black/60 backdrop-blur text-white text-xs hover:bg-red-500 transition-colors"
                   title="Remove"
                 >

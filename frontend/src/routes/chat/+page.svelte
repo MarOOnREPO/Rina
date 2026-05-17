@@ -6,12 +6,12 @@
   import { fly, fade, slide } from 'svelte/transition';
   import { messageApi, type ChatMessage } from '$lib/utils/api';
 
-  let messages: ChatMessage[] = [];
-  let input = '';
+  let messages: ChatMessage[] = $state([]);
+  let input = $state('');
   let containerRef: HTMLDivElement;
-  let loading = true;
+  let loading = $state(true);
   let typingTimeout: ReturnType<typeof setTimeout>;
-  let sendError = '';
+  let sendError = $state('');
 
   async function loadHistory() {
     try {
@@ -72,7 +72,7 @@
 
   // Redirect if not authenticated (wait for auth loading to finish)
   $effect(() => {
-    if (!isLoading && !isAuthenticated && typeof window !== 'undefined') {
+    if (!isLoading() && !isAuthenticated() && typeof window !== 'undefined') {
     goto('/login');
     }
   });
@@ -97,7 +97,7 @@
   let partnerTyping = $derived(typing.value);
 </script>
 
-{#if isAuthenticated}
+{#if isAuthenticated()}
   <div class="max-w-3xl mx-auto h-[calc(100vh-7rem)] flex flex-col px-4" in:fade>
     <!-- Chat Header -->
     <div class="glass rounded-2xl p-4 mb-3 flex items-center justify-between shrink-0">
@@ -128,7 +128,7 @@
         </div>
       {:else}
         {#each messages as msg (msg.id)}
-          {@const isMe = msg.senderId === currentUser?.username}
+          {@const isMe = msg.senderId === currentUser()?.username}
           <div
             class="flex {isMe ? 'justify-end' : 'justify-start'}"
             in:fly={{ y: 10, duration: 200 }}
@@ -157,14 +157,14 @@
       <div class="glass rounded-2xl p-3 flex gap-2">
         <input
           bind:value={input}
-          on:input={handleInput}
-          on:keydown={handleKeydown}
+          oninput={handleInput}
+          onkeydown={handleKeydown}
           placeholder="Type a message..."
           class="flex-1 bg-transparent border-none text-white placeholder-rina-slate-dark text-sm
             focus:outline-none px-2"
         />
         <button
-          on:click={sendMessage}
+          onclick={sendMessage}
           disabled={!input.trim()}
           class="w-9 h-9 rounded-full bg-rina-rose flex items-center justify-center
             hover:scale-105 active:scale-95 transition-transform disabled:opacity-30"

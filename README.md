@@ -51,11 +51,73 @@
 
 ---
 
+## 🖥️ Local Development
+
+### Prerequisites
+- Node.js 20+
+- Docker & Docker Compose
+- npm
+
+### Quick Start
+
+```bash
+# 1. Clone and enter the repo
+git clone <repo-url> && cd Rina
+
+# 2. Install frontend dependencies
+cd frontend && npm install && cd ..
+
+# 3. Install backend dependencies
+cd backend && npm install && cd ..
+
+# 4. Copy environment template and fill in values
+cp .env.example .env
+# Edit .env — at minimum set POSTGRES_PASSWORD, JWT_SECRET, COOKIE_SECRET
+
+# 5. Start infrastructure (Postgres, Redis, MinIO) with exposed ports
+#    so the backend dev server on the host can reach them.
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres redis minio
+
+# 6. Run Prisma migrations (in backend directory)
+cd backend
+npx prisma migrate dev
+
+# 7. Start the backend dev server
+cd backend
+npm run dev
+
+# 8. In a new terminal, start the frontend dev server
+cd frontend
+npm run dev
+```
+
+The frontend will be available at `http://localhost:5173` and the backend API at `http://localhost:3000`.
+
+### Useful Commands
+
+```bash
+# Frontend
+cd frontend
+npm run dev        # Start dev server
+npm run build      # Production build
+npm run check      # Type-check with svelte-check
+npm run lint       # Run ESLint
+npm run format     # Format with Prettier
+
+# Backend
+cd backend
+npm run dev        # Start dev server with hot reload
+npm run build      # Compile TypeScript
+npm run db:studio  # Open Prisma Studio
+```
+
+---
+
 ## ✨ Core Ecosystem Features
 
 ### 🔒 Absolute Privacy & Security
 - **Hardcoded Auth:** Application access is cryptographically locked to two exact identities.
-- **Time Capsules:** Web Audio/Video recordings encrypted client-side using **AES-256 (Web Crypto API)**, physically unlockable only upon server-validated timestamps.
+- **Time Capsules:** Web Audio/Video recordings encrypted client-side using **AES-256-GCM (Web Crypto API)**, physically unlockable only upon server-validated timestamps.
 
 ### 🌐 Zero-Latency Connection
 - **WebRTC Video & PIP:** Direct peer-to-peer video streaming featuring a Picture-in-Picture "Theater Mode" for watching live sports together.

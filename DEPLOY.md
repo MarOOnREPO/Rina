@@ -1,5 +1,9 @@
 # 🚀 Project Rina — Deployment Guide
 
+> ⚠️ **MANDATORY FOR PRODUCTION:** HTTPS must be enabled before going live.
+> The backend sets `secure: true` on auth cookies. Browsers will reject login
+> cookies over plain HTTP, breaking authentication entirely.
+
 ## AWS Lightsail VPS (Ubuntu 22.04+)
 
 ### 1. Instance Setup
@@ -50,12 +54,16 @@ docker compose version
    dig +short rina.yourdomain.com
    ```
 
-### 3.5 SSL / HTTPS (Let's Encrypt)
+### 4. SSL / HTTPS (Let's Encrypt) — REQUIRED
 
-After your domain resolves to the server IP:
+**Auth will NOT work over HTTP.** Certbot requires Nginx to be running so it can serve the `.well-known/acme-challenge/` directory. Run Certbot **after** `docker compose up`:
 
 ```bash
-# On the server — run Certbot
+# 1. Start the stack first (nginx must be running)
+cd /home/ubuntu/rina
+docker compose up -d
+
+# 2. Run Certbot
 docker run -it --rm \
   -v certbot-data:/etc/letsencrypt \
   -v certbot-www:/var/www/certbot \
@@ -71,7 +79,7 @@ Then update `nginx/default.conf`:
 3. Uncomment the `return 301 https://$host$request_uri;` line in the HTTP block.
 4. Reload Nginx: `docker compose exec nginx nginx -s reload`
 
-### 3.6 GitHub Actions CI/CD Secrets
+### 5. GitHub Actions CI/CD Secrets
 
 For automatic deployment on push to `main`, add these secrets in your GitHub repo:
 
@@ -88,7 +96,7 @@ ssh-keygen -t ed25519 -C "rina-deploy" -f rina-deploy-key
 # Add the contents of rina-deploy-key as the SSH_PRIVATE_KEY secret
 ```
 
-### 4. Build Frontend Locally
+### 6. Build Frontend Locally
 
 Nginx serves the pre-built frontend from `frontend/build`. You must build it on your local machine **before** syncing to the server:
 
@@ -99,7 +107,7 @@ npm run build
 cd ..
 ```
 
-### 5. Copy Project to Server
+### 7. Copy Project to Server
 
 ```bash
 # On your local machine — sync everything except dev artifacts
@@ -119,7 +127,7 @@ cp .env.example .env
 nano .env
 ```
 
-### 6. Environment Variables (.env)
+### 8. Environment Variables (.env)
 
 ```env
 # ─── Database ───
@@ -160,7 +168,7 @@ COTURN_SECRET=generate_a_random_turn_secret_here
 NODE_ENV=production
 ```
 
-### 7. Build & Run
+### 9. Build & Run
 
 **Option A — Use the deploy script (recommended):**
 
@@ -191,32 +199,15 @@ docker compose logs -f backend
 docker compose logs -f nginx
 ```
 
-### 8. SSL / HTTPS (Let's Encrypt)
-
-```bash
-# Install Certbot
-docker run -it --rm \
-  -v certbot-data:/etc/letsencrypt \
-  -v certbot-www:/var/www/certbot \
-  certbot/certbot certonly --webroot \
-  --webroot-path=/var/www/certbot \
-  -d rina.yourdomain.com \
-  --agree-tos --no-eff-email -m your-email@example.com
-
-# Then update nginx/default.conf with your domain and uncomment the HTTPS block
-# Reload Nginx:
-docker compose exec nginx nginx -s reload
-```
-
-### 9. Auto-Renewal (CRON)
+### 10. Auto-Renewal (CRON)
 
 ```bash
 sudo crontab -e
 # Add:
-0 3 * * * docker run --rm -v certbot-data:/etc/letsencrypt -v certbot-www:/var/www/certbot certbot/certbot renew --quiet && docker compose exec nginx nginx -s reload
+0 3 * * * cd /home/ubuntu/rina && docker run --rm -v certbot-data:/etc/letsencrypt -v certbot-www:/var/www/certbot certbot/certbot renew --quiet && docker compose exec nginx nginx -s reload
 ```
 
-### 10. Updating After Code Changes
+### 11. Updating After Code Changes
 
 1. Build the frontend locally (`cd frontend && npm run build`).
 2. Re-run the deploy script on the server:
@@ -240,6 +231,7 @@ git pull origin main   # or rsync again
 - [ ] SSH key auth only (disable password login)
 - [ ] Automatic security updates: `sudo apt install -y unattended-upgrades`
 - [ ] Coturn server uses `--lt-cred-mech` with long-term credentials for TURN relay
+- [ ] HTTPS is enabled and HTTP redirects to HTTPS
 
 ---
 
@@ -255,4 +247,4 @@ git pull origin main   # or rsync again
 > Ensure `frontend/build` exists on the server and was synced by rsync. The rsync command above explicitly keeps `frontend/build` while excluding `backend/dist`.
 
 **Migrations fail with "connection refused"**
-> Do not run `npx prisma migrate deploy` directly on the host — Postgres is not exposed to the host. Use the builder container method shown in Step 7 or run `./scripts/deploy.sh`.
+> Do not run `npx prisma migrate deploy` directly on the host — Postgres is not exposed to the host. Use the builder container method shown in Step 9 or run `./scripts/deploy.sh`.

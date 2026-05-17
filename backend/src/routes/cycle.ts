@@ -3,8 +3,13 @@ import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { prisma } from '../services/prisma.js';
 import { authenticateJWT } from '../middleware/auth.js';
 
+function isValidDateString(str: string): boolean {
+  const d = new Date(str);
+  return !isNaN(d.getTime()) && str === d.toISOString().split('T')[0];
+}
+
 const entrySchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), // YYYY-MM-DD
+  date: z.string().refine(isValidDateString, { message: 'Invalid date format or value' }),
   flowIntensity: z.number().int().min(0).max(4).optional(),
   symptoms: z.array(z.string().max(50)).max(20).optional(),
   temperature: z.number().min(30).max(45).optional(),
@@ -42,15 +47,19 @@ export default async function cycleRoutes(fastify: FastifyInstance, _opts: Fasti
   // Get single entry
   fastify.get('/:id', { preValidation: [authenticateJWT] }, async (request, reply) => {
     try {
-      const { id } = request.params as { id: string };
+      const paramsSchema = z.object({ id: z.string().cuid() });
+      const params = paramsSchema.parse(request.params);
       const entry = await prisma.cycleEntry.findFirst({
-        where: { id, userId: request.user!.id }
+        where: { id: params.id, userId: request.user!.id }
       });
       if (!entry) {
         return reply.status(404).send({ error: 'Cycle entry not found' });
       }
       return reply.send({ entry });
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
       console.error('[Cycle Error]', error);
       return reply.status(500).send({ error: 'Failed to fetch cycle entry' });
     }
@@ -95,18 +104,19 @@ export default async function cycleRoutes(fastify: FastifyInstance, _opts: Fasti
   // Update cycle entry
   fastify.patch('/:id', { preValidation: [authenticateJWT] }, async (request, reply) => {
     try {
-      const { id } = request.params as { id: string };
+      const paramsSchema = z.object({ id: z.string().cuid() });
+      const params = paramsSchema.parse(request.params);
       const data = updateSchema.parse(request.body);
 
       const existing = await prisma.cycleEntry.findFirst({
-        where: { id, userId: request.user!.id }
+        where: { id: params.id, userId: request.user!.id }
       });
       if (!existing) {
         return reply.status(404).send({ error: 'Cycle entry not found' });
       }
 
       const entry = await prisma.cycleEntry.update({
-        where: { id },
+        where: { id: params.id },
         data: {
           ...(data.flowIntensity !== undefined && { flowIntensity: data.flowIntensity }),
           ...(data.symptoms !== undefined && { symptoms: data.symptoms }),
@@ -127,16 +137,20 @@ export default async function cycleRoutes(fastify: FastifyInstance, _opts: Fasti
   // Delete cycle entry
   fastify.delete('/:id', { preValidation: [authenticateJWT] }, async (request, reply) => {
     try {
-      const { id } = request.params as { id: string };
+      const paramsSchema = z.object({ id: z.string().cuid() });
+      const params = paramsSchema.parse(request.params);
       const existing = await prisma.cycleEntry.findFirst({
-        where: { id, userId: request.user!.id }
+        where: { id: params.id, userId: request.user!.id }
       });
       if (!existing) {
         return reply.status(404).send({ error: 'Cycle entry not found' });
       }
-      await prisma.cycleEntry.delete({ where: { id } });
+      await prisma.cycleEntry.delete({ where: { id: params.id } });
       return reply.status(204).send();
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
       console.error('[Cycle Error]', error);
       return reply.status(500).send({ error: 'Failed to delete cycle entry' });
     }

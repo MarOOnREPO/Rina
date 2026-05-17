@@ -8,20 +8,20 @@
   import CountdownTimer from '$lib/components/CountdownTimer.svelte';
   import { countdownApi, type Countdown } from '$lib/utils/api';
 
-  let currentDate = new Date();
-  let events: CalendarEvent[] = [];
-  let countdowns: Countdown[] = [];
-  let loading = true;
-  let showAddModal = false;
-  let selectedDate: string | null = null;
+  let currentDate = $state(new Date());
+  let events: CalendarEvent[] = $state([]);
+  let countdowns: Countdown[] = $state([]);
+  let loading = $state(true);
+  let showAddModal = $state(false);
+  let selectedDate: string | null = $state(null);
 
   // New event form
-  let newEvent: Partial<CalendarEvent> = {
+  let newEvent: Partial<CalendarEvent> = $state({
     title: '',
     description: '',
     type: 'SHARED',
     allDay: false
-  };
+  });
 
   let year = $derived(currentDate.getFullYear());
   let month = $derived(currentDate.getMonth());
@@ -175,7 +175,7 @@
 
   // Redirect if not authenticated (wait for auth loading to finish)
   $effect(() => {
-    if (!isLoading && !isAuthenticated && typeof window !== 'undefined') {
+    if (!isLoading() && !isAuthenticated() && typeof window !== 'undefined') {
       goto('/login');
     }
   });
@@ -185,7 +185,7 @@
   });
 </script>
 
-{#if isAuthenticated}
+{#if isAuthenticated()}
   <div class="max-w-5xl mx-auto px-4 py-6" in:fade>
     <h2 class="text-2xl font-bold mb-6">📅 Calendar</h2>
 
@@ -194,18 +194,18 @@
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         {#each countdowns as cd (cd.id)}
           <CountdownTimer targetDate={cd.targetDate} title={cd.title} />
-        {/each}}
+        {/each}
       </div>
     {/if}
 
     <!-- Calendar Grid -->
-    <GlassCard className="mb-6">
+    <GlassCard class="mb-6">
       <div class="flex items-center justify-between mb-4">
-        <button on:click={prevMonth} class="p-2 rounded-lg hover:bg-white/5 transition-colors text-rina-slate">
+        <button onclick={prevMonth} class="p-2 rounded-lg hover:bg-white/5 transition-colors text-rina-slate">
           ←
         </button>
         <h3 class="text-lg font-semibold">{monthName}</h3>
-        <button on:click={nextMonth} class="p-2 rounded-lg hover:bg-white/5 transition-colors text-rina-slate">
+        <button onclick={nextMonth} class="p-2 rounded-lg hover:bg-white/5 transition-colors text-rina-slate">
           →
         </button>
       </div>
@@ -223,7 +223,7 @@
           {#if cell}
             {@const { day, dateStr, events: dayEvents } = cell}
             <button
-              on:click={() => openAddModal(dateStr)}
+              onclick={() => openAddModal(dateStr)}
               class="relative aspect-square rounded-xl p-1.5 flex flex-col items-start gap-0.5
                 hover:bg-white/5 transition-colors text-left
                 {isPeriodDay(day) ? 'bg-red-500/10' : ''}
@@ -272,7 +272,7 @@
             Fertile
           </div>
         </div>
-        <button on:click={() => showCycleSettings = true} class="hover:text-rina-rose transition-colors">
+        <button onclick={() => showCycleSettings = true} class="hover:text-rina-rose transition-colors">
           ⚙️ Cycle
         </button>
       </div>
@@ -280,8 +280,8 @@
 
     <!-- Cycle Settings Modal -->
     {#if showCycleSettings}
-      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" transition:fade on:click={() => showCycleSettings = false}>
-        <div class="glass-strong rounded-2xl p-6 w-full max-w-sm" transition:fly={{ y: 20 }} on:click|stopPropagation>
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" transition:fade onclick={() => showCycleSettings = false}>
+        <div class="glass-strong rounded-2xl p-6 w-full max-w-sm" transition:fly={{ y: 20 }} onclick={(e) => e.stopPropagation()}>
           <h3 class="text-lg font-semibold mb-4">Cycle Settings</h3>
           <div class="space-y-4">
             <div>
@@ -293,8 +293,8 @@
               <input type="number" bind:value={cycleLength} min="20" max="40" class="w-full px-3 py-2 rounded-lg bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50" />
             </div>
             <div class="flex gap-2 pt-2">
-              <button on:click={() => showCycleSettings = false} class="flex-1 py-2 rounded-lg border border-rina-border text-sm hover:bg-white/5 transition-colors">Cancel</button>
-              <button on:click={saveCycleSettings} class="flex-1 py-2 rounded-lg bg-rina-rose text-white text-sm font-medium hover:opacity-90 transition-opacity">Save</button>
+              <button onclick={() => showCycleSettings = false} class="flex-1 py-2 rounded-lg border border-rina-border text-sm hover:bg-white/5 transition-colors">Cancel</button>
+              <button onclick={saveCycleSettings} class="flex-1 py-2 rounded-lg bg-rina-rose text-white text-sm font-medium hover:opacity-90 transition-opacity">Save</button>
             </div>
           </div>
         </div>
@@ -303,8 +303,8 @@
 
     <!-- Add Event Modal -->
     {#if showAddModal}
-      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" transition:fade on:click={() => showAddModal = false}>
-        <div class="glass-strong rounded-2xl p-6 w-full max-w-md" transition:fly={{ y: 20 }} on:click|stopPropagation>
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" transition:fade onclick={() => showAddModal = false}>
+        <div class="glass-strong rounded-2xl p-6 w-full max-w-md" transition:fly={{ y: 20 }} onclick={(e) => e.stopPropagation()}>
           <h3 class="text-lg font-semibold mb-4">Add Event — {selectedDate}</h3>
           <div class="space-y-4">
             <div>
@@ -333,8 +333,8 @@
               <label for="allDay" class="text-sm text-rina-slate">All day</label>
             </div>
             <div class="flex gap-2 pt-2">
-              <button on:click={() => showAddModal = false} class="flex-1 py-2 rounded-lg border border-rina-border text-sm hover:bg-white/5 transition-colors">Cancel</button>
-              <button on:click={saveEvent} class="flex-1 py-2 rounded-lg bg-rina-rose text-white text-sm font-medium hover:opacity-90 transition-opacity">Save</button>
+              <button onclick={() => showAddModal = false} class="flex-1 py-2 rounded-lg border border-rina-border text-sm hover:bg-white/5 transition-colors">Cancel</button>
+              <button onclick={saveEvent} class="flex-1 py-2 rounded-lg bg-rina-rose text-white text-sm font-medium hover:opacity-90 transition-opacity">Save</button>
             </div>
           </div>
         </div>

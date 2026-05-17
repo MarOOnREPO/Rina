@@ -5,7 +5,7 @@
   import { fade, scale } from 'svelte/transition';
   import GlassCard from '$lib/components/GlassCard.svelte';
 
-  let meals = [
+  let meals = $state([
     '🇲🇦 Couscous',
     '🇷🇺 Borscht',
     '🍕 Pizza',
@@ -18,13 +18,13 @@
     '🍛 Curry',
     '🥞 Pancakes',
     '🍜 Ramen'
-  ];
+  ]);
 
-  let rotation = 0;
-  let spinning = false;
-  let selectedMeal: string | null = null;
-  let showAdd = false;
-  let newMeal = '';
+  let rotation = $state(0);
+  let spinning = $state(false);
+  let selectedMeal: string | null = $state(null);
+  let showAdd = $state(false);
+  let newMeal = $state('');
 
   function spin() {
     if (spinning) return;
@@ -74,13 +74,13 @@
 
   // Redirect if not authenticated (wait for auth loading to finish)
   $effect(() => {
-    if (!isLoading && !isAuthenticated && typeof window !== 'undefined') {
+    if (!isLoading() && !isAuthenticated() && typeof window !== 'undefined') {
     goto('/login');
     }
   });
 </script>
 
-{#if isAuthenticated}
+{#if isAuthenticated()}
   <div class="max-w-2xl mx-auto px-4 py-6" in:fade>
     <h2 class="text-2xl font-bold mb-6">🍽️ Dinner Date Roulette</h2>
 
@@ -150,7 +150,7 @@
 
       <!-- Controls -->
       <button
-        on:click={spin}
+        onclick={spin}
         disabled={spinning}
         class="mt-8 px-10 py-4 rounded-full bg-gradient-to-r from-rina-rose to-rina-indigo text-white font-bold text-lg
           hover:opacity-90 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-rina-rose/20"
@@ -160,11 +160,11 @@
     </div>
 
     <!-- Meal List -->
-    <GlassCard className="mt-8">
+    <GlassCard class="mt-8">
       <div class="flex items-center justify-between mb-4">
         <h3 class="font-semibold">Menu Options</h3>
         <button
-          on:click={() => showAdd = true}
+          onclick={() => showAdd = true}
           class="text-xs px-3 py-1.5 rounded-lg bg-rina-rose/20 text-rina-rose hover:bg-rina-rose/30 transition-colors"
         >
           + Add
@@ -175,7 +175,7 @@
           <div class="flex items-center gap-1 px-3 py-1.5 rounded-full glass text-sm">
             {meal}
             <button
-              on:click={() => removeMeal(i)}
+              onclick={() => removeMeal(i)}
               class="ml-1 text-rina-slate-dark hover:text-rina-rose transition-colors"
               aria-label="Remove {meal}"
             >
@@ -187,18 +187,18 @@
     </GlassCard>
 
     {#if showAdd}
-      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" transition:fade on:click={() => showAdd = false}>
-        <div class="glass-strong rounded-2xl p-6 w-full max-w-sm" transition:scale on:click|stopPropagation>
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" transition:fade onclick={() => showAdd = false}>
+        <div class="glass-strong rounded-2xl p-6 w-full max-w-sm" transition:scale onclick={(e) => e.stopPropagation()}>
           <h3 class="text-lg font-semibold mb-4">Add Meal</h3>
           <input
             bind:value={newMeal}
             placeholder="e.g. 🇮🇹 Risotto"
             class="w-full px-3 py-2 rounded-lg bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50 mb-4"
-            on:keydown={(e) => e.key === 'Enter' && addMeal()}
+            onkeydown={(e) => e.key === 'Enter' && addMeal()}
           />
           <div class="flex gap-2">
-            <button on:click={() => showAdd = false} class="flex-1 py-2 rounded-lg border border-rina-border text-sm hover:bg-white/5">Cancel</button>
-            <button on:click={addMeal} class="flex-1 py-2 rounded-lg bg-rina-rose text-white text-sm font-medium hover:opacity-90">Add</button>
+            <button onclick={() => showAdd = false} class="flex-1 py-2 rounded-lg border border-rina-border text-sm hover:bg-white/5">Cancel</button>
+            <button onclick={addMeal} class="flex-1 py-2 rounded-lg bg-rina-rose text-white text-sm font-medium hover:opacity-90">Add</button>
           </div>
         </div>
       </div>
