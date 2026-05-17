@@ -196,6 +196,17 @@ export default async function setupWizardRoutes(fastify: FastifyInstance, _opts:
     }
   });
 
+  // POST /api/setup-wizard/generate-vapid
+  fastify.post('/generate-vapid', async (_request, reply) => {
+    try {
+      const webPush = await import('web-push');
+      const keys = webPush.generateVAPIDKeys();
+      return reply.send({ success: true, publicKey: keys.publicKey, privateKey: keys.privateKey });
+    } catch (err: any) {
+      return reply.status(500).send({ error: err.message });
+    }
+  });
+
   // GET /api/setup-wizard/status
   fastify.get('/status', async (_request, reply) => {
     const result = {

@@ -287,7 +287,8 @@ export const setupApi = {
   runSSL: (domain: string, email: string) =>
     api.post<SetupCommandResponse>('/setup-wizard/ssl', { domain, email }),
   runDeploy: () => api.post<SetupCommandResponse>('/setup-wizard/deploy'),
-  runBackup: () => api.post<SetupCommandResponse>('/setup-wizard/backup')
+  runBackup: () => api.post<SetupCommandResponse>('/setup-wizard/backup'),
+  generateVapid: () => api.post<{ success: boolean; publicKey: string; privateKey: string }>('/setup-wizard/generate-vapid')
 };
 
 export const cycleApi = {

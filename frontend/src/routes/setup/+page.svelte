@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { fade, fly, slide } from 'svelte/transition';
-  import { setupApi, type SetupStatus, type SetupEnvResponse } from '$lib/utils/api';
+  import { setupApi } from '$lib/utils/api';
+  import bcrypt from 'bcryptjs';
 
   // ─── Step Definitions ──────────────────────────────────────────
   type Step = {
@@ -21,87 +22,94 @@
       number: 1,
       title: 'Server Prep',
       emoji: '🖥️',
-      description: 'SSH into your Lightsail instance and update the system.',
+      description: 'SSH into Lightsail, update system, install Docker.',
       action: 'info',
       commands: `sudo apt update && sudo apt upgrade -y
 
+# Ensure Docker & Compose are installed
+docker --version
+docker compose version
+
 # Create project directory
-mkdir -p ~/rina
-cd ~/rina`,
-      note: 'Make sure Docker & Docker Compose are installed.'
+mkdir -p ~/rina && cd ~/rina`,
+      note: 'Ubuntu 22.04+ recommended. Minimum 1 vCPU / 2GB RAM.'
     },
     {
       id: 'get-code',
       number: 2,
       title: 'Get the Code',
       emoji: '📥',
-      description: 'Push to main (CI deploys automatically) or rsync manually.',
+      description: 'Push to main (CI deploys) or rsync manually.',
       action: 'info',
-      commands: `# Option A: GitHub Actions (recommended)
-# Just push to main — the workflow rsyncs to /home/ubuntu/rina
+      commands: `# Option A: GitHub Actions
+# Push to main → workflow rsyncs to /home/ubuntu/rina
 
-# Option B: Manual rsync from local machine
+# Option B: Manual rsync
 rsync -avz --exclude='node_modules' --exclude='.git' ./ ubuntu@YOUR_IP:~/rina`,
-      note: 'Make sure frontend/build exists before syncing. CI handles this automatically.'
+      note: 'The CI workflow already builds frontend/build and syncs it.'
     },
     {
       id: 'configure-env',
       number: 3,
       title: 'Configure Environment',
       emoji: '⚙️',
-      description: 'Fill in every environment variable below and save.',
+      description: 'Fill every field below. The app will not start without them.',
       action: 'form',
-      note: 'All fields are required for a working deployment.'
+      note: 'Click Generate buttons where available. All fields are required.'
     },
     {
       id: 'init-ssl',
       number: 4,
       title: 'Initialize SSL',
       emoji: '🔒',
-      description: 'Get a Let\'s Encrypt certificate for your domain.',
+      description: 'Get a Let\'s Encrypt certificate for HTTPS.',
       action: 'ssl',
       commands: `./scripts/init-ssl.sh your-domain.com your-email@example.com`,
-      note: 'This starts a temporary HTTP nginx, runs Certbot, then switches to HTTPS.'
+      note: 'This temporarily starts HTTP nginx, runs Certbot, then enables HTTPS.'
     },
     {
       id: 'deploy',
       number: 5,
       title: 'Deploy the App',
       emoji: '🚀',
-      description: 'Start Postgres, migrate the DB, and launch all services.',
+      description: 'Start Postgres, run migrations, build & launch all services.',
       action: 'deploy',
       commands: `./scripts/deploy.sh`,
-      note: 'This waits for Postgres, runs Prisma migrations, builds containers, and health-checks.'
+      note: 'Takes 2-3 minutes on first run. Migrations run automatically before backend starts.'
     },
     {
       id: 'verify',
       number: 6,
       title: 'Verify Deployment',
       emoji: '✅',
-      description: 'Confirm all services are healthy.',
+      description: 'Confirm all services are healthy and responding.',
       action: 'verify',
       commands: `https://your-domain.com
-https://your-domain.com/api/health`,
-      note: 'Click Run Check below to test backend connectivity.'
+https://your-domain.com/api/health
+https://your-domain.com/setup`,
+      note: 'Run the health check below to verify DB, Redis, and S3 connectivity.'
     },
     {
       id: 'backups',
       number: 7,
       title: 'Enable Backups',
       emoji: '💾',
-      description: 'Test the backup script, then add it to cron.',
+      description: 'Test the backup script, then schedule nightly dumps to S3.',
       action: 'backup',
-      commands: `crontab -e
-# Add:
+      commands: `# Test once manually
+./scripts/backup-db.sh
+
+# Add to crontab for nightly backups
+crontab -e
 0 3 * * * /home/ubuntu/rina/scripts/backup-db.sh >> /home/ubuntu/rina/backups/backup.log 2>&1`,
-      note: 'Test manually first with the Run button below.'
+      note: 'Backups are uploaded to your S3 bucket under /backups/.'
     },
     {
       id: 'firewall',
       number: 8,
-      title: 'Firewall (UFW)',
+      title: 'Firewall & Ports',
       emoji: '🛡️',
-      description: 'Lock down the server. Only expose SSH, HTTP, and HTTPS.',
+      description: 'Open only the ports you need. Lock everything else.',
       action: 'info',
       commands: `sudo ufw default deny incoming
 sudo ufw default allow outgoing
@@ -109,7 +117,7 @@ sudo ufw allow ssh
 sudo ufw allow http
 sudo ufw allow https
 sudo ufw enable`,
-      note: 'Do NOT open port 3000 or 9000. Nginx is the only public entrypoint.'
+      note: 'See the Ports Reference card above for the full port table.'
     }
   ];
 
@@ -137,6 +145,8 @@ sudo ufw enable`,
     PORT: '3000'
   });
 
+  let plainMaroonPw = $state('');
+  let plainRinaPw = $state('');
   let envLoaded = $state(false);
   let saving = $state(false);
   let saveMsg = $state('');
@@ -144,7 +154,7 @@ sudo ufw enable`,
   // ─── Wizard State ──────────────────────────────────────────────
   let completed = $state<Set<string>>(new Set());
   let expanded = $state<string | null>('configure-env');
-  let status = $state<SetupStatus | null>(null);
+  let status = $state<any>(null);
   let checking = $state(false);
   let runningStep = $state<string | null>(null);
   let consoleOutput = $state<string>('');
@@ -170,14 +180,12 @@ sudo ufw enable`,
   // ─── Actions ───────────────────────────────────────────────────
   async function loadEnv() {
     try {
-      const data: SetupEnvResponse = await setupApi.getEnv();
+      const data = await setupApi.getEnv();
       if (data.exists) {
         envForm = { ...envForm, ...data.env };
         envLoaded = true;
       }
-    } catch {
-      // ignore
-    }
+    } catch { /* ignore */ }
   }
 
   async function saveEnv() {
@@ -221,7 +229,7 @@ sudo ufw enable`,
   async function runStepAction(step: Step) {
     if (step.action === 'ssl') {
       if (!sslDomain || !sslEmail) {
-        appendConsole('❌ Please enter Domain and Email in the SSL step.');
+        appendConsole('❌ Please enter Domain and Email.');
         return;
       }
       runningStep = step.id;
@@ -232,9 +240,7 @@ sudo ufw enable`,
         if (res.success) toggleStep(step.id);
       } catch (err: any) {
         appendConsole(`❌ Error: ${err.message || err}`);
-      } finally {
-        runningStep = null;
-      }
+      } finally { runningStep = null; }
     }
 
     if (step.action === 'deploy') {
@@ -246,9 +252,7 @@ sudo ufw enable`,
         if (res.success) toggleStep(step.id);
       } catch (err: any) {
         appendConsole(`❌ Error: ${err.message || err}`);
-      } finally {
-        runningStep = null;
-      }
+      } finally { runningStep = null; }
     }
 
     if (step.action === 'backup') {
@@ -260,9 +264,7 @@ sudo ufw enable`,
         if (res.success) toggleStep(step.id);
       } catch (err: any) {
         appendConsole(`❌ Error: ${err.message || err}`);
-      } finally {
-        runningStep = null;
-      }
+      } finally { runningStep = null; }
     }
 
     if (step.action === 'verify') {
@@ -275,19 +277,40 @@ sudo ufw enable`,
     checking = true;
     try {
       status = await setupApi.status();
-      appendConsole(`🔍 Status: DB=${status.checks.database}, Redis=${status.checks.redis}, S3=${status.checks.s3}, Env=${status.checks.env}`);
+      appendConsole(`🔍 Env=${status.checks.env} DB=${status.checks.database} Redis=${status.checks.redis} S3=${status.checks.s3}`);
     } catch (err: any) {
       status = null;
       appendConsole(`❌ Health check failed: ${err.message || err}`);
-    } finally {
-      checking = false;
-    }
+    } finally { checking = false; }
   }
 
   function generateSecret() {
     const arr = new Uint8Array(48);
     crypto.getRandomValues(arr);
     return btoa(String.fromCharCode(...arr)).replace(/[^a-zA-Z0-9]/g, '').slice(0, 64);
+  }
+
+  async function generateHash(user: 'maroon' | 'rina') {
+    const pw = user === 'maroon' ? plainMaroonPw : plainRinaPw;
+    if (!pw) {
+      saveMsg = `Enter ${user} password first`;
+      return;
+    }
+    const hash = await bcrypt.hash(pw, 12);
+    if (user === 'maroon') envForm.MAROON_PASSWORD_HASH = hash;
+    else envForm.RINA_PASSWORD_HASH = hash;
+    saveMsg = `${user} hash generated!`;
+  }
+
+  async function generateVapid() {
+    try {
+      const res = await setupApi.generateVapid();
+      envForm.VAPID_PUBLIC_KEY = res.publicKey;
+      envForm.VAPID_PRIVATE_KEY = res.privateKey;
+      saveMsg = 'VAPID keys generated!';
+    } catch (err: any) {
+      saveMsg = err.message || 'Failed to generate VAPID';
+    }
   }
 
   const progressPercent = $derived(Math.round((completed.size / steps.length) * 100));
@@ -303,32 +326,69 @@ sudo ufw enable`,
   <div class="fixed top-0 left-1/4 w-[500px] h-[500px] bg-rina-rose/10 rounded-full blur-[140px] pointer-events-none"></div>
   <div class="fixed bottom-0 right-1/4 w-[500px] h-[500px] bg-rina-indigo/10 rounded-full blur-[140px] pointer-events-none"></div>
 
-  <div class="max-w-4xl mx-auto relative z-10">
+  <div class="max-w-5xl mx-auto relative z-10">
     <!-- Header -->
     <div class="text-center mb-8" in:fly={{ y: -20, duration: 500 }}>
       <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-rina-rose/10 border border-rina-rose/20 text-rina-rose text-xs font-semibold mb-4">
         🚀 Complete Deployment Wizard
       </div>
       <h1 class="text-4xl md:text-5xl font-bold text-gradient mb-3">Setup Rina</h1>
-      <p class="text-rina-slate text-sm md:text-base max-w-lg mx-auto">
-        Configure, deploy, and verify your private sanctuary — all from this page.
+      <p class="text-rina-slate text-sm md:text-base max-w-2xl mx-auto">
+        From A to Z: configure, deploy, and verify your private sanctuary on AWS Lightsail — all from this page.
+      </p>
+    </div>
+
+    <!-- Ports Reference Card -->
+    <div class="glass-strong rounded-2xl p-5 mb-6 border border-rina-border/50" in:fly={{ y: 20, duration: 400, delay: 80 }}>
+      <div class="flex items-center gap-2 mb-4">
+        <span class="text-xl">🌐</span>
+        <h2 class="text-sm font-semibold">Lightsail Ports Reference</h2>
+      </div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+        <div class="bg-rina-bg/60 rounded-lg p-3 border border-emerald-500/20">
+          <div class="text-emerald-400 font-bold text-lg">22</div>
+          <div class="text-rina-slate">TCP — SSH</div>
+        </div>
+        <div class="bg-rina-bg/60 rounded-lg p-3 border border-emerald-500/20">
+          <div class="text-emerald-400 font-bold text-lg">80</div>
+          <div class="text-rina-slate">TCP — HTTP</div>
+        </div>
+        <div class="bg-rina-bg/60 rounded-lg p-3 border border-emerald-500/20">
+          <div class="text-emerald-400 font-bold text-lg">443</div>
+          <div class="text-rina-slate">TCP — HTTPS</div>
+        </div>
+        <div class="bg-rina-bg/60 rounded-lg p-3 border border-amber-500/20">
+          <div class="text-amber-400 font-bold text-lg">3478</div>
+          <div class="text-rina-slate">UDP/TCP — Coturn</div>
+        </div>
+        <div class="bg-rina-bg/60 rounded-lg p-3 border border-amber-500/20">
+          <div class="text-amber-400 font-bold text-lg">5349</div>
+          <div class="text-rina-slate">UDP/TCP — Coturn TLS</div>
+        </div>
+        <div class="bg-rina-bg/60 rounded-lg p-3 border border-amber-500/20">
+          <div class="text-amber-400 font-bold text-lg">49152-65535</div>
+          <div class="text-rina-slate">UDP — Coturn Media</div>
+        </div>
+        <div class="bg-rose-500/10 rounded-lg p-3 border border-rose-500/20 md:col-span-2">
+          <div class="text-rose-400 font-bold">❌ DO NOT OPEN</div>
+          <div class="text-rina-slate">3000 (backend) · 9000/9001 (old MinIO)</div>
+        </div>
+      </div>
+      <p class="text-[10px] text-rina-slate-dark mt-3">
+        Open these in your Lightsail instance dashboard under <strong>Networking → Firewall</strong>.
       </p>
     </div>
 
     <!-- Progress -->
-    <div class="glass-strong rounded-2xl p-5 mb-8 shadow-2xl" in:fly={{ y: 20, duration: 400, delay: 100 }}>
+    <div class="glass-strong rounded-2xl p-5 mb-8 shadow-2xl" in:fly={{ y: 20, duration: 400, delay: 120 }}>
       <div class="flex items-center justify-between mb-2">
-        <span class="text-sm font-medium text-rina-slate">Progress</span>
-        <span class="text-sm font-bold {allDone ? 'text-emerald-400' : 'text-white'}">
-          {completed.size} / {steps.length}
-        </span>
+        <span class="text-sm font-medium text-rina-slate">Setup Progress</span>
+        <span class="text-sm font-bold {allDone ? 'text-emerald-400' : 'text-white'}">{completed.size} / {steps.length}</span>
       </div>
       <div class="w-full h-2.5 bg-rina-bg rounded-full overflow-hidden">
         <div class="h-full rounded-full transition-all duration-700 ease-out bg-gradient-to-r from-rina-rose to-rina-indigo" style="width: {progressPercent}%"></div>
       </div>
-      {#if allDone}
-        <div class="mt-3 text-center text-emerald-400 text-sm font-medium" in:fade>🎉 Setup complete!</div>
-      {/if}
+      {#if allDone}<div class="mt-3 text-center text-emerald-400 text-sm font-medium" in:fade>🎉 Setup complete!</div>{/if}
     </div>
 
     <!-- Steps -->
@@ -351,74 +411,203 @@ sudo ufw enable`,
               <div class="text-rina-slate transition-transform duration-300 {expanded === step.id ? 'rotate-180' : ''}">▼</div>
             </button>
 
-            <!-- Expanded -->
             {#if expanded === step.id}
               <div class="px-4 md:px-5 pb-5" transition:slide={{ duration: 300 }}>
 
-                <!-- Environment Form (Step 3) -->
                 {#if step.action === 'form'}
-                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-                    {#each [
-                      { key: 'DOMAIN', label: 'Domain', placeholder: 'rina.example.com', type: 'text' },
-                      { key: 'POSTGRES_PASSWORD', label: 'Postgres Password', placeholder: 'openssl rand -hex 32', type: 'password' },
-                      { key: 'JWT_SECRET', label: 'JWT Secret', placeholder: '64+ char random', type: 'password' },
-                      { key: 'COOKIE_SECRET', label: 'Cookie Secret', placeholder: 'Different from JWT', type: 'password' },
-                      { key: 'CORS_ORIGIN', label: 'CORS Origin', placeholder: 'https://rina.example.com', type: 'text' },
-                      { key: 'REDIS_URL', label: 'Redis URL', placeholder: 'redis://redis:6379', type: 'text' },
-                      { key: 'AWS_REGION', label: 'AWS Region', placeholder: 'us-east-1', type: 'text' },
-                      { key: 'AWS_ACCESS_KEY_ID', label: 'AWS Access Key ID', placeholder: 'AKIA...', type: 'text' },
-                      { key: 'AWS_SECRET_ACCESS_KEY', label: 'AWS Secret Key', placeholder: 'your-secret', type: 'password' },
-                      { key: 'S3_BUCKET_NAME', label: 'S3 Bucket Name', placeholder: 'rina-uploads', type: 'text' },
-                      { key: 'MAROON_PASSWORD_HASH', label: 'Maroon Password Hash', placeholder: '$2a$12$...', type: 'password' },
-                      { key: 'RINA_PASSWORD_HASH', label: 'Rina Password Hash', placeholder: '$2a$12$...', type: 'password' },
-                      { key: 'TMDB_API_KEY', label: 'TMDB API Key', placeholder: 'optional', type: 'text' },
-                      { key: 'VITE_MAPBOX_TOKEN', label: 'Mapbox Token', placeholder: 'optional', type: 'text' },
-                      { key: 'VAPID_PUBLIC_KEY', label: 'VAPID Public Key', placeholder: 'web-push key', type: 'text' },
-                      { key: 'VAPID_PRIVATE_KEY', label: 'VAPID Private Key', placeholder: 'web-push key', type: 'password' },
-                      { key: 'COTURN_REALM', label: 'Coturn Realm', placeholder: 'your-domain.com', type: 'text' },
-                      { key: 'COTURN_SECRET', label: 'Coturn Secret', placeholder: 'random hex', type: 'password' },
-                    ] as field}
-                      <div class="flex flex-col gap-1">
-                        <label class="text-xs text-rina-slate font-medium flex items-center justify-between">
-                          <span>{field.label}</span>
-                          {#if field.type === 'password'}
-                            <button type="button" class="text-[10px] text-rina-rose hover:underline" onclick={() => { envForm[field.key] = generateSecret(); }}>
-                              Generate
-                            </button>
-                          {/if}
-                        </label>
-                        <input
-                          type={field.type}
-                          bind:value={envForm[field.key]}
-                          placeholder={field.placeholder}
-                          class="w-full px-3 py-2 rounded-xl bg-rina-bg border border-rina-border text-sm text-white placeholder-rina-slate-dark
-                            focus:outline-none focus:border-rina-rose/50 focus:ring-1 focus:ring-rina-rose/30 transition-all"
-                        />
+                  <!-- Domain -->
+                  <div class="mt-3 p-4 bg-rina-bg/40 rounded-xl border border-rina-border/40">
+                    <h4 class="text-xs font-bold text-rina-slate uppercase tracking-wider mb-3">🔗 Domain & DNS</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label class="text-[11px] text-rina-slate mb-1 block">Domain Name</label>
+                        <input bind:value={envForm.DOMAIN} placeholder="rina.example.com" class="w-full px-3 py-2 rounded-xl bg-rina-bg border border-rina-border text-sm text-white focus:outline-none focus:border-rina-rose/50" />
+                        <p class="text-[10px] text-rina-slate-dark mt-1">Point an A-record to your Lightsail static IP.</p>
                       </div>
-                    {/each}
+                      <div>
+                        <label class="text-[11px] text-rina-slate mb-1 block">CORS Origin</label>
+                        <input bind:value={envForm.CORS_ORIGIN} placeholder="https://rina.example.com" class="w-full px-3 py-2 rounded-xl bg-rina-bg border border-rina-border text-sm text-white focus:outline-none focus:border-rina-rose/50" />
+                        <p class="text-[10px] text-rina-slate-dark mt-1">Must match your HTTPS domain exactly.</p>
+                      </div>
+                    </div>
                   </div>
-                  <div class="mt-4 flex items-center gap-3">
-                    <button onclick={saveEnv} disabled={saving} class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-rina-rose to-rina-indigo text-white text-sm font-semibold hover:opacity-90 transition-all disabled:opacity-50">
-                      {saving ? '⏳ Saving...' : '💾 Save Configuration'}
+
+                  <!-- Database -->
+                  <div class="mt-3 p-4 bg-rina-bg/40 rounded-xl border border-rina-border/40">
+                    <h4 class="text-xs font-bold text-rina-slate uppercase tracking-wider mb-3">🐘 Database</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label class="text-[11px] text-rina-slate mb-1 block">Postgres Password</label>
+                        <div class="flex gap-2">
+                          <input type="password" bind:value={envForm.POSTGRES_PASSWORD} placeholder="openssl rand -hex 32" class="flex-1 px-3 py-2 rounded-xl bg-rina-bg border border-rina-border text-sm text-white focus:outline-none focus:border-rina-rose/50" />
+                          <button onclick={() => envForm.POSTGRES_PASSWORD = generateSecret().slice(0, 32)} class="px-3 py-2 rounded-xl bg-rina-bg border border-rina-border text-[10px] hover:border-rina-rose/50 transition-colors">Gen</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Auth -->
+                  <div class="mt-3 p-4 bg-rina-bg/40 rounded-xl border border-rina-border/40">
+                    <h4 class="text-xs font-bold text-rina-slate uppercase tracking-wider mb-3">🔐 Authentication</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label class="text-[11px] text-rina-slate mb-1 block">JWT Secret</label>
+                        <div class="flex gap-2">
+                          <input type="password" bind:value={envForm.JWT_SECRET} placeholder="64+ random chars" class="flex-1 px-3 py-2 rounded-xl bg-rina-bg border border-rina-border text-sm text-white focus:outline-none focus:border-rina-rose/50" />
+                          <button onclick={() => envForm.JWT_SECRET = generateSecret()} class="px-3 py-2 rounded-xl bg-rina-bg border border-rina-border text-[10px] hover:border-rina-rose/50 transition-colors">Gen</button>
+                        </div>
+                      </div>
+                      <div>
+                        <label class="text-[11px] text-rina-slate mb-1 block">Cookie Secret</label>
+                        <div class="flex gap-2">
+                          <input type="password" bind:value={envForm.COOKIE_SECRET} placeholder="Different from JWT" class="flex-1 px-3 py-2 rounded-xl bg-rina-bg border border-rina-border text-sm text-white focus:outline-none focus:border-rina-rose/50" />
+                          <button onclick={() => envForm.COOKIE_SECRET = generateSecret()} class="px-3 py-2 rounded-xl bg-rina-bg border border-rina-border text-[10px] hover:border-rina-rose/50 transition-colors">Gen</button>
+                        </div>
+                      </div>
+                      <div class="md:col-span-2">
+                        <label class="text-[11px] text-rina-slate mb-1 block">Maroon Password → Bcrypt Hash</label>
+                        <div class="flex gap-2">
+                          <input type="password" bind:value={plainMaroonPw} placeholder="Type password" class="flex-1 px-3 py-2 rounded-xl bg-rina-bg border border-rina-border text-sm text-white focus:outline-none focus:border-rina-rose/50" />
+                          <button onclick={() => generateHash('maroon')} class="px-3 py-2 rounded-xl bg-rina-bg border border-rina-border text-[10px] hover:border-rina-rose/50 transition-colors">Hash</button>
+                        </div>
+                        <input type="text" bind:value={envForm.MAROON_PASSWORD_HASH} placeholder="$2a$12$..." class="w-full mt-2 px-3 py-2 rounded-xl bg-rina-bg border border-rina-border text-sm text-white focus:outline-none focus:border-rina-rose/50" />
+                      </div>
+                      <div class="md:col-span-2">
+                        <label class="text-[11px] text-rina-slate mb-1 block">Rina Password → Bcrypt Hash</label>
+                        <div class="flex gap-2">
+                          <input type="password" bind:value={plainRinaPw} placeholder="Type password" class="flex-1 px-3 py-2 rounded-xl bg-rina-bg border border-rina-border text-sm text-white focus:outline-none focus:border-rina-rose/50" />
+                          <button onclick={() => generateHash('rina')} class="px-3 py-2 rounded-xl bg-rina-bg border border-rina-border text-[10px] hover:border-rina-rose/50 transition-colors">Hash</button>
+                        </div>
+                        <input type="text" bind:value={envForm.RINA_PASSWORD_HASH} placeholder="$2a$12$..." class="w-full mt-2 px-3 py-2 rounded-xl bg-rina-bg border border-rina-border text-sm text-white focus:outline-none focus:border-rina-rose/50" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- AWS S3 -->
+                  <div class="mt-3 p-4 bg-rina-bg/40 rounded-xl border border-rina-border/40">
+                    <h4 class="text-xs font-bold text-rina-slate uppercase tracking-wider mb-3">☁️ AWS S3 Storage</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label class="text-[11px] text-rina-slate mb-1 block">AWS Region</label>
+                        <input bind:value={envForm.AWS_REGION} placeholder="us-east-1" class="w-full px-3 py-2 rounded-xl bg-rina-bg border border-rina-border text-sm text-white focus:outline-none focus:border-rina-rose/50" />
+                      </div>
+                      <div>
+                        <label class="text-[11px] text-rina-slate mb-1 block">S3 Bucket Name</label>
+                        <input bind:value={envForm.S3_BUCKET_NAME} placeholder="rina-uploads" class="w-full px-3 py-2 rounded-xl bg-rina-bg border border-rina-border text-sm text-white focus:outline-none focus:border-rina-rose/50" />
+                      </div>
+                      <div>
+                        <label class="text-[11px] text-rina-slate mb-1 block">AWS Access Key ID</label>
+                        <input bind:value={envForm.AWS_ACCESS_KEY_ID} placeholder="AKIA..." class="w-full px-3 py-2 rounded-xl bg-rina-bg border border-rina-border text-sm text-white focus:outline-none focus:border-rina-rose/50" />
+                      </div>
+                      <div>
+                        <label class="text-[11px] text-rina-slate mb-1 block">AWS Secret Access Key</label>
+                        <input type="password" bind:value={envForm.AWS_SECRET_ACCESS_KEY} placeholder="your-secret" class="w-full px-3 py-2 rounded-xl bg-rina-bg border border-rina-border text-sm text-white focus:outline-none focus:border-rina-rose/50" />
+                      </div>
+                    </div>
+                    <p class="text-[10px] text-rina-slate-dark mt-3">
+                      Create an IAM user with programmatic access and attach this inline policy:
+                    </p>
+                    <pre class="mt-1 bg-black/30 rounded-lg p-2 text-[10px] font-mono text-rina-slate overflow-x-auto">{'{\\n  "Version": "2012-10-17",\\n  "Statement": [\\n    {\\n      "Effect": "Allow",\\n      "Action": ["s3:PutObject","s3:GetObject","s3:DeleteObject"],\\n      "Resource": "arn:aws:s3:::'}{envForm.S3_BUCKET_NAME || 'your-bucket'}{'/*"\\n    }\\n  ]\\n}'}</pre>
+                  </div>
+
+                  <!-- External APIs -->
+                  <div class="mt-3 p-4 bg-rina-bg/40 rounded-xl border border-rina-border/40">
+                    <h4 class="text-xs font-bold text-rina-slate uppercase tracking-wider mb-3">🎬 External APIs</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label class="text-[11px] text-rina-slate mb-1 block">TMDB API Key</label>
+                        <input bind:value={envForm.TMDB_API_KEY} placeholder="optional" class="w-full px-3 py-2 rounded-xl bg-rina-bg border border-rina-border text-sm text-white focus:outline-none focus:border-rina-rose/50" />
+                        <a href="https://www.themoviedb.org/settings/api" target="_blank" class="text-[10px] text-rina-rose hover:underline">Get free key →</a>
+                      </div>
+                      <div>
+                        <label class="text-[11px] text-rina-slate mb-1 block">Mapbox Token</label>
+                        <input bind:value={envForm.VITE_MAPBOX_TOKEN} placeholder="optional" class="w-full px-3 py-2 rounded-xl bg-rina-bg border border-rina-border text-sm text-white focus:outline-none focus:border-rina-rose/50" />
+                        <a href="https://account.mapbox.com/access-tokens/" target="_blank" class="text-[10px] text-rina-rose hover:underline">Get token →</a>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Web Push -->
+                  <div class="mt-3 p-4 bg-rina-bg/40 rounded-xl border border-rina-border/40">
+                    <h4 class="text-xs font-bold text-rina-slate uppercase tracking-wider mb-3">🔔 Web Push (VAPID)</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label class="text-[11px] text-rina-slate mb-1 block">VAPID Public Key</label>
+                        <input bind:value={envForm.VAPID_PUBLIC_KEY} placeholder="..." class="w-full px-3 py-2 rounded-xl bg-rina-bg border border-rina-border text-sm text-white focus:outline-none focus:border-rina-rose/50" />
+                      </div>
+                      <div>
+                        <label class="text-[11px] text-rina-slate mb-1 block">VAPID Private Key</label>
+                        <input type="password" bind:value={envForm.VAPID_PRIVATE_KEY} placeholder="..." class="w-full px-3 py-2 rounded-xl bg-rina-bg border border-rina-border text-sm text-white focus:outline-none focus:border-rina-rose/50" />
+                      </div>
+                    </div>
+                    <button onclick={generateVapid} class="mt-3 px-4 py-2 rounded-xl bg-rina-bg border border-rina-border text-xs hover:border-rina-rose/50 transition-colors">
+                      🔑 Generate VAPID Keys
                     </button>
-                    <button onclick={loadEnv} class="px-4 py-2.5 rounded-xl bg-rina-bg border border-rina-border text-rina-slate text-sm hover:border-rina-rose/50 transition-all">
+                  </div>
+
+                  <!-- Coturn -->
+                  <div class="mt-3 p-4 bg-rina-bg/40 rounded-xl border border-rina-border/40">
+                    <h4 class="text-xs font-bold text-rina-slate uppercase tracking-wider mb-3">📡 Coturn TURN Server (WebRTC)</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label class="text-[11px] text-rina-slate mb-1 block">Coturn Realm</label>
+                        <input bind:value={envForm.COTURN_REALM} placeholder="your-domain.com" class="w-full px-3 py-2 rounded-xl bg-rina-bg border border-rina-border text-sm text-white focus:outline-none focus:border-rina-rose/50" />
+                      </div>
+                      <div>
+                        <label class="text-[11px] text-rina-slate mb-1 block">Coturn Secret</label>
+                        <div class="flex gap-2">
+                          <input type="password" bind:value={envForm.COTURN_SECRET} placeholder="random hex" class="flex-1 px-3 py-2 rounded-xl bg-rina-bg border border-rina-border text-sm text-white focus:outline-none focus:border-rina-rose/50" />
+                          <button onclick={() => envForm.COTURN_SECRET = generateSecret().slice(0, 32)} class="px-3 py-2 rounded-xl bg-rina-bg border border-rina-border text-[10px] hover:border-rina-rose/50 transition-colors">Gen</button>
+                        </div>
+                      </div>
+                    </div>
+                    <p class="text-[10px] text-rina-slate-dark mt-2">
+                      For production, run Coturn on a <strong>separate Lightsail instance</strong> with the UDP ports open (see reference card above).
+                    </p>
+                  </div>
+
+                  <!-- System -->
+                  <div class="mt-3 p-4 bg-rina-bg/40 rounded-xl border border-rina-border/40">
+                    <h4 class="text-xs font-bold text-rina-slate uppercase tracking-wider mb-3">⚙️ System</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label class="text-[11px] text-rina-slate mb-1 block">NODE_ENV</label>
+                        <input bind:value={envForm.NODE_ENV} placeholder="production" class="w-full px-3 py-2 rounded-xl bg-rina-bg border border-rina-border text-sm text-white focus:outline-none focus:border-rina-rose/50" />
+                      </div>
+                      <div>
+                        <label class="text-[11px] text-rina-slate mb-1 block">PORT</label>
+                        <input bind:value={envForm.PORT} placeholder="3000" class="w-full px-3 py-2 rounded-xl bg-rina-bg border border-rina-border text-sm text-white focus:outline-none focus:border-rina-rose/50" />
+                      </div>
+                      <div>
+                        <label class="text-[11px] text-rina-slate mb-1 block">Redis URL</label>
+                        <input bind:value={envForm.REDIS_URL} placeholder="redis://redis:6379" class="w-full px-3 py-2 rounded-xl bg-rina-bg border border-rina-border text-sm text-white focus:outline-none focus:border-rina-rose/50" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Save Buttons -->
+                  <div class="mt-5 flex items-center gap-3 sticky bottom-4 z-20">
+                    <button onclick={saveEnv} disabled={saving} class="px-6 py-3 rounded-xl bg-gradient-to-r from-rina-rose to-rina-indigo text-white text-sm font-bold shadow-lg hover:opacity-90 transition-all disabled:opacity-50">
+                      {saving ? '⏳ Saving...' : '💾 Save .env Configuration'}
+                    </button>
+                    <button onclick={loadEnv} class="px-4 py-3 rounded-xl bg-rina-bg border border-rina-border text-rina-slate text-sm hover:border-rina-rose/50 transition-all">
                       🔄 Reload
                     </button>
                     {#if saveMsg}
-                      <span class="text-xs {saveMsg.includes('Failed') ? 'text-rose-400' : 'text-emerald-400'}" in:fade>{saveMsg}</span>
+                      <span class="text-xs {saveMsg.includes('Failed') || saveMsg.includes('Error') ? 'text-rose-400' : 'text-emerald-400'} font-medium" in:fade>{saveMsg}</span>
                     {/if}
                   </div>
                 {/if}
 
-                <!-- SSL Inputs (Step 4) -->
+                <!-- SSL Inputs -->
                 {#if step.action === 'ssl'}
                   <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
-                    <div class="flex flex-col gap-1">
-                      <label class="text-xs text-rina-slate font-medium">Domain</label>
+                    <div>
+                      <label class="text-xs text-rina-slate font-medium mb-1 block">Domain</label>
                       <input bind:value={sslDomain} placeholder="rina.example.com" class="w-full px-3 py-2 rounded-xl bg-rina-bg border border-rina-border text-sm text-white focus:outline-none focus:border-rina-rose/50" />
                     </div>
-                    <div class="flex flex-col gap-1">
-                      <label class="text-xs text-rina-slate font-medium">Email</label>
+                    <div>
+                      <label class="text-xs text-rina-slate font-medium mb-1 block">Email</label>
                       <input bind:value={sslEmail} placeholder="admin@example.com" class="w-full px-3 py-2 rounded-xl bg-rina-bg border border-rina-border text-sm text-white focus:outline-none focus:border-rina-rose/50" />
                     </div>
                   </div>
@@ -436,7 +625,6 @@ sudo ufw enable`,
                   </div>
                 {/if}
 
-                <!-- Note -->
                 {#if step.note}
                   <div class="mt-3 flex items-start gap-2 text-xs text-amber-400/90 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
                     <span class="mt-0.5">💡</span>
@@ -507,18 +695,18 @@ sudo ufw enable`,
         </div>
         <button onclick={() => (consoleOutput = '')} class="text-[10px] text-rina-slate hover:text-white transition-colors">Clear</button>
       </div>
-      <div id="setup-console" class="bg-black/40 rounded-xl p-4 h-48 overflow-y-auto font-mono text-[11px] leading-relaxed text-rina-slate whitespace-pre-wrap border border-rina-border/30">
+      <div id="setup-console" class="bg-black/40 rounded-xl p-4 h-56 overflow-y-auto font-mono text-[11px] leading-relaxed text-rina-slate whitespace-pre-wrap border border-rina-border/30">
         {#if consoleOutput}
           {consoleOutput}
         {:else}
-          <span class="text-rina-slate-dark italic">Command output will appear here...</span>
+          <span class="text-rina-slate-dark italic">Command output will appear here in real-time...</span>
         {/if}
       </div>
     </div>
 
     <!-- Footer -->
     <div class="text-center text-xs text-rina-slate-dark pb-8 mt-8" in:fade={{ duration: 300, delay: 700 }}>
-      Project Rina — Complete Setup Wizard
+      Project Rina — Complete Setup Wizard · A to Z
     </div>
   </div>
 </div>
