@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
-  import { isAuthenticated, isLoading } from '$lib/stores/auth';
+  import { isAuthenticated, isLoading } from '$lib/stores/auth.svelte';
   import { fade } from 'svelte/transition';
   import * as Y from 'yjs';
   import { WebsocketProvider } from 'y-websocket';
@@ -122,9 +122,11 @@
   }
 
   // Redirect if not authenticated (wait for auth loading to finish)
-  $: if (!$isLoading && !$isAuthenticated && typeof window !== 'undefined') {
+  $effect(() => {
+    if (!isLoading && !isAuthenticated && typeof window !== 'undefined') {
     goto('/login');
-  }
+    }
+  });
 
   onMount(() => {
     initCanvas();
@@ -159,7 +161,7 @@
   });
 </script>
 
-{#if $isAuthenticated}
+{#if isAuthenticated}
   <div class="fixed inset-0 pt-14 pb-16 md:pb-0 flex flex-col" in:fade>
     <!-- Toolbar -->
     <div class="glass border-b border-rina-border px-4 py-2 flex items-center gap-3 shrink-0 z-10">

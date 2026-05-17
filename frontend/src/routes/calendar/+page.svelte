@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { isAuthenticated, isLoading, currentUser } from '$lib/stores/auth';
+  import { isAuthenticated, isLoading, currentUser } from '$lib/stores/auth.svelte';
   import { fade, fly, slide } from 'svelte/transition';
   import { calendarApi, type CalendarEvent } from '$lib/utils/api';
   import GlassCard from '$lib/components/GlassCard.svelte';
@@ -23,18 +23,18 @@
     allDay: false
   };
 
-  $: year = currentDate.getFullYear();
-  $: month = currentDate.getMonth();
-  $: monthName = currentDate.toLocaleString('en-GB', { month: 'long', year: 'numeric' });
-  $: firstDayOfMonth = new Date(year, month, 1).getDay(); // 0 = Sunday
-  $: daysInMonth = new Date(year, month + 1, 0).getDate();
-  $: calendarDays = Array.from({ length: 42 }, (_, i) => {
+  let year = $derived(currentDate.getFullYear());
+  let month = $derived(currentDate.getMonth());
+  let monthName = $derived(currentDate.toLocaleString('en-GB', { month: 'long', year: 'numeric' }));
+  let firstDayOfMonth = $derived(new Date(year, month, 1).getDay()); // 0 = Sunday
+  let daysInMonth = $derived(new Date(year, month + 1, 0).getDate());
+  let calendarDays = $derived(Array.from({ length: 42 }, (_, i) => {
     const dayNum = i - firstDayOfMonth + 1;
     if (dayNum < 1 || dayNum > daysInMonth) return null;
     return dayNum;
-  });
+  }));
 
-  $: daysWithEvents = calendarDays.map((day) => {
+  let daysWithEvents = $derived(calendarDays.map((day) => {
     if (!day) return null;
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const dayEvents = events.filter((e) => {
@@ -42,7 +42,7 @@
       return d.getFullYear() === year && d.getMonth() === month && d.getDate() === day;
     });
     return { day, dateStr, events: dayEvents };
-  });
+  }));
 
   async function loadData() {
     try {
@@ -94,28 +94,56 @@
     return type === 'WORK' ? 'bg-rina-indigo' : 'bg-rina-rose';
   }
 
-  // Simple period tracker logic (mock for demo)
+  // ─── Cycle Tracker (localStorage-backed, not mocked) ───────────
+  let cycleStartStr = $state('');
+  let cycleLength = $state(28);
+  let showCycleSettings = $state(false);
+
   function isPeriodDay(day: number): boolean {
-    // Mock: every 28 days starting from day 5
-    return (day + month * 31) % 28 === 5;
+    if (!cycleStartStr) return false;
+    const start = new Date(cycleStartStr);
+    const check = new Date(year, month, day);
+    const diff = Math.floor((check.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    if (diff < 0) return false;
+    return diff % cycleLength < 5; // Period lasts ~5 days
   }
 
   function isFertileDay(day: number): boolean {
-    // Mock: fertile window ~14 days after period
-    return (day + month * 31) % 28 === 19;
+    if (!cycleStartStr) return false;
+    const start = new Date(cycleStartStr);
+    const check = new Date(year, month, day);
+    const diff = Math.floor((check.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    if (diff < 0) return false;
+    const fertileStart = 14; // ~14 days after period start
+    const fertileEnd = fertileStart + 5;
+    const dayInCycle = diff % cycleLength;
+    return dayInCycle >= fertileStart && dayInCycle < fertileEnd;
   }
 
-  // Redirect if not authenticated (wait for auth loading to finish)
-  $: if (!$isLoading && !$isAuthenticated && typeof window !== 'undefined') {
-    goto('/login');
+  function saveCycleSettings() {
+    if (cycleStartStr) localStorage.setItem('rina_cycle_start', cycleStartStr);
+    localStorage.setItem('rina_cycle_length', String(cycleLength));
+    showCycleSettings = false;
   }
+
+  onMount(() => {
+    cycleStartStr = localStorage.getItem('rina_cycle_start') ?? '';
+    cycleLength = Number(localStorage.getItem('rina_cycle_length') || '28');
+  });
+
+  // Redirect if not authenticated (wait for auth loading to finish)
+  $effect(() => {
+    if (!isLoading && !isAuthenticated && typeof window !== 'undefined') {
+    goto('/login');
+    }
+  });
 
   onMount(() => {
     loadData();
   });
 </script>
 
-{#if $isAuthenticated}
+{#if isAuthenticated}
   <div class="max-w-5xl mx-auto px-4 py-6" in:fade>
     <h2 class="text-2xl font-bold mb-6">📅 Calendar</h2>
 
@@ -182,26 +210,54 @@
         {/each}
       </div>
 
-      <!-- Legend -->
-      <div class="flex items-center gap-4 mt-4 text-xs text-rina-slate">
-        <div class="flex items-center gap-1.5">
-          <div class="w-2 h-2 rounded-full bg-rina-rose"></div>
-          Shared
+      <!-- Legend & Cycle Settings -->
+      <div class="flex items-center justify-between mt-4 text-xs text-rina-slate">
+        <div class="flex items-center gap-4">
+          <div class="flex items-center gap-1.5">
+            <div class="w-2 h-2 rounded-full bg-rina-rose"></div>
+            Shared
+          </div>
+          <div class="flex items-center gap-1.5">
+            <div class="w-2 h-2 rounded-full bg-rina-indigo"></div>
+            Work
+          </div>
+          <div class="flex items-center gap-1.5">
+            <div class="w-2 h-2 rounded-full bg-red-500"></div>
+            Period
+          </div>
+          <div class="flex items-center gap-1.5">
+            <div class="w-2 h-2 rounded-full bg-blue-500"></div>
+            Fertile
+          </div>
         </div>
-        <div class="flex items-center gap-1.5">
-          <div class="w-2 h-2 rounded-full bg-rina-indigo"></div>
-          Work
-        </div>
-        <div class="flex items-center gap-1.5">
-          <div class="w-2 h-2 rounded-full bg-red-500"></div>
-          Period
-        </div>
-        <div class="flex items-center gap-1.5">
-          <div class="w-2 h-2 rounded-full bg-blue-500"></div>
-          Fertile
-        </div>
+        <button on:click={() => showCycleSettings = true} class="hover:text-rina-rose transition-colors">
+          ⚙️ Cycle
+        </button>
       </div>
     </GlassCard>
+
+    <!-- Cycle Settings Modal -->
+    {#if showCycleSettings}
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" transition:fade on:click={() => showCycleSettings = false}>
+        <div class="glass-strong rounded-2xl p-6 w-full max-w-sm" transition:fly={{ y: 20 }} on:click|stopPropagation>
+          <h3 class="text-lg font-semibold mb-4">Cycle Settings</h3>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs text-rina-slate mb-1">Last Period Start</label>
+              <input type="date" bind:value={cycleStartStr} class="w-full px-3 py-2 rounded-lg bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50" />
+            </div>
+            <div>
+              <label class="block text-xs text-rina-slate mb-1">Cycle Length (days)</label>
+              <input type="number" bind:value={cycleLength} min="20" max="40" class="w-full px-3 py-2 rounded-lg bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50" />
+            </div>
+            <div class="flex gap-2 pt-2">
+              <button on:click={() => showCycleSettings = false} class="flex-1 py-2 rounded-lg border border-rina-border text-sm hover:bg-white/5 transition-colors">Cancel</button>
+              <button on:click={saveCycleSettings} class="flex-1 py-2 rounded-lg bg-rina-rose text-white text-sm font-medium hover:opacity-90 transition-opacity">Save</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    {/if}
 
     <!-- Add Event Modal -->
     {#if showAddModal}

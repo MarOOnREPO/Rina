@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
-  import { isAuthenticated, isLoading, currentUser } from '$lib/stores/auth';
-  import { socketStore, mediaSync } from '$lib/stores/socket';
+  import { isAuthenticated, isLoading, currentUser } from '$lib/stores/auth.svelte';
+  import { socketStore, mediaSync } from '$lib/stores/socket.svelte';
   import { fade, scale } from 'svelte/transition';
   import GlassCard from '$lib/components/GlassCard.svelte';
 
@@ -58,7 +58,7 @@
   }
 
   function handleSync(event: { action: 'play' | 'pause' | 'seek'; time: number; videoId: string; sender: string }) {
-    if (event.sender === $currentUser?.username) return;
+    if (event.sender === currentUser?.username) return;
     if (!playerReady || !player) return;
 
     isSyncing = true;
@@ -95,24 +95,24 @@
   }
 
   // Redirect if not authenticated (wait for auth loading to finish)
-  $: if (!$isLoading && !$isAuthenticated && typeof window !== 'undefined') {
+  $effect(() => {
+    if (!isLoading && !isAuthenticated && typeof window !== 'undefined') {
     goto('/login');
-  }
+    }
+  });
 
-  onMount(async () => {
-    await loadYouTubeAPI();
+  $effect(() => {
+    const evt = mediaSync.value;
+    if (evt) handleSync(evt);
+  });
+
+  onMount(() => {
+    loadYouTubeAPI();
 
     const sock = socketStore.getSocket();
     if (sock) {
       mediaSync.init(sock);
     }
-    const unsub = mediaSync.subscribe((evt) => {
-      if (evt) handleSync(evt);
-    });
-
-    return () => {
-      unsub?.();
-    };
   });
 
   onDestroy(() => {
@@ -128,7 +128,7 @@
 
 
 
-{#if $isAuthenticated}
+{#if isAuthenticated}
   <div class="max-w-5xl mx-auto px-4 py-6" in:fade>
     <h2 class="text-2xl font-bold mb-6">🎵 Listen Together</h2>
 

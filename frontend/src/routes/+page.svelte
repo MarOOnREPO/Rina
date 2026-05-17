@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { isAuthenticated, isLoading, currentUser } from '$lib/stores/auth';
-  import { socketStore, pingReceived } from '$lib/stores/socket';
+  import { isAuthenticated, isLoading, currentUser } from '$lib/stores/auth.svelte';
+  import { socketStore, pingReceived } from '$lib/stores/socket.svelte';
   import { fly, fade, scale } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
 
@@ -89,12 +89,14 @@
   });
 
   // Redirect if not authenticated (wait for auth loading to finish)
-  $: if (!$isLoading && !$isAuthenticated && typeof window !== 'undefined') {
+  $effect(() => {
+    if (!isLoading && !isAuthenticated && typeof window !== 'undefined') {
     goto('/login');
-  }
+    }
+  });
 </script>
 
-{#if $isAuthenticated}
+{#if isAuthenticated}
   <div class="max-w-7xl mx-auto px-4 py-6 space-y-6" in:fade={{ duration: 300 }}>
     <!-- Header Section -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -142,7 +144,7 @@
     <!-- Welcome -->
     <div in:fly={{ y: 20, delay: 300 }}>
       <h2 class="text-2xl font-bold mb-1">
-        Hello, <span class="text-gradient">{$currentUser?.displayName || 'Love'}</span>
+        Hello, <span class="text-gradient">{currentUser?.displayName || 'Love'}</span>
       </h2>
       <p class="text-rina-slate text-sm">
         {now.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}

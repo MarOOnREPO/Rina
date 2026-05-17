@@ -1,17 +1,17 @@
 <script lang="ts">
-  import { partnerPresence } from '$lib/stores/socket';
-  import { currentUser } from '$lib/stores/auth';
+  import { partnerPresence } from '$lib/stores/socket.svelte';
+  import { currentUser } from '$lib/stores/auth.svelte';
 
   // Orb breathes based on partner status
-  $: status = $partnerPresence?.status ?? 'offline';
-  $: color = status === 'online' ? '#22c55e' : status === 'typing' ? '#f59e0b' : status === 'away' ? '#94a3b8' : '#475569';
-  $: glowClass = status === 'typing' ? 'animate-pulse' : status === 'online' ? 'animate-pulse-slow' : '';
+  let status = $derived(partnerPresence?.status ?? 'offline');
+  let color = $derived(status === 'online' ? '#22c55e' : status === 'typing' ? '#f59e0b' : status === 'away' ? '#94a3b8' : '#475569');
+  let glowClass = $derived(status === 'typing' ? 'animate-pulse' : status === 'online' ? 'animate-pulse-slow' : '');
 </script>
 
 <div class="relative flex items-center gap-2">
   <span class="text-xs font-medium text-rina-slate hidden sm:inline">
-    {#if $currentUser}
-      {$currentUser.username === 'maroon' ? 'Rina' : 'MarOOn'}
+    {#if currentUser}
+      {currentUser.username === 'maroon' ? 'Rina' : 'MarOOn'}
     {:else}
       Partner
     {/if}

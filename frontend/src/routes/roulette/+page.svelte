@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { isAuthenticated, isLoading } from '$lib/stores/auth';
+  import { isAuthenticated, isLoading } from '$lib/stores/auth.svelte';
   import { fade, scale } from 'svelte/transition';
   import GlassCard from '$lib/components/GlassCard.svelte';
 
@@ -73,12 +73,14 @@
   }
 
   // Redirect if not authenticated (wait for auth loading to finish)
-  $: if (!$isLoading && !$isAuthenticated && typeof window !== 'undefined') {
+  $effect(() => {
+    if (!isLoading && !isAuthenticated && typeof window !== 'undefined') {
     goto('/login');
-  }
+    }
+  });
 </script>
 
-{#if $isAuthenticated}
+{#if isAuthenticated}
   <div class="max-w-2xl mx-auto px-4 py-6" in:fade>
     <h2 class="text-2xl font-bold mb-6">🍽️ Dinner Date Roulette</h2>
 

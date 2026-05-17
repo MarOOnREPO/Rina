@@ -1,14 +1,16 @@
 <script lang="ts">
-  import { pingReceived } from '$lib/stores/socket';
+  import { pingReceived } from '$lib/stores/socket.svelte';
   import { scale, fade } from 'svelte/transition';
   import { elasticOut } from 'svelte/easing';
 
-  $: ping = $pingReceived;
+  let ping = $derived(pingReceived.value);
 
   // Trigger vibration when ping arrives
-  $: if (ping && typeof navigator !== 'undefined' && navigator.vibrate) {
-    navigator.vibrate([100, 50, 200, 50, 100]);
-  }
+  $effect(() => {
+    if (ping && typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate([100, 50, 200, 50, 100]);
+    }
+  });
 </script>
 
 {#if ping}

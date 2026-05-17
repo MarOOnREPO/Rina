@@ -1,6 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { auth, isLoading } from '$lib/stores/auth';
+  import { auth, isLoading } from '$lib/stores/auth.svelte';
   import { scale, fade } from 'svelte/transition';
 
   let username = '';
@@ -17,7 +17,7 @@
     }
   }
 
-  $: error = $auth.error;
+  $: error = auth.error;
 </script>
 
 <div class="min-h-screen flex items-center justify-center px-4 relative overflow-hidden">
@@ -83,11 +83,11 @@
 
       <button
         type="submit"
-        disabled={$isLoading}
+        disabled={isLoading}
         class="w-full py-3 rounded-xl bg-gradient-to-r from-rina-rose to-rina-indigo text-white font-semibold
           hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {#if $isLoading}
+        {#if isLoading}
           <span class="inline-block animate-spin mr-2">⏳</span>
           Entering...
         {:else}

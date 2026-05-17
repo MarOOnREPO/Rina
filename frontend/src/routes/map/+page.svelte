@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { isAuthenticated, isLoading } from '$lib/stores/auth';
+  import { isAuthenticated, isLoading } from '$lib/stores/auth.svelte';
   import { fade } from 'svelte/transition';
   import GlassCard from '$lib/components/GlassCard.svelte';
 
@@ -19,9 +19,11 @@
   ];
 
   // Redirect if not authenticated (wait for auth loading to finish)
-  $: if (!$isLoading && !$isAuthenticated && typeof window !== 'undefined') {
+  $effect(() => {
+    if (!isLoading && !isAuthenticated && typeof window !== 'undefined') {
     goto('/login');
-  }
+    }
+  });
 
   onMount(() => {
     // If no Mapbox token, show a placeholder globe visualization
@@ -79,7 +81,7 @@
   {/if}
 </svelte:head>
 
-{#if $isAuthenticated}
+{#if isAuthenticated}
   <div class="fixed inset-0 pt-14 pb-16 md:pb-0 flex flex-col" in:fade>
     <div class="relative flex-1">
       {#if MAPBOX_TOKEN}

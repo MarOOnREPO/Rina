@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { isAuthenticated, isLoading } from '$lib/stores/auth';
+  import { isAuthenticated, isLoading } from '$lib/stores/auth.svelte';
   import { fade, fly, scale } from 'svelte/transition';
   import { flip } from 'svelte/animate';
   import { movieApi, type Movie } from '$lib/utils/api';
@@ -67,11 +67,11 @@
     }
   }
 
-  $: filteredMovies = movies.filter((m) => {
+  let filteredMovies = $derived(movies.filter((m) => {
     if (watchedFilter === 'watched') return m.watched;
     if (watchedFilter === 'unwatched') return !m.watched;
     return true;
-  });
+  }));
 
   let searchTimeout: ReturnType<typeof setTimeout>;
   function handleSearchInput() {
@@ -80,16 +80,18 @@
   }
 
   // Redirect if not authenticated (wait for auth loading to finish)
-  $: if (!$isLoading && !$isAuthenticated && typeof window !== 'undefined') {
+  $effect(() => {
+    if (!isLoading && !isAuthenticated && typeof window !== 'undefined') {
     goto('/login');
-  }
+    }
+  });
 
   onMount(() => {
     loadMovies();
   });
 </script>
 
-{#if $isAuthenticated}
+{#if isAuthenticated}
   <div class="max-w-5xl mx-auto px-4 py-6" in:fade>
     <h2 class="text-2xl font-bold mb-6">🎬 Movie Watchlist</h2>
 

@@ -2,8 +2,8 @@
   import '../app.css';
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
-  import { auth } from '$lib/stores/auth';
-  import { initializeSockets, socketStore } from '$lib/stores/socket';
+  import { auth } from '$lib/stores/auth.svelte';
+  import { initializeSockets, socketStore } from '$lib/stores/socket.svelte';
   import GlassNav from '$lib/components/GlassNav.svelte';
   import PingOverlay from '$lib/components/PingOverlay.svelte';
   import TranslationTooltip from '$lib/components/TranslationTooltip.svelte';

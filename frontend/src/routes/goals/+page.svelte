@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { isAuthenticated, isLoading } from '$lib/stores/auth';
+  import { isAuthenticated, isLoading } from '$lib/stores/auth.svelte';
   import { fade, scale } from 'svelte/transition';
   import { goalApi, type Goal } from '$lib/utils/api';
   import GlassCard from '$lib/components/GlassCard.svelte';
@@ -51,16 +51,18 @@
   }
 
   // Redirect if not authenticated (wait for auth loading to finish)
-  $: if (!$isLoading && !$isAuthenticated && typeof window !== 'undefined') {
+  $effect(() => {
+    if (!isLoading && !isAuthenticated && typeof window !== 'undefined') {
     goto('/login');
-  }
+    }
+  });
 
   onMount(() => {
     loadGoals();
   });
 </script>
 
-{#if $isAuthenticated}
+{#if isAuthenticated}
   <div class="max-w-3xl mx-auto px-4 py-6" in:fade>
     <div class="flex items-center justify-between mb-6">
       <h2 class="text-2xl font-bold">🎯 Goals</h2>

@@ -34,7 +34,7 @@ export class ApiClient {
       method,
       headers,
       credentials: 'include',
-      ...(body && { body: body instanceof FormData ? body : JSON.stringify(body) }),
+      ...(body ? { body: body instanceof FormData ? body : JSON.stringify(body) } : {}),
       ...options
     });
 

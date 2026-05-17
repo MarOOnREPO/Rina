@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
-  import { isAuthenticated, isLoading, currentUser } from '$lib/stores/auth';
-  import { socketStore } from '$lib/stores/socket';
+  import { isAuthenticated, isLoading, currentUser } from '$lib/stores/auth.svelte';
+  import { socketStore } from '$lib/stores/socket.svelte';
   import { fade, scale } from 'svelte/transition';
   import GlassCard from '$lib/components/GlassCard.svelte';
   import { api } from '$lib/utils/api';
@@ -34,7 +34,7 @@
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
-        const partner = $currentUser?.username === 'maroon' ? 'rina' : 'maroon';
+        const partner = currentUser?.username === 'maroon' ? 'rina' : 'maroon';
         socketStore.emit('webrtc:ice-candidate', {
           target: partner,
           candidate: event.candidate.toJSON()
@@ -77,7 +77,7 @@
       const offer = await peerConnection.createOffer();
       await peerConnection.setLocalDescription(offer);
 
-      const partner = $currentUser?.username === 'maroon' ? 'rina' : 'maroon';
+      const partner = currentUser?.username === 'maroon' ? 'rina' : 'maroon';
       socketStore.emit('webrtc:offer', {
         target: partner,
         offer: { type: offer.type, sdp: offer.sdp! }
@@ -174,9 +174,11 @@
   }
 
   // Redirect if not authenticated (wait for auth loading to finish)
-  $: if (!$isLoading && !$isAuthenticated && typeof window !== 'undefined') {
+  $effect(() => {
+    if (!isLoading && !isAuthenticated && typeof window !== 'undefined') {
     goto('/login');
-  }
+    }
+  });
 
   onMount(() => {
     loadIceServers();
@@ -200,7 +202,7 @@
   });
 </script>
 
-{#if $isAuthenticated}
+{#if isAuthenticated}
   <div class="max-w-5xl mx-auto px-4 py-6" in:fade>
     <h2 class="text-2xl font-bold mb-6">📹 Video Call</h2>
 

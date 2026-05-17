@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
   import { goto } from '$app/navigation';
-  import { isAuthenticated, isLoading, currentUser } from '$lib/stores/auth';
-  import { socketStore, typing } from '$lib/stores/socket';
+  import { isAuthenticated, isLoading, currentUser } from '$lib/stores/auth.svelte';
+  import { socketStore, typing } from '$lib/stores/socket.svelte';
   import { fly, fade, slide } from 'svelte/transition';
   import { messageApi, type ChatMessage } from '$lib/utils/api';
 
@@ -11,6 +11,7 @@
   let containerRef: HTMLDivElement;
   let loading = true;
   let typingTimeout: ReturnType<typeof setTimeout>;
+  let sendError = '';
 
   async function loadHistory() {
     try {
@@ -51,8 +52,9 @@
       await tick();
       scrollToBottom();
       socketStore.emit('chat:message', msg);
-    } catch {
-      // handle error
+      sendError = '';
+    } catch (err: unknown) {
+      sendError = (err as { message?: string }).message || 'Failed to send message';
     }
   }
 
@@ -69,9 +71,11 @@
   }
 
   // Redirect if not authenticated (wait for auth loading to finish)
-  $: if (!$isLoading && !$isAuthenticated && typeof window !== 'undefined') {
+  $effect(() => {
+    if (!isLoading && !isAuthenticated && typeof window !== 'undefined') {
     goto('/login');
-  }
+    }
+  });
 
   onMount(() => {
     loadHistory();
@@ -90,10 +94,10 @@
     }
   });
 
-  $: partnerTyping = $typing;
+  let partnerTyping = $derived(typing.value);
 </script>
 
-{#if $isAuthenticated}
+{#if isAuthenticated}
   <div class="max-w-3xl mx-auto h-[calc(100vh-7rem)] flex flex-col px-4" in:fade>
     <!-- Chat Header -->
     <div class="glass rounded-2xl p-4 mb-3 flex items-center justify-between shrink-0">
@@ -124,7 +128,7 @@
         </div>
       {:else}
         {#each messages as msg (msg.id)}
-          {@const isMe = msg.senderId === $currentUser?.username}
+          {@const isMe = msg.senderId === currentUser?.username}
           <div
             class="flex {isMe ? 'justify-end' : 'justify-start'}"
             in:fly={{ y: 10, duration: 200 }}
@@ -146,26 +150,31 @@
     </div>
 
     <!-- Input -->
-    <div class="glass rounded-2xl p-3 mt-3 flex gap-2 shrink-0">
-      <input
-        bind:value={input}
-        on:input={handleInput}
-        on:keydown={handleKeydown}
-        placeholder="Type a message..."
-        class="flex-1 bg-transparent border-none text-white placeholder-rina-slate-dark text-sm
-          focus:outline-none px-2"
-      />
-      <button
-        on:click={sendMessage}
-        disabled={!input.trim()}
-        class="w-9 h-9 rounded-full bg-rina-rose flex items-center justify-center
-          hover:scale-105 active:scale-95 transition-transform disabled:opacity-30"
-        aria-label="Send message"
-      >
-        <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-        </svg>
-      </button>
+    <div class="mt-3 shrink-0 space-y-2">
+      {#if sendError}
+        <p class="text-rina-rose text-xs px-1" transition:fade>{sendError}</p>
+      {/if}
+      <div class="glass rounded-2xl p-3 flex gap-2">
+        <input
+          bind:value={input}
+          on:input={handleInput}
+          on:keydown={handleKeydown}
+          placeholder="Type a message..."
+          class="flex-1 bg-transparent border-none text-white placeholder-rina-slate-dark text-sm
+            focus:outline-none px-2"
+        />
+        <button
+          on:click={sendMessage}
+          disabled={!input.trim()}
+          class="w-9 h-9 rounded-full bg-rina-rose flex items-center justify-center
+            hover:scale-105 active:scale-95 transition-transform disabled:opacity-30"
+          aria-label="Send message"
+        >
+          <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+          </svg>
+        </button>
+      </div>
     </div>
   </div>
 {/if}
