@@ -49,6 +49,6 @@ declare module "$app/types" {
 		};
 		Pathname(): "/" | "/calendar" | "/capsules" | "/chat" | "/goals" | "/listen" | "/login" | "/map" | "/movies" | "/roulette" | "/video" | "/whiteboard";
 		ResolvedPathname(): `${"" | `/${string}`}${ReturnType<AppTypes['Pathname']>}`;
-		Asset(): "/manifest.json" | string & {};
+		Asset(): "/favicon.png" | "/manifest.json" | string & {};
 	}
 }

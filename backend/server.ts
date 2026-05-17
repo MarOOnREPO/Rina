@@ -164,7 +164,7 @@ io.use((socket: Socket, next: (err?: Error) => void) => {
 // ─── Presence & Socket State ───────────────────────────────────
 // Redis-backed for horizontal scaling and survival across restarts.
 
-io.on('connection', (socket: Socket) => {
+io.on('connection', async (socket: Socket) => {
   const user = socket.data.user as JWTPayload;
   console.log(`[Socket] ${user.displayName} connected (${socket.id})`);
 
@@ -261,6 +261,16 @@ io.on('connection', (socket: Socket) => {
       io.to(targetSocket).emit('webrtc:ice-candidate', {
         sender: user.username,
         candidate: data.candidate
+      });
+    }
+  });
+
+  socket.on('webrtc:decline', async (data: { target: string }) => {
+    const targetSocket = await presence.getSocket(data.target);
+    if (targetSocket) {
+      io.to(targetSocket).emit('webrtc:declined', {
+        sender: user.username,
+        senderDisplayName: user.displayName
       });
     }
   });

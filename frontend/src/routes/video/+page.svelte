@@ -11,7 +11,7 @@
   let remoteVideo: HTMLVideoElement;
   let peerConnection: RTCPeerConnection | null = null;
   let localStream: MediaStream | null = null;
-  let callState: 'idle' | 'calling' | 'connected' | 'ended' = 'idle';
+  let callState: 'idle' | 'calling' | 'incoming' | 'connected' | 'ended' = 'idle';
   let error = '';
   let audioEnabled = true;
   let videoEnabled = true;
@@ -19,6 +19,11 @@
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' }
   ];
+
+  // Incoming call state
+  let incomingOffer: RTCSessionDescriptionInit | null = null;
+  let incomingSender = '';
+  let incomingDisplayName = '';
 
   async function loadIceServers() {
     try {
@@ -94,7 +99,26 @@
     }
   }
 
-  async function handleOffer(data: { sender: string; offer: { type: 'offer'; sdp: string } }) {
+  async function cancelCall() {
+    const partner = currentUser?.username === 'maroon' ? 'rina' : 'maroon';
+    socketStore.emit('webrtc:decline', { target: partner });
+    endCall();
+  }
+
+  function handleOffer(data: { sender: string; senderDisplayName: string; offer: { type: 'offer'; sdp: string } }) {
+    if (callState !== 'idle') {
+      // Already in a call — auto-decline
+      socketStore.emit('webrtc:decline', { target: data.sender });
+      return;
+    }
+    incomingOffer = data.offer;
+    incomingSender = data.sender;
+    incomingDisplayName = data.senderDisplayName;
+    callState = 'incoming';
+  }
+
+  async function acceptCall() {
+    if (!incomingOffer) return;
     try {
       error = '';
       localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -108,19 +132,39 @@
         peerConnection!.addTrack(track, localStream!);
       });
 
-      await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(incomingOffer));
       const answer = await peerConnection.createAnswer();
       await peerConnection.setLocalDescription(answer);
 
       socketStore.emit('webrtc:answer', {
-        target: data.sender,
+        target: incomingSender,
         answer: { type: answer.type, sdp: answer.sdp! }
       });
 
+      incomingOffer = null;
+      incomingSender = '';
       callState = 'connected';
     } catch (err) {
       error = 'Failed to accept call.';
       console.error('[WebRTC]', err);
+      endCall();
+    }
+  }
+
+  function declineCall() {
+    if (incomingSender) {
+      socketStore.emit('webrtc:decline', { target: incomingSender });
+    }
+    incomingOffer = null;
+    incomingSender = '';
+    incomingDisplayName = '';
+    callState = 'idle';
+  }
+
+  function handleDeclined(data: { sender: string; senderDisplayName: string }) {
+    if (callState === 'calling') {
+      error = `${data.senderDisplayName} declined the call.`;
+      endCall();
     }
   }
 
@@ -170,13 +214,16 @@
     }
     if (localVideo) localVideo.srcObject = null;
     if (remoteVideo) remoteVideo.srcObject = null;
+    incomingOffer = null;
+    incomingSender = '';
+    incomingDisplayName = '';
     callState = 'idle';
   }
 
   // Redirect if not authenticated (wait for auth loading to finish)
   $effect(() => {
     if (!isLoading && !isAuthenticated && typeof window !== 'undefined') {
-    goto('/login');
+      goto('/login');
     }
   });
 
@@ -188,6 +235,7 @@
       sock.on('webrtc:offer', handleOffer);
       sock.on('webrtc:answer', handleAnswer);
       sock.on('webrtc:ice-candidate', handleIceCandidate);
+      sock.on('webrtc:declined', handleDeclined);
     }
   });
 
@@ -198,6 +246,7 @@
       sock.off('webrtc:offer', handleOffer);
       sock.off('webrtc:answer', handleAnswer);
       sock.off('webrtc:ice-candidate', handleIceCandidate);
+      sock.off('webrtc:declined', handleDeclined);
     }
   });
 </script>
@@ -221,16 +270,38 @@
         class="w-full h-full object-cover {callState === 'connected' ? 'opacity-100' : 'opacity-0'}"
       ></video>
 
-      <!-- Placeholder when no remote video -->
+      <!-- Placeholder / status overlay -->
       {#if callState !== 'connected'}
         <div class="absolute inset-0 flex flex-col items-center justify-center text-rina-slate">
-          <span class="text-6xl mb-4">📹</span>
-          <p class="text-lg font-medium">
-            {callState === 'calling' ? 'Calling...' : 'Ready to connect'}
-          </p>
-          <p class="text-sm text-rina-slate-dark mt-1">
-            {callState === 'calling' ? 'Waiting for partner to answer' : 'Start a call or wait for an incoming one'}
-          </p>
+          {#if callState === 'idle'}
+            <span class="text-6xl mb-4">📹</span>
+            <p class="text-lg font-medium">Ready to connect</p>
+            <p class="text-sm text-rina-slate-dark mt-1">Start a call or wait for an incoming one</p>
+          {:else if callState === 'calling'}
+            <span class="text-6xl mb-4 animate-pulse">📞</span>
+            <p class="text-lg font-medium">Calling...</p>
+            <p class="text-sm text-rina-slate-dark mt-1">Waiting for partner to answer</p>
+          {:else if callState === 'incoming'}
+            <span class="text-6xl mb-4 animate-bounce">📲</span>
+            <p class="text-lg font-medium">{incomingDisplayName} is calling</p>
+            <div class="flex gap-3 mt-6">
+              <button
+                on:click={acceptCall}
+                class="px-6 py-2 rounded-full bg-green-500 text-white font-semibold hover:bg-green-600 active:scale-95 transition-all"
+              >
+                Accept
+              </button>
+              <button
+                on:click={declineCall}
+                class="px-6 py-2 rounded-full bg-red-500 text-white font-semibold hover:bg-red-600 active:scale-95 transition-all"
+              >
+                Decline
+              </button>
+            </div>
+          {:else if callState === 'ended'}
+            <span class="text-6xl mb-4">📵</span>
+            <p class="text-lg font-medium">Call ended</p>
+          {/if}
         </div>
       {/if}
 
@@ -260,6 +331,30 @@
         >
           <span>📞</span> Start Call
         </button>
+      {:else if callState === 'calling'}
+        <button
+          on:click={cancelCall}
+          class="px-6 py-3 rounded-full bg-red-500 text-white font-semibold hover:bg-red-600 active:scale-95 transition-all flex items-center gap-2"
+        >
+          <span>📵</span> Cancel
+        </button>
+      {:else if callState === 'incoming'}
+        <div class="flex gap-3">
+          <button
+            on:click={acceptCall}
+            class="w-14 h-14 rounded-full bg-green-500 flex items-center justify-center text-xl hover:bg-green-600 active:scale-95 transition-all"
+            title="Accept"
+          >
+            📞
+          </button>
+          <button
+            on:click={declineCall}
+            class="w-14 h-14 rounded-full bg-red-500 flex items-center justify-center text-xl hover:bg-red-600 active:scale-95 transition-all"
+            title="Decline"
+          >
+            📵
+          </button>
+        </div>
       {:else}
         <button
           on:click={toggleAudio}

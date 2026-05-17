@@ -12,9 +12,9 @@ interface IceServer {
 }
 
 // Generate time-limited HMAC-based TURN credentials
-function generateTurnCredentials(username: string): { username: string; credential: string } {
+function generateTurnCredentials(username: string): { username: string; credential: string } | null {
   if (!COTURN_SECRET) {
-    return { username: '', credential: '' };
+    return null;
   }
 
   const timestamp = Math.floor(Date.now() / 1000) + 3600; // 1-hour validity
@@ -35,7 +35,7 @@ export default async function rtcRoutes(fastify: FastifyInstance, _opts: Fastify
 
     if (COTURN_SECRET) {
       const turnCreds = generateTurnCredentials(request.user!.username);
-      if (turnCreds.username) {
+      if (turnCreds) {
         iceServers.push(
           {
             urls: `turn:${COTURN_REALM}:3478`,
