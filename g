@@ -10,3 +10,8 @@ git push
 
 
 git pull origin main
+
+
+./scripts/kimi-save.sh
+
+./scripts/kimi-load.sh
