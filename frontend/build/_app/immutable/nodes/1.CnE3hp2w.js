@@ -1,0 +1,2 @@
+import{a as h,f as g,s as a}from"../chunks/B4YkhzDe.js";import{au as i,av as s,p as v,f as d,t as l,b as _,d as o,r as p,e as x}from"../chunks/BRcNrMAb.js";const $={get error(){return s.error},get status(){return s.status}};i.updated.check;const u=$;var b=g("<h1> </h1> <p> </p>",1);function j(c,n){v(n,!0);var r=b(),t=d(r),f=o(t,!0);p(t);var e=x(t,2),m=o(e,!0);p(e),l(()=>{a(f,u.status),a(m,u.error?.message)}),h(c,r),_()}export{j as component};
+//# sourceMappingURL=1.CnE3hp2w.js.map

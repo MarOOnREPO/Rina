@@ -152,7 +152,7 @@
       "_index-server.js"
     ],
     "css": [
-      "_app/immutable/assets/_layout.Bq0caJ0q.css"
+      "_app/immutable/assets/_layout.CvLM-psD.css"
     ]
   },
   "src/routes/+page.svelte": {
@@ -321,8 +321,7 @@
       "_exports.js",
       "_utils.js",
       "_client.js",
-      "_auth.js",
-      "_socket.js"
+      "_auth.js"
     ]
   }
 }

@@ -71,6 +71,8 @@ JWT_SECRET=generate_a_random_64_char_string_here_maroonlovesrina2026
 # ─── MinIO / S3-Compatible Storage ───
 MINIO_ACCESS_KEY=rina_minio_access_32chars
 MINIO_SECRET_KEY=rina_minio_secret_64chars_change_me
+S3_BUCKET_NAME=rina-uploads
+AWS_REGION=us-east-1
 
 # ─── TMDB API (get free key at https://www.themoviedb.org/settings/api) ───
 TMDB_API_KEY=your_tmdb_api_key_here
@@ -83,6 +85,10 @@ TMDB_API_KEY=your_tmdb_api_key_here
 # Generate with: npx web-push generate-vapid-keys
 VAPID_PUBLIC_KEY=your_vapid_public_key
 VAPID_PRIVATE_KEY=your_vapid_private_key
+
+# ─── Coturn TURN Server (WebRTC) ───
+COTURN_REALM=your-domain.com
+COTURN_SECRET=generate_a_random_turn_secret_here
 
 # ─── Application ───
 NODE_ENV=production

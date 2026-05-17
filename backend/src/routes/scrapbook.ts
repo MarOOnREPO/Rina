@@ -1,68 +1,71 @@
-import { Router } from 'express';
 import { z } from 'zod';
-import { prisma } from '../../server.js';
-import { authenticateJWT, type AuthenticatedRequest } from '../middleware/auth.js';
+import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
+import { prisma } from '../services/prisma.js';
+import { authenticateJWT } from '../middleware/auth.js';
 
-const router = Router();
-
-router.get('/', authenticateJWT, async (_req, res) => {
-  try {
-    const photos = await prisma.scrapbookPhoto.findMany({
-      orderBy: { createdAt: 'desc' }
-    });
-    res.json(photos);
-  } catch (error) {
-    console.error('[Scrapbook Error]', error);
-    res.status(500).json({ error: 'Failed to fetch photos' });
-  }
+const photoSchema = z.object({
+  s3Key: z.string().min(1).max(500),
+  thumbnailUrl: z.string().url().optional(),
+  lat: z.number().min(-90).max(90).optional(),
+  lng: z.number().min(-180).max(180).optional(),
+  caption: z.string().max(500).optional(),
+  takenAt: z.string().datetime().optional()
 });
 
-router.post('/', authenticateJWT, async (req: AuthenticatedRequest, res) => {
-  try {
-    // In production, this would handle multipart upload to S3/MinIO
-    // For now, accept URL-based uploads
-    const schema = z.object({
-      url: z.string().url(),
-      thumbnailUrl: z.string().url().optional(),
-      lat: z.number().optional(),
-      lng: z.number().optional(),
-      caption: z.string().max(500).optional(),
-      takenAt: z.string().datetime().optional()
-    });
-    const data = schema.parse(req.body);
-
-    let user = await prisma.user.findUnique({ where: { username: req.user!.username } });
-    if (!user) {
-      user = await prisma.user.create({
-        data: { username: req.user!.username, displayName: req.user!.displayName }
+export default async function scrapbookRoutes(fastify: FastifyInstance, _opts: FastifyPluginOptions) {
+  fastify.get('/', { preValidation: [authenticateJWT] }, async (_request, reply) => {
+    try {
+      const photos = await prisma.scrapbookPhoto.findMany({
+        orderBy: { createdAt: 'desc' }
       });
+      return reply.send(photos);
+    } catch (error) {
+      console.error('[Scrapbook Error]', error);
+      return reply.status(500).send({ error: 'Failed to fetch photos' });
     }
+  });
 
-    const photo = await prisma.scrapbookPhoto.create({
-      data: {
-        ...data,
-        takenAt: data.takenAt ? new Date(data.takenAt) : undefined,
-        uploadedBy: user.id
+  fastify.post('/', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const data = photoSchema.parse(request.body);
+      const photo = await prisma.scrapbookPhoto.create({
+        data: {
+          ...data,
+          takenAt: data.takenAt ? new Date(data.takenAt) : undefined,
+          uploadedBy: request.user!.id
+        }
+      });
+      return reply.status(201).send(photo);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
       }
-    });
-    res.status(201).json(photo);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({ error: error.errors });
-      return;
+      console.error('[Scrapbook Error]', error);
+      return reply.status(500).send({ error: 'Failed to upload photo' });
     }
-    console.error('[Scrapbook Error]', error);
-    res.status(500).json({ error: 'Failed to upload photo' });
-  }
-});
+  });
 
-router.delete('/:id', authenticateJWT, async (req, res) => {
-  try {
-    await prisma.scrapbookPhoto.delete({ where: { id: req.params.id } });
-    res.status(204).send();
-  } catch {
-    res.status(404).json({ error: 'Photo not found' });
-  }
-});
+  fastify.delete('/:id', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const paramsSchema = z.object({ id: z.string().cuid() });
+      const params = paramsSchema.parse(request.params);
 
-export default router;
+      const existing = await prisma.scrapbookPhoto.findUnique({ where: { id: params.id } });
+      if (!existing) {
+        return reply.status(404).send({ error: 'Photo not found' });
+      }
+      if (existing.uploadedBy !== request.user!.id) {
+        return reply.status(403).send({ error: 'Not authorized to delete this photo' });
+      }
+
+      await prisma.scrapbookPhoto.delete({ where: { id: params.id } });
+      return reply.status(204).send();
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
+      console.error('[Scrapbook Error]', error);
+      return reply.status(500).send({ error: 'Failed to delete photo' });
+    }
+  });
+}

@@ -6,7 +6,6 @@ import "../../../chunks/utils.js";
 import "@sveltejs/kit/internal/server";
 import "../../../chunks/client.js";
 import { i as isAuthenticated } from "../../../chunks/auth.js";
-import "../../../chunks/socket.js";
 function _page($$renderer, $$props) {
   $$renderer.component(($$renderer2) => {
     var $$store_subs;
@@ -23,7 +22,11 @@ function _page($$renderer, $$props) {
         let c = each_array[$$index];
         $$renderer2.push(`<button${attr_class(`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 ${stringify(color === c ? "border-white scale-110" : "border-transparent")}`)}${attr_style(`background-color: ${stringify(c)};`)}${attr("aria-label", `Select color ${stringify(c)}`)}></button>`);
       }
-      $$renderer2.push(`<!--]--></div> <div class="w-px h-6 bg-rina-border"></div> <input type="range" min="1" max="20"${attr("value", brushSize)} class="w-24 accent-rina-rose"/> <span class="text-xs text-rina-slate w-4">${escape_html(brushSize)}</span> <div class="w-px h-6 bg-rina-border"></div> <button class="px-3 py-1.5 rounded-lg text-xs font-medium glass hover:bg-white/5 transition-colors">Clear</button> <button class="px-3 py-1.5 rounded-lg text-xs font-medium bg-rina-rose/20 text-rina-rose hover:bg-rina-rose/30 transition-colors">Save</button></div> <div class="flex-1 relative bg-transparent"><canvas class="absolute inset-0 w-full h-full cursor-crosshair touch-none"></canvas> <div class="absolute bottom-4 left-4 pointer-events-none"><p class="text-xs text-rina-slate-dark">Draw together • Yjs synced</p></div></div></div>`);
+      $$renderer2.push(`<!--]--></div> <div class="w-px h-6 bg-rina-border"></div> <input type="range" min="1" max="20"${attr("value", brushSize)} class="w-24 accent-rina-rose"/> <span class="text-xs text-rina-slate w-4">${escape_html(brushSize)}</span> <div class="w-px h-6 bg-rina-border"></div> <button class="px-3 py-1.5 rounded-lg text-xs font-medium glass hover:bg-white/5 transition-colors">Clear</button> <button class="px-3 py-1.5 rounded-lg text-xs font-medium bg-rina-rose/20 text-rina-rose hover:bg-rina-rose/30 transition-colors">Save</button> `);
+      {
+        $$renderer2.push("<!--[-1-->");
+      }
+      $$renderer2.push(`<!--]--></div> <div class="flex-1 relative bg-transparent"><canvas class="absolute inset-0 w-full h-full cursor-crosshair touch-none"></canvas> <div class="absolute bottom-4 left-4 pointer-events-none"><p class="text-xs text-rina-slate-dark">Draw together • Yjs synced</p></div></div></div>`);
     } else {
       $$renderer2.push("<!--[-1-->");
     }

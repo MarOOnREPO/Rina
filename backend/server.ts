@@ -1,14 +1,17 @@
 import 'dotenv/config';
-import express, { Request, Response, NextFunction } from 'express';
 import { createServer } from 'http';
+import fastify, { type FastifyInstance } from 'fastify';
+import cors from '@fastify/cors';
+import helmet from '@fastify/helmet';
+import cookie from '@fastify/cookie';
+import rateLimit from '@fastify/rate-limit';
 import { Server as SocketIOServer, Socket } from 'socket.io';
-import cors from 'cors';
-import helmet from 'helmet';
-import cookieParser from 'cookie-parser';
-import rateLimit from 'express-rate-limit';
-import { PrismaClient } from '@prisma/client';
 
-import { verifyToken, type JWTPayload } from './src/middleware/auth.js';
+import { prisma } from './src/services/prisma.js';
+import { redis, setupSocketAdapter } from './src/services/redis.js';
+import { createYjsWSS } from './src/services/yjs-server.js';
+import { authPlugin, verifyToken, type JWTPayload } from './src/middleware/auth.js';
+
 import authRoutes from './src/routes/auth.js';
 import calendarRoutes from './src/routes/calendar.js';
 import messageRoutes from './src/routes/messages.js';
@@ -18,57 +21,118 @@ import countdownRoutes from './src/routes/countdowns.js';
 import goalRoutes from './src/routes/goals.js';
 import scrapbookRoutes from './src/routes/scrapbook.js';
 import pushRoutes from './src/routes/push.js';
+import uploadRoutes from './src/routes/uploads.js';
+import rtcRoutes from './src/routes/rtc.js';
+
+// ─── Secret Validation ─────────────────────────────────────────
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET || JWT_SECRET.length < 32) {
+  console.error('[Fatal] JWT_SECRET must be set and at least 32 characters long');
+  process.exit(1);
+}
+
+const COOKIE_SECRET = process.env.COOKIE_SECRET;
+if (!COOKIE_SECRET || COOKIE_SECRET.length < 32) {
+  console.error('[Fatal] COOKIE_SECRET must be set and at least 32 characters long');
+  process.exit(1);
+}
 
 // ─── Configuration ─────────────────────────────────────────────
-const PORT = process.env.PORT || 3000;
+const PORT = parseInt(process.env.PORT || '3000', 10);
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const COOKIE_NAME = 'rina_auth_token';
 
-// ─── Prisma Client ─────────────────────────────────────────────
-export const prisma = new PrismaClient({
-  log: NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error']
+if (NODE_ENV === 'production' && !process.env.CORS_ORIGIN) {
+  console.error('[Fatal] CORS_ORIGIN must be set in production');
+  process.exit(1);
+}
+
+const allowedOrigins = NODE_ENV === 'production'
+  ? [process.env.CORS_ORIGIN!]
+  : ['http://localhost:5173', 'http://localhost:4173'];
+
+// ─── Cookie Parser Helper ──────────────────────────────────────
+function parseCookies(header: string): Record<string, string> {
+  const cookies: Record<string, string> = {};
+  if (!header) return cookies;
+  header.split(';').forEach((cookie) => {
+    const idx = cookie.indexOf('=');
+    if (idx > 0) {
+      const name = cookie.slice(0, idx).trim();
+      const value = cookie.slice(idx + 1).trim();
+      cookies[name] = decodeURIComponent(value);
+    }
+  });
+  return cookies;
+}
+
+// ─── HTTP Server & Fastify ─────────────────────────────────────
+const server = createServer();
+
+const app: FastifyInstance = fastify({
+  logger: NODE_ENV === 'development',
+  bodyLimit: 50 * 1024 * 1024,
+  trustProxy: true,
+  serverFactory: (handler) => {
+    server.on('request', handler);
+    return server;
+  }
 });
 
-// ─── Express & HTTP Server ─────────────────────────────────────
-const app = express();
-const httpServer = createServer(app);
-
-// ─── Security Middleware ───────────────────────────────────────
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: 'cross-origin' },
-  contentSecurityPolicy: false
-}));
-
-app.use(cors({
-  origin: NODE_ENV === 'production'
-    ? ['https://your-domain.com']
-    : ['http://localhost:5173', 'http://localhost:4173'],
+// ─── Plugins ───────────────────────────────────────────────────
+await app.register(cors, {
+  origin: allowedOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
-}));
-
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-app.use(cookieParser());
-
-// ─── Rate Limiting ─────────────────────────────────────────────
-const globalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many requests, please slow down.' }
 });
-app.use(globalLimiter);
 
-// ─── Socket.io Initialization ──────────────────────────────────
-const io = new SocketIOServer(httpServer, {
+await app.register(helmet, {
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
+      connectSrc: ["'self'", 'wss:', 'ws:'],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      upgradeInsecureRequests: []
+    }
+  }
+});
+
+await app.register(cookie, {
+  secret: COOKIE_SECRET,
+  parseOptions: {}
+});
+
+await app.register(rateLimit, {
+  max: 100,
+  timeWindow: '15 minutes',
+  redis,
+  keyGenerator: (req) => {
+    const forwarded = req.headers['x-forwarded-for'];
+    if (typeof forwarded === 'string') {
+      return forwarded.split(',')[0].trim();
+    }
+    return req.ip;
+  },
+  errorResponseBuilder: (_req, context) => ({
+    statusCode: 429,
+    error: 'Too Many Requests',
+    message: `Rate limit exceeded. Retry in ${context.after}`
+  })
+});
+
+await app.register(authPlugin);
+
+// ─── Socket.io ─────────────────────────────────────────────────
+const io = new SocketIOServer(server, {
   path: '/socket.io',
   cors: {
-    origin: NODE_ENV === 'production'
-      ? ['https://your-domain.com']
-      : ['http://localhost:5173', 'http://localhost:4173'],
+    origin: allowedOrigins,
     credentials: true
   },
   transports: ['websocket', 'polling'],
@@ -76,12 +140,14 @@ const io = new SocketIOServer(httpServer, {
   pingInterval: 25000
 });
 
+setupSocketAdapter(io);
+
 // Socket.io Authentication Middleware
 io.use((socket: Socket, next: (err?: Error) => void) => {
   try {
     const cookieHeader = socket.handshake.headers.cookie || '';
-    const tokenMatch = cookieHeader.match(new RegExp(`${COOKIE_NAME}=([^;]+)`));
-    const token = socket.handshake.auth.token || tokenMatch?.[1];
+    const cookies = parseCookies(cookieHeader);
+    const token = socket.handshake.auth.token || cookies[COOKIE_NAME];
 
     if (!token) {
       return next(new Error('Authentication error: No token provided'));
@@ -95,11 +161,12 @@ io.use((socket: Socket, next: (err?: Error) => void) => {
   }
 });
 
-// ─── Presence & Socket State Management ────────────────────────
+// ─── Presence & Socket State ───────────────────────────────────
+// NOTE: userSockets and userPresence are node-local Maps.
+// For true horizontal scaling, migrate these to Redis hashes.
 const userSockets = new Map<string, string>();
 const userPresence = new Map<string, { status: 'online' | 'away' | 'typing'; lastSeen: Date }>();
 
-// ─── Socket.io Event Handlers ──────────────────────────────────
 io.on('connection', (socket: Socket) => {
   const user = socket.data.user as JWTPayload;
   console.log(`[Socket] ${user.displayName} connected (${socket.id})`);
@@ -132,8 +199,22 @@ io.on('connection', (socket: Socket) => {
     });
   });
 
-  // ─── Chat Relay ────────────────────────────────────────────
-  socket.on('chat:message', (msg: { id: string }) => {
+  // ─── Chat Relay & Persistence ──────────────────────────────
+  socket.on('chat:message', async (msg: { id: string; content?: string }) => {
+    try {
+      if (msg.content && user.id) {
+        await prisma.message.create({
+          data: {
+            senderId: user.id,
+            content: msg.content,
+            type: 'TEXT'
+          }
+        });
+      }
+    } catch (err) {
+      console.error('[Socket] Failed to persist message:', err);
+    }
+
     const partnerUsername = user.username === 'maroon' ? 'rina' : 'maroon';
     const partnerSocketId = userSockets.get(partnerUsername);
     if (partnerSocketId) {
@@ -201,17 +282,6 @@ io.on('connection', (socket: Socket) => {
     }
   });
 
-  // ─── Yjs Awareness / Canvas Sync ───────────────────────────
-  socket.on('yjs:update', (data: { target: string; update: Uint8Array }) => {
-    const targetSocket = userSockets.get(data.target);
-    if (targetSocket) {
-      io.to(targetSocket).emit('yjs:update', {
-        sender: user.username,
-        update: data.update
-      });
-    }
-  });
-
   // ─── Disconnection ─────────────────────────────────────────
   socket.on('disconnect', (reason: string) => {
     console.log(`[Socket] ${user.displayName} disconnected (${reason})`);
@@ -227,37 +297,62 @@ io.on('connection', (socket: Socket) => {
   });
 });
 
-// ─── HTTP Routes ───────────────────────────────────────────────
-app.get('/api/health', (_req: Request, res: Response) => {
-  res.status(200).json({
+// ─── Yjs WebSocket Server ──────────────────────────────────────
+const yjsWss = createYjsWSS();
+
+server.on('upgrade', (request, socket, head) => {
+  if (request.url?.startsWith('/yjs')) {
+    try {
+      const cookies = parseCookies(request.headers.cookie || '');
+      const token = cookies[COOKIE_NAME];
+      if (!token) {
+        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+      verifyToken(token);
+      yjsWss.handleUpgrade(request, socket, head, (ws) => {
+        yjsWss.emit('connection', ws, request);
+      });
+    } catch {
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      socket.destroy();
+    }
+  }
+});
+
+// ─── API Routes ────────────────────────────────────────────────
+app.get('/api/health', async (_request, reply) => {
+  await reply.status(200).send({
     status: 'healthy',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: NODE_ENV
+    timestamp: new Date().toISOString()
   });
 });
 
-app.use('/api/auth', authRoutes);
-app.use('/api/calendar', calendarRoutes);
-app.use('/api/messages', messageRoutes);
-app.use('/api/movies', movieRoutes);
-app.use('/api/capsules', capsuleRoutes);
-app.use('/api/countdowns', countdownRoutes);
-app.use('/api/goals', goalRoutes);
-app.use('/api/scrapbook', scrapbookRoutes);
-app.use('/api/push', pushRoutes);
+await app.register(authRoutes, { prefix: '/api/auth' });
+await app.register(calendarRoutes, { prefix: '/api/calendar' });
+await app.register(messageRoutes, { prefix: '/api/messages' });
+await app.register(movieRoutes, { prefix: '/api/movies' });
+await app.register(capsuleRoutes, { prefix: '/api/capsules' });
+await app.register(countdownRoutes, { prefix: '/api/countdowns' });
+await app.register(goalRoutes, { prefix: '/api/goals' });
+await app.register(scrapbookRoutes, { prefix: '/api/scrapbook' });
+await app.register(pushRoutes, { prefix: '/api/push' });
+await app.register(uploadRoutes, { prefix: '/api/upload' });
+await app.register(rtcRoutes, { prefix: '/api/rtc' });
 
-// ─── Global Error Handling ─────────────────────────────────────
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  console.error('[Express Error]', err);
-  res.status(500).json({
-    error: NODE_ENV === 'production' ? 'Internal server error' : err.message
+// ─── Global Error Handler ──────────────────────────────────────
+app.setErrorHandler((error, _request, reply) => {
+  console.error('[Fastify Error]', error);
+  const statusCode = error.statusCode || 500;
+  reply.status(statusCode).send({
+    error: NODE_ENV === 'production' ? 'Internal server error' : error.message
   });
 });
 
 // 404 Handler
-app.use((_req: Request, res: Response) => {
-  res.status(404).json({ error: 'Resource not found' });
+app.setNotFoundHandler((_request, reply) => {
+  reply.status(404).send({ error: 'Resource not found' });
 });
 
 // ─── Graceful Startup & Shutdown ───────────────────────────────
@@ -266,10 +361,10 @@ const startServer = async (): Promise<void> => {
     await prisma.$connect();
     console.log('[Prisma] Database connected successfully');
 
-    httpServer.listen(PORT, () => {
-      console.log(`[Server] HTTP server running on port ${PORT} (${NODE_ENV})`);
-      console.log(`[Socket.io] WebSocket server initialized at path /socket.io`);
-    });
+    await app.listen({ port: PORT, host: '0.0.0.0' });
+    console.log(`[Server] HTTP server running on port ${PORT} (${NODE_ENV})`);
+    console.log(`[Socket.io] WebSocket server initialized at path /socket.io`);
+    console.log(`[Yjs] WebSocket server initialized at path /yjs`);
   } catch (error) {
     console.error('[Fatal] Failed to start server:', error);
     process.exit(1);
@@ -279,22 +374,35 @@ const startServer = async (): Promise<void> => {
 const gracefulShutdown = async (signal: string): Promise<void> => {
   console.log(`\n[Shutdown] ${signal} received. Initiating graceful shutdown...`);
 
-  io.close(() => {
-    console.log('[Socket.io] All socket connections closed');
-  });
-
-  await prisma.$disconnect();
-  console.log('[Prisma] Database connection closed');
-
-  httpServer.close(() => {
-    console.log('[Server] HTTP server closed');
-    process.exit(0);
-  });
-
-  setTimeout(() => {
+  const forceExit = setTimeout(() => {
     console.error('[Shutdown] Forced exit after timeout');
     process.exit(1);
   }, 10000);
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      io.close((err) => (err ? reject(err) : resolve()));
+    });
+    console.log('[Socket.io] All socket connections closed');
+
+    await new Promise<void>((resolve, reject) => {
+      yjsWss.close((err) => (err ? reject(err) : resolve()));
+    });
+    console.log('[Yjs] All websocket connections closed');
+
+    await app.close();
+    console.log('[Fastify] Server closed');
+
+    await prisma.$disconnect();
+    console.log('[Prisma] Database connection closed');
+
+    clearTimeout(forceExit);
+    process.exit(0);
+  } catch (error) {
+    console.error('[Shutdown] Error during shutdown:', error);
+    clearTimeout(forceExit);
+    process.exit(1);
+  }
 };
 
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));

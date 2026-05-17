@@ -1,9 +1,7 @@
-import { Router } from 'express';
 import { z } from 'zod';
-import { prisma } from '../../server.js';
-import { authenticateJWT, type AuthenticatedRequest } from '../middleware/auth.js';
-
-const router = Router();
+import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
+import { prisma } from '../services/prisma.js';
+import { authenticateJWT } from '../middleware/auth.js';
 
 const capsuleSchema = z.object({
   title: z.string().min(1).max(200),
@@ -13,90 +11,93 @@ const capsuleSchema = z.object({
   unlockAt: z.string().datetime()
 });
 
-router.get('/', authenticateJWT, async (req: AuthenticatedRequest, res) => {
-  try {
-    let user = await prisma.user.findUnique({ where: { username: req.user!.username } });
-    if (!user) {
-      user = await prisma.user.create({
-        data: { username: req.user!.username, displayName: req.user!.displayName }
+export default async function capsuleRoutes(fastify: FastifyInstance, _opts: FastifyPluginOptions) {
+  fastify.get('/', { preValidation: [authenticateJWT] }, async (_request, reply) => {
+    try {
+      const capsules = await prisma.timeCapsule.findMany({
+        orderBy: { unlockAt: 'asc' }
       });
+      return reply.send(capsules);
+    } catch (error) {
+      console.error('[Capsule Error]', error);
+      return reply.status(500).send({ error: 'Failed to fetch capsules' });
     }
+  });
 
-    const capsules = await prisma.timeCapsule.findMany({
-      orderBy: { unlockAt: 'asc' }
-    });
-    res.json(capsules);
-  } catch (error) {
-    console.error('[Capsule Error]', error);
-    res.status(500).json({ error: 'Failed to fetch capsules' });
-  }
-});
-
-router.post('/', authenticateJWT, async (req: AuthenticatedRequest, res) => {
-  try {
-    const data = capsuleSchema.parse(req.body);
-    let user = await prisma.user.findUnique({ where: { username: req.user!.username } });
-    if (!user) {
-      user = await prisma.user.create({
-        data: { username: req.user!.username, displayName: req.user!.displayName }
+  fastify.post('/', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const data = capsuleSchema.parse(request.body);
+      const capsule = await prisma.timeCapsule.create({
+        data: {
+          ...data,
+          creatorId: request.user!.id
+        }
       });
-    }
-
-    const capsule = await prisma.timeCapsule.create({
-      data: {
-        ...data,
-        creatorId: user.id
+      return reply.status(201).send(capsule);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
       }
-    });
-    res.status(201).json(capsule);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({ error: error.errors });
-      return;
+      console.error('[Capsule Error]', error);
+      return reply.status(500).send({ error: 'Failed to create capsule' });
     }
-    console.error('[Capsule Error]', error);
-    res.status(500).json({ error: 'Failed to create capsule' });
-  }
-});
+  });
 
-router.get('/:id/unlock', authenticateJWT, async (req, res) => {
-  try {
-    const capsule = await prisma.timeCapsule.findUnique({ where: { id: req.params.id } });
-    if (!capsule) {
-      res.status(404).json({ error: 'Capsule not found' });
-      return;
-    }
+  fastify.get('/:id/unlock', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const paramsSchema = z.object({ id: z.string().cuid() });
+      const params = paramsSchema.parse(request.params);
+      const capsule = await prisma.timeCapsule.findUnique({ where: { id: params.id } });
+      if (!capsule) {
+        return reply.status(404).send({ error: 'Capsule not found' });
+      }
 
-    const now = new Date();
-    if (now < capsule.unlockAt) {
-      const diff = capsule.unlockAt.getTime() - now.getTime();
-      res.status(403).json({
-        error: 'Capsule is still locked',
-        unlocksIn: diff,
-        unlockAt: capsule.unlockAt
+      const now = new Date();
+      if (now < capsule.unlockAt) {
+        const diff = capsule.unlockAt.getTime() - now.getTime();
+        return reply.status(403).send({
+          error: 'Capsule is still locked',
+          unlocksIn: diff,
+          unlockAt: capsule.unlockAt
+        });
+      }
+
+      await prisma.timeCapsule.update({
+        where: { id: params.id },
+        data: { openedAt: now }
       });
-      return;
+
+      return reply.send({ data: capsule.encryptedData, decrypted: true });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
+      console.error('[Capsule Error]', error);
+      return reply.status(500).send({ error: 'Failed to unlock capsule' });
     }
+  });
 
-    await prisma.timeCapsule.update({
-      where: { id: req.params.id },
-      data: { openedAt: now }
-    });
+  fastify.delete('/:id', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const paramsSchema = z.object({ id: z.string().cuid() });
+      const params = paramsSchema.parse(request.params);
 
-    res.json({ data: capsule.encryptedData, decrypted: true });
-  } catch (error) {
-    console.error('[Capsule Error]', error);
-    res.status(500).json({ error: 'Failed to unlock capsule' });
-  }
-});
+      const existing = await prisma.timeCapsule.findUnique({ where: { id: params.id } });
+      if (!existing) {
+        return reply.status(404).send({ error: 'Capsule not found' });
+      }
+      if (existing.creatorId !== request.user!.id) {
+        return reply.status(403).send({ error: 'Not authorized to delete this capsule' });
+      }
 
-router.delete('/:id', authenticateJWT, async (req, res) => {
-  try {
-    await prisma.timeCapsule.delete({ where: { id: req.params.id } });
-    res.status(204).send();
-  } catch {
-    res.status(404).json({ error: 'Capsule not found' });
-  }
-});
-
-export default router;
+      await prisma.timeCapsule.delete({ where: { id: params.id } });
+      return reply.status(204).send();
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
+      console.error('[Capsule Error]', error);
+      return reply.status(500).send({ error: 'Failed to delete capsule' });
+    }
+  });
+}

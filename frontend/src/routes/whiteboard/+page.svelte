@@ -2,9 +2,9 @@
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { isAuthenticated } from '$lib/stores/auth';
-  import { socketStore } from '$lib/stores/socket';
   import { fade } from 'svelte/transition';
   import * as Y from 'yjs';
+  import { WebsocketProvider } from 'y-websocket';
 
   let canvas: HTMLCanvasElement;
   let ctx: CanvasRenderingContext2D | null = null;
@@ -13,9 +13,8 @@
   let brushSize = 3;
   let ydoc: Y.Doc;
   let yArray: Y.Array<{ x: number; y: number; color: string; size: number; type: 'start' | 'move' | 'end' }>;
+  let provider: WebsocketProvider | null = null;
 
-  // For simulating Yjs sync over socket (simplified)
-  // In production, use y-websocket or custom provider
   const COLORS = ['#fb7185', '#818cf8', '#34d399', '#fbbf24', '#ffffff'];
 
   function initCanvas() {
@@ -49,6 +48,9 @@
       ctx.strokeStyle = color;
       ctx.lineWidth = brushSize;
     }
+    if (yArray) {
+      yArray.push([{ x, y, color, size: brushSize, type: 'start' }]);
+    }
   }
 
   function moveStroke(e: MouseEvent | TouchEvent) {
@@ -57,17 +59,26 @@
     const { x, y } = getPos(e);
     ctx.lineTo(x, y);
     ctx.stroke();
+    if (yArray) {
+      yArray.push([{ x, y, color, size: brushSize, type: 'move' }]);
+    }
   }
 
   function endStroke() {
     drawing = false;
     if (ctx) ctx.closePath();
+    if (yArray) {
+      yArray.push([{ x: 0, y: 0, color, size: brushSize, type: 'end' }]);
+    }
   }
 
   function clearCanvas() {
     if (!ctx || !canvas) return;
     const rect = canvas.getBoundingClientRect();
     ctx.clearRect(0, 0, rect.width, rect.height);
+    if (yArray) {
+      yArray.delete(0, yArray.length);
+    }
   }
 
   function saveCanvas() {
@@ -75,6 +86,39 @@
     link.download = `rina-whiteboard-${Date.now()}.png`;
     link.href = canvas.toDataURL();
     link.click();
+  }
+
+  function redrawFromYArray() {
+    if (!ctx || !yArray) return;
+    const rect = canvas.getBoundingClientRect();
+    ctx.clearRect(0, 0, rect.width, rect.height);
+
+    let currentPath: { x: number; y: number }[] = [];
+    let currentColor = '#fb7185';
+    let currentSize = 3;
+
+    for (const stroke of yArray.toArray()) {
+      if (stroke.type === 'start') {
+        currentColor = stroke.color;
+        currentSize = stroke.size;
+        currentPath = [{ x: stroke.x, y: stroke.y }];
+      } else if (stroke.type === 'move' && currentPath.length > 0) {
+        currentPath.push({ x: stroke.x, y: stroke.y });
+      } else if (stroke.type === 'end') {
+        if (currentPath.length > 0) {
+          ctx.beginPath();
+          ctx.strokeStyle = currentColor;
+          ctx.lineWidth = currentSize;
+          ctx.moveTo(currentPath[0].x, currentPath[0].y);
+          for (let i = 1; i < currentPath.length; i++) {
+            ctx.lineTo(currentPath[i].x, currentPath[i].y);
+          }
+          ctx.stroke();
+          ctx.closePath();
+        }
+        currentPath = [];
+      }
+    }
   }
 
   onMount(() => {
@@ -86,9 +130,20 @@
     initCanvas();
     window.addEventListener('resize', initCanvas);
 
-    // Setup Yjs (simplified in-memory, would connect via y-websocket in production)
+    // Setup Yjs with WebSocket provider
     ydoc = new Y.Doc();
     yArray = ydoc.getArray('strokes');
+
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${wsProtocol}//${window.location.host}`;
+    provider = new WebsocketProvider(wsUrl, 'rina-whiteboard', ydoc, {
+      connect: true,
+      params: { room: 'rina-whiteboard' }
+    });
+
+    yArray.observe(() => {
+      redrawFromYArray();
+    });
 
     return () => {
       window.removeEventListener('resize', initCanvas);
@@ -96,6 +151,10 @@
   });
 
   onDestroy(() => {
+    if (provider) {
+      provider.destroy();
+      provider = null;
+    }
     if (ydoc) ydoc.destroy();
   });
 </script>
@@ -137,6 +196,14 @@
       >
         Save
       </button>
+      {#if provider}
+        <div class="ml-auto flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full {provider.wsconnected ? 'bg-green-400' : 'bg-red-400'}"></span>
+          <span class="text-xs text-rina-slate">
+            {provider.wsconnected ? 'Synced' : 'Offline'}
+          </span>
+        </div>
+      {/if}
     </div>
 
     <!-- Canvas -->

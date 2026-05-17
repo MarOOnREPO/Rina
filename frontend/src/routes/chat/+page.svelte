@@ -63,6 +63,11 @@
     }
   }
 
+  function handleChatMessage(msg: ChatMessage) {
+    messages = [...messages, msg];
+    tick().then(scrollToBottom);
+  }
+
   onMount(() => {
     if (!$isAuthenticated) {
       goto('/login');
@@ -72,12 +77,7 @@
 
     const sock = socketStore.getSocket();
     if (sock) {
-      sock.on('chat:message', (msg: ChatMessage) => {
-        if (msg.senderId !== $currentUser?.username) {
-          messages = [...messages, msg];
-          tick().then(scrollToBottom);
-        }
-      });
+      sock.on('chat:message', handleChatMessage);
     }
   });
 
@@ -85,7 +85,7 @@
     clearTimeout(typingTimeout);
     const sock = socketStore.getSocket();
     if (sock) {
-      sock.off('chat:message');
+      sock.off('chat:message', handleChatMessage);
     }
   });
 

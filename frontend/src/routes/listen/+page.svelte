@@ -101,7 +101,10 @@
     }
     await loadYouTubeAPI();
 
-    mediaSync.init(socketStore.getSocket()!);
+    const sock = socketStore.getSocket();
+    if (sock) {
+      mediaSync.init(sock);
+    }
     const unsub = mediaSync.subscribe((evt) => {
       if (evt) handleSync(evt);
     });
@@ -122,9 +125,7 @@
   }
 </script>
 
-<svelte:head>
-  <script src="https://www.youtube.com/iframe_api"></script>
-</svelte:head>
+
 
 {#if $isAuthenticated}
   <div class="max-w-5xl mx-auto px-4 py-6" in:fade>

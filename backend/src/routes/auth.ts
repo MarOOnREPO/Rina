@@ -1,13 +1,11 @@
-import { Router } from 'express';
 import bcrypt from 'bcryptjs';
-import rateLimit from 'express-rate-limit';
-import { generateToken, authenticateJWT, type AuthenticatedRequest } from '../middleware/auth.js';
+import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
+import { generateToken, authenticateJWT } from '../middleware/auth.js';
+import { prisma } from '../services/prisma.js';
 
-const router = Router();
 const COOKIE_NAME = 'rina_auth_token';
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
-// Hardcoded users with bcrypt hashes (password: rina2026)
 const AUTHORIZED_USERS: Record<string, { username: string; passwordHash: string; displayName: string }> = {
   maroon: {
     username: 'maroon',
@@ -21,56 +19,64 @@ const AUTHORIZED_USERS: Record<string, { username: string; passwordHash: string;
   }
 };
 
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
-  message: { error: 'Too many authentication attempts.' }
-});
-
-router.post('/login', authLimiter, async (req, res): Promise<void> => {
-  try {
-    const { username, password } = req.body;
-    const normalizedUser = username?.toString().toLowerCase().trim();
-
-    const user = AUTHORIZED_USERS[normalizedUser];
-    if (!user) {
-      res.status(401).json({ error: 'Invalid credentials' });
-      return;
+export default async function authRoutes(fastify: FastifyInstance, _opts: FastifyPluginOptions) {
+  fastify.post('/login', {
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: '15 minutes'
+      }
     }
+  }, async (request, reply) => {
+    try {
+      const body = request.body as { username?: string; password?: string };
+      const { username, password } = body;
+      const normalizedUser = username?.toString().toLowerCase().trim();
 
-    const validPassword = await bcrypt.compare(password, user.passwordHash);
-    if (!validPassword) {
-      res.status(401).json({ error: 'Invalid credentials' });
-      return;
+      const user = AUTHORIZED_USERS[normalizedUser || ''];
+      if (!user) {
+        return reply.status(401).send({ error: 'Invalid credentials' });
+      }
+
+      const validPassword = await bcrypt.compare(password || '', user.passwordHash);
+      if (!validPassword) {
+        return reply.status(401).send({ error: 'Invalid credentials' });
+      }
+
+      let dbUser = await prisma.user.findUnique({ where: { username: user.username } });
+      if (!dbUser) {
+        dbUser = await prisma.user.create({
+          data: { username: user.username, displayName: user.displayName }
+        });
+      }
+
+      const token = generateToken({
+        id: dbUser.id,
+        username: user.username,
+        displayName: user.displayName
+      });
+
+      reply.setCookie(COOKIE_NAME, token, {
+        httpOnly: true,
+        secure: NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        path: '/'
+      });
+
+      return reply.status(200).send({ user: { username: user.username, displayName: user.displayName } });
+    } catch (error) {
+      console.error('[Auth Error]', error);
+      return reply.status(500).send({ error: 'Internal server error' });
     }
+  });
 
-    const token = generateToken({
-      username: user.username,
-      displayName: user.displayName
-    });
+  fastify.post('/logout', async (_request, reply) => {
+    reply.clearCookie(COOKIE_NAME, { path: '/' });
+    return reply.status(200).send({ message: 'Logged out successfully' });
+  });
 
-    res.cookie(COOKIE_NAME, token, {
-      httpOnly: true,
-      secure: NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/'
-    });
-
-    res.status(200).json({ user: { username: user.username, displayName: user.displayName } });
-  } catch (error) {
-    console.error('[Auth Error]', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-router.post('/logout', (_req, res) => {
-  res.clearCookie(COOKIE_NAME, { path: '/' });
-  res.status(200).json({ message: 'Logged out successfully' });
-});
-
-router.get('/me', authenticateJWT, (req: AuthenticatedRequest, res) => {
-  res.status(200).json({ user: req.user });
-});
-
-export default router;
+  fastify.get('/me', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    return reply.status(200).send({ user: request.user });
+  });
+}

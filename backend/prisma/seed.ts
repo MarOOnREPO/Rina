@@ -36,7 +36,8 @@ async function main() {
       id: 'sample-countdown-1',
       title: 'Next Visit',
       targetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
-      location: 'Kenitra, Morocco'
+      location: 'Kenitra, Morocco',
+      createdBy: maroon.id
     }
   });
 

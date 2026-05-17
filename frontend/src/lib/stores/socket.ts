@@ -173,8 +173,10 @@ function createPingStore() {
     trigger(data: PingEvent) {
       set(data);
       // Auto-clear after animation duration
-      setTimeout(() => set(null), 4000);
+      if (this._timeout) clearTimeout(this._timeout);
+      this._timeout = setTimeout(() => set(null), 4000);
     },
+    _timeout: null as ReturnType<typeof setTimeout> | null,
 
     init(socket: Socket) {
       socket.on('ping:received', (data: PingEvent) => {
@@ -195,8 +197,10 @@ function createMediaSyncStore() {
 
     receive(data: MediaSyncEvent) {
       set(data);
-      setTimeout(() => set(null), 100); // Brief pulse
+      if (this._timeout) clearTimeout(this._timeout);
+      this._timeout = setTimeout(() => set(null), 100); // Brief pulse
     },
+    _timeout: null as ReturnType<typeof setTimeout> | null,
 
     emit(data: Omit<MediaSyncEvent, 'sender' | 'senderDisplayName' | 'serverTime'>) {
       socketStore.emit('media:sync', data);
@@ -254,6 +258,8 @@ export function initializeSockets() {
   }
 
   // Wait for socket to be ready, then attach listeners
+  let retries = 0;
+  const maxRetries = 50;
   const checkAndInit = () => {
     const s = socketStore.getSocket();
     if (s?.connected) {
@@ -261,8 +267,12 @@ export function initializeSockets() {
       pingReceived.init(s);
       mediaSync.init(s);
       typing.init(s);
-    } else {
+      return;
+    }
+    if (++retries < maxRetries) {
       setTimeout(checkAndInit, 100);
+    } else {
+      console.error('[Socket] Failed to initialize listeners after max retries');
     }
   };
 

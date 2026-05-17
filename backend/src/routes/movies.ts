@@ -1,169 +1,205 @@
-import { Router } from 'express';
 import { z } from 'zod';
-import { prisma } from '../../server.js';
-import { authenticateJWT, type AuthenticatedRequest } from '../middleware/auth.js';
+import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
+import { prisma } from '../services/prisma.js';
+import { authenticateJWT } from '../middleware/auth.js';
 
-const router = Router();
+const TMDB_API_KEY = process.env.TMDB_API_KEY;
+const TMDB_TIMEOUT = 8000;
 
-const TMDB_API_KEY = process.env.TMDB_API_KEY || '';
-
-router.get('/', authenticateJWT, async (_req, res) => {
+async function fetchWithTimeout(url: string, timeoutMs: number) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const movies = await prisma.movie.findMany({
-      orderBy: [{ watched: 'asc' }, { createdAt: 'desc' }]
-    });
-    res.json(movies);
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
+    return response;
   } catch (error) {
-    console.error('[Movie Error]', error);
-    res.status(500).json({ error: 'Failed to fetch movies' });
+    clearTimeout(timeout);
+    throw error;
   }
-});
+}
 
-router.get('/search', authenticateJWT, async (req, res) => {
-  try {
-    const query = req.query.t as string;
-    if (!query || query.length < 2) {
-      res.status(400).json({ error: 'Query too short' });
-      return;
-    }
-
-    if (!TMDB_API_KEY) {
-      // Fallback: search local DB
-      const local = await prisma.movie.findMany({
-        where: { title: { contains: query, mode: 'insensitive' } }
+export default async function movieRoutes(fastify: FastifyInstance, _opts: FastifyPluginOptions) {
+  fastify.get('/', { preValidation: [authenticateJWT] }, async (_request, reply) => {
+    try {
+      const movies = await prisma.movie.findMany({
+        orderBy: [{ watched: 'asc' }, { createdAt: 'desc' }]
       });
-      res.json(local.map(m => ({
-        tmdbId: m.tmdbId,
-        title: m.title,
-        posterPath: m.posterPath,
-        releaseDate: m.releaseDate?.toISOString().split('T')[0]
-      })));
-      return;
+      return reply.send(movies);
+    } catch (error) {
+      console.error('[Movie Error]', error);
+      return reply.status(500).send({ error: 'Failed to fetch movies' });
     }
+  });
 
-    const response = await fetch(
-      `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&page=1`
-    );
-    const data = await response.json() as { results?: Array<Record<string, unknown>> };
-    const results = (data.results || []).slice(0, 8).map((m) => ({
-      tmdbId: m.id as number,
-      title: m.title as string,
-      posterPath: m.poster_path ? `https://image.tmdb.org/t/p/w342${m.poster_path}` : null,
-      releaseDate: m.release_date as string | undefined
-    }));
+  fastify.get('/search', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const querySchema = z.object({ t: z.string().min(2).max(100) });
+      const { t } = querySchema.parse(request.query);
 
-    res.json(results);
-  } catch (error) {
-    console.error('[Movie Search Error]', error);
-    res.status(500).json({ error: 'Search failed' });
-  }
-});
+      if (!TMDB_API_KEY) {
+        const local = await prisma.movie.findMany({
+          where: { title: { contains: t, mode: 'insensitive' } }
+        });
+        return reply.send(local.map(m => ({
+          tmdbId: m.tmdbId,
+          title: m.title,
+          posterPath: m.posterPath,
+          releaseDate: m.releaseDate?.toISOString().split('T')[0]
+        })));
+      }
 
-router.post('/', authenticateJWT, async (req: AuthenticatedRequest, res) => {
-  try {
-    const schema = z.object({ tmdbId: z.number().int().positive() });
-    const { tmdbId } = schema.parse(req.body);
+      const response = await fetchWithTimeout(
+        `https://api.themoviedb.org/3/search/movie?api_key=${encodeURIComponent(TMDB_API_KEY)}&query=${encodeURIComponent(t)}&page=1`,
+        TMDB_TIMEOUT
+      );
+      const data = await response.json() as { results?: Array<Record<string, unknown>> };
+      const results = (data.results || []).slice(0, 8).map((m) => ({
+        tmdbId: m.id as number,
+        title: m.title as string,
+        posterPath: m.poster_path ? `https://image.tmdb.org/t/p/w342${m.poster_path}` : null,
+        releaseDate: m.release_date as string | undefined
+      }));
 
-    let user = await prisma.user.findUnique({ where: { username: req.user!.username } });
-    if (!user) {
-      user = await prisma.user.create({
-        data: { username: req.user!.username, displayName: req.user!.displayName }
+      return reply.send(results);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
+      console.error('[Movie Search Error]', error);
+      return reply.status(500).send({ error: 'Search failed' });
+    }
+  });
+
+  fastify.post('/', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const schema = z.object({ tmdbId: z.number().int().positive() });
+      const { tmdbId } = schema.parse(request.body);
+
+      const existing = await prisma.movie.findUnique({ where: { tmdbId } });
+      if (existing) {
+        return reply.status(409).send({ error: 'Movie already in watchlist' });
+      }
+
+      let title = `Movie #${tmdbId}`;
+      let overview: string | null = null;
+      let posterPath: string | null = null;
+      let backdropPath: string | null = null;
+      let releaseDate: Date | null = null;
+
+      if (TMDB_API_KEY) {
+        try {
+          const response = await fetchWithTimeout(
+            `https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${encodeURIComponent(TMDB_API_KEY)}`,
+            TMDB_TIMEOUT
+          );
+          const data = await response.json() as Record<string, unknown>;
+          title = (data.title as string) || title;
+          overview = (data.overview as string | null) ?? null;
+          posterPath = data.poster_path ? `https://image.tmdb.org/t/p/w342${data.poster_path}` : null;
+          backdropPath = data.backdrop_path ? `https://image.tmdb.org/t/p/w780${data.backdrop_path}` : null;
+          releaseDate = data.release_date ? new Date(data.release_date as string) : null;
+        } catch {
+          // ignore TMDB fetch errors
+        }
+      }
+
+      const movie = await prisma.movie.create({
+        data: {
+          tmdbId,
+          title,
+          overview,
+          posterPath,
+          backdropPath,
+          releaseDate,
+          addedBy: request.user!.id
+        }
       });
-    }
 
-    // Check if exists
-    const existing = await prisma.movie.findUnique({ where: { tmdbId } });
-    if (existing) {
-      res.status(409).json({ error: 'Movie already in watchlist' });
-      return;
-    }
-
-    // Fetch from TMDB if key available
-    let title = `Movie #${tmdbId}`;
-    let overview: string | null = null;
-    let posterPath: string | null = null;
-    let backdropPath: string | null = null;
-    let releaseDate: Date | null = null;
-
-    if (TMDB_API_KEY) {
-      try {
-        const response = await fetch(
-          `https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${TMDB_API_KEY}`
-        );
-        const data = await response.json() as Record<string, unknown>;
-        title = (data.title as string) || title;
-        overview = (data.overview as string | null) ?? null;
-        posterPath = data.poster_path ? `https://image.tmdb.org/t/p/w342${data.poster_path}` : null;
-        backdropPath = data.backdrop_path ? `https://image.tmdb.org/t/p/w780${data.backdrop_path}` : null;
-        releaseDate = data.release_date ? new Date(data.release_date as string) : null;
-      } catch {
-        // ignore TMDB fetch errors
+      return reply.status(201).send(movie);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
       }
+      console.error('[Movie Error]', error);
+      return reply.status(500).send({ error: 'Failed to add movie' });
     }
+  });
 
-    const movie = await prisma.movie.create({
-      data: {
-        tmdbId,
-        title,
-        overview,
-        posterPath,
-        backdropPath,
-        releaseDate,
-        addedBy: user.id
+  fastify.patch('/:id/watched', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const paramsSchema = z.object({ id: z.string().cuid() });
+      const params = paramsSchema.parse(request.params);
+
+      const existing = await prisma.movie.findUnique({ where: { id: params.id } });
+      if (!existing) {
+        return reply.status(404).send({ error: 'Movie not found' });
       }
-    });
-
-    res.status(201).json(movie);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({ error: error.errors });
-      return;
-    }
-    console.error('[Movie Error]', error);
-    res.status(500).json({ error: 'Failed to add movie' });
-  }
-});
-
-router.patch('/:id/watched', authenticateJWT, async (req, res) => {
-  try {
-    const movie = await prisma.movie.update({
-      where: { id: req.params.id },
-      data: {
-        watched: true,
-        watchedAt: new Date()
+      if (existing.addedBy !== request.user!.id) {
+        return reply.status(403).send({ error: 'Not authorized' });
       }
-    });
-    res.json(movie);
-  } catch {
-    res.status(404).json({ error: 'Movie not found' });
-  }
-});
 
-router.patch('/:id/rate', authenticateJWT, async (req, res) => {
-  try {
-    const schema = z.object({ rating: z.number().int().min(1).max(10) });
-    const { rating } = schema.parse(req.body);
-    const movie = await prisma.movie.update({
-      where: { id: req.params.id },
-      data: { rating }
-    });
-    res.json(movie);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({ error: error.errors });
-      return;
+      const movie = await prisma.movie.update({
+        where: { id: params.id },
+        data: { watched: true, watchedAt: new Date() }
+      });
+      return reply.send(movie);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
+      return reply.status(404).send({ error: 'Movie not found' });
     }
-    res.status(404).json({ error: 'Movie not found' });
-  }
-});
+  });
 
-router.delete('/:id', authenticateJWT, async (req, res) => {
-  try {
-    await prisma.movie.delete({ where: { id: req.params.id } });
-    res.status(204).send();
-  } catch {
-    res.status(404).json({ error: 'Movie not found' });
-  }
-});
+  fastify.patch('/:id/rate', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const schema = z.object({ rating: z.number().int().min(1).max(10) });
+      const { rating } = schema.parse(request.body);
+      const paramsSchema = z.object({ id: z.string().cuid() });
+      const params = paramsSchema.parse(request.params);
 
-export default router;
+      const existing = await prisma.movie.findUnique({ where: { id: params.id } });
+      if (!existing) {
+        return reply.status(404).send({ error: 'Movie not found' });
+      }
+      if (existing.addedBy !== request.user!.id) {
+        return reply.status(403).send({ error: 'Not authorized' });
+      }
+
+      const movie = await prisma.movie.update({
+        where: { id: params.id },
+        data: { rating }
+      });
+      return reply.send(movie);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
+      return reply.status(404).send({ error: 'Movie not found' });
+    }
+  });
+
+  fastify.delete('/:id', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const paramsSchema = z.object({ id: z.string().cuid() });
+      const params = paramsSchema.parse(request.params);
+
+      const existing = await prisma.movie.findUnique({ where: { id: params.id } });
+      if (!existing) {
+        return reply.status(404).send({ error: 'Movie not found' });
+      }
+      if (existing.addedBy !== request.user!.id) {
+        return reply.status(403).send({ error: 'Not authorized' });
+      }
+
+      await prisma.movie.delete({ where: { id: params.id } });
+      return reply.status(204).send();
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
+      return reply.status(404).send({ error: 'Movie not found' });
+    }
+  });
+}

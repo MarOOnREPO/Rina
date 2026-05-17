@@ -32,15 +32,29 @@ services:
       - MINIO_PORT=9000
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
-    ports:
-      - "3000:3000"
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME:-rina-uploads}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - TMDB_API_KEY=${TMDB_API_KEY}
+      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
+      - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY}
+    # Backend is NOT exposed to host; only accessible via nginx reverse proxy
+    expose:
+      - "3000"
     depends_on:
-      - postgres
-      - redis
-      - minio
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
     networks:
       - rina-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
   postgres:
     image: postgres:16-alpine
@@ -81,9 +95,10 @@ services:
       - MINIO_ROOT_PASSWORD=${MINIO_SECRET_KEY}
     volumes:
       - minio_data:/data
-    ports:
-      - "9000:9000"
-      - "9001:9001"
+    # MinIO is NOT exposed to host; only accessible via internal Docker network
+    expose:
+      - "9000"
+      - "9001"
     networks:
       - rina-network
     restart: unless-stopped
@@ -92,6 +107,38 @@ services:
       interval: 30s
       timeout: 20s
       retries: 3
+
+  # ─── Coturn (TURN Server for WebRTC) ────────────────────────────
+  # In production on AWS Lightsail, run Coturn on a dedicated instance
+  # with public IP and open UDP ports. Uncomment below for local testing.
+  # coturn:
+  #   image: coturn/coturn:latest
+  #   container_name: rina-coturn
+  #   ports:
+  #     - "3478:3478"
+  #     - "3478:3478/udp"
+  #     - "5349:5349"
+  #     - "5349:5349/udp"
+  #     - "49152-65535:49152-65535/udp"
+  #   environment:
+  #     - DETECT_EXTERNAL_IP=yes
+  #     - DETECT_RELAY_IP=yes
+  #   command: >
+  #     -n --log-file=stdout
+  #     --listening-port=3478
+  #     --tls-listening-port=5349
+  #     --realm=${COTURN_REALM:-localhost}
+  #     --server-name=rina-coturn
+  #     --fingerprint
+  #     --lt-cred-mech
+  #     --user=maroon:${COTURN_SECRET:-rina2026}
+  #     --user=rina:${COTURN_SECRET:-rina2026}
+  #     --no-cli
+  #     --min-port=49152
+  #     --max-port=65535
+  #   networks:
+  #     - rina-network
+  #   restart: unless-stopped
 
   # certbot:
   #   image: certbot/certbot

@@ -1,89 +1,102 @@
-import { Router } from 'express';
 import { z } from 'zod';
-import { prisma } from '../../server.js';
-import { authenticateJWT, type AuthenticatedRequest } from '../middleware/auth.js';
-
-const router = Router();
+import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
+import { prisma } from '../services/prisma.js';
+import { authenticateJWT } from '../middleware/auth.js';
 
 const goalSchema = z.object({
   title: z.string().min(1).max(200),
   targetAmount: z.number().int().positive(),
-  currentAmount: z.number().int().default(0),
+  currentAmount: z.number().int().min(0).default(0),
   currency: z.string().default('EUR'),
   deadline: z.string().datetime().optional(),
   icon: z.string().max(50).optional()
 });
 
-router.get('/', authenticateJWT, async (req: AuthenticatedRequest, res) => {
-  try {
-    let user = await prisma.user.findUnique({ where: { username: req.user!.username } });
-    if (!user) {
-      user = await prisma.user.create({
-        data: { username: req.user!.username, displayName: req.user!.displayName }
+export default async function goalRoutes(fastify: FastifyInstance, _opts: FastifyPluginOptions) {
+  fastify.get('/', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const goals = await prisma.goal.findMany({
+        where: { createdBy: request.user!.id },
+        orderBy: { createdAt: 'desc' }
       });
+      return reply.send(goals);
+    } catch (error) {
+      console.error('[Goal Error]', error);
+      return reply.status(500).send({ error: 'Failed to fetch goals' });
     }
+  });
 
-    const goals = await prisma.goal.findMany({
-      where: { createdBy: user.id },
-      orderBy: { createdAt: 'desc' }
-    });
-    res.json(goals);
-  } catch (error) {
-    console.error('[Goal Error]', error);
-    res.status(500).json({ error: 'Failed to fetch goals' });
-  }
-});
-
-router.post('/', authenticateJWT, async (req: AuthenticatedRequest, res) => {
-  try {
-    const data = goalSchema.parse(req.body);
-    let user = await prisma.user.findUnique({ where: { username: req.user!.username } });
-    if (!user) {
-      user = await prisma.user.create({
-        data: { username: req.user!.username, displayName: req.user!.displayName }
+  fastify.post('/', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const data = goalSchema.parse(request.body);
+      const goal = await prisma.goal.create({
+        data: { ...data, createdBy: request.user!.id }
       });
+      return reply.status(201).send(goal);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
+      console.error('[Goal Error]', error);
+      return reply.status(500).send({ error: 'Failed to create goal' });
     }
+  });
 
-    const goal = await prisma.goal.create({
-      data: { ...data, createdBy: user.id }
-    });
-    res.status(201).json(goal);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({ error: error.errors });
-      return;
+  fastify.patch('/:id/contribute', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const schema = z.object({ amount: z.number().int().positive() });
+      const { amount } = schema.parse(request.body);
+      const paramsSchema = z.object({ id: z.string().cuid() });
+      const params = paramsSchema.parse(request.params);
+
+      const existing = await prisma.goal.findUnique({ where: { id: params.id } });
+      if (!existing) {
+        return reply.status(404).send({ error: 'Goal not found' });
+      }
+      if (existing.createdBy !== request.user!.id) {
+        return reply.status(403).send({ error: 'Not authorized to contribute to this goal' });
+      }
+
+      const newAmount = existing.currentAmount + amount;
+      if (newAmount > existing.targetAmount) {
+        return reply.status(400).send({ error: 'Contribution exceeds target amount' });
+      }
+
+      const goal = await prisma.goal.update({
+        where: { id: params.id },
+        data: { currentAmount: newAmount }
+      });
+      return reply.send(goal);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
+      console.error('[Goal Error]', error);
+      return reply.status(500).send({ error: 'Failed to contribute to goal' });
     }
-    console.error('[Goal Error]', error);
-    res.status(500).json({ error: 'Failed to create goal' });
-  }
-});
+  });
 
-router.patch('/:id/contribute', authenticateJWT, async (req, res) => {
-  try {
-    const schema = z.object({ amount: z.number().int().positive() });
-    const { amount } = schema.parse(req.body);
+  fastify.delete('/:id', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const paramsSchema = z.object({ id: z.string().cuid() });
+      const params = paramsSchema.parse(request.params);
 
-    const goal = await prisma.goal.update({
-      where: { id: req.params.id },
-      data: { currentAmount: { increment: amount } }
-    });
-    res.json(goal);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({ error: error.errors });
-      return;
+      const existing = await prisma.goal.findUnique({ where: { id: params.id } });
+      if (!existing) {
+        return reply.status(404).send({ error: 'Goal not found' });
+      }
+      if (existing.createdBy !== request.user!.id) {
+        return reply.status(403).send({ error: 'Not authorized to delete this goal' });
+      }
+
+      await prisma.goal.delete({ where: { id: params.id } });
+      return reply.status(204).send();
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
+      console.error('[Goal Error]', error);
+      return reply.status(500).send({ error: 'Failed to delete goal' });
     }
-    res.status(404).json({ error: 'Goal not found' });
-  }
-});
-
-router.delete('/:id', authenticateJWT, async (req, res) => {
-  try {
-    await prisma.goal.delete({ where: { id: req.params.id } });
-    res.status(204).send();
-  } catch {
-    res.status(404).json({ error: 'Goal not found' });
-  }
-});
-
-export default router;
+  });
+}

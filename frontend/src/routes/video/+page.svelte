@@ -5,6 +5,7 @@
   import { socketStore } from '$lib/stores/socket';
   import { fade, scale } from 'svelte/transition';
   import GlassCard from '$lib/components/GlassCard.svelte';
+  import { api } from '$lib/utils/api';
 
   let localVideo: HTMLVideoElement;
   let remoteVideo: HTMLVideoElement;
@@ -14,16 +15,22 @@
   let error = '';
   let audioEnabled = true;
   let videoEnabled = true;
-
-  const ICE_SERVERS: RTCIceServer[] = [
+  let iceServers: RTCIceServer[] = [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' }
-    // Add TURN servers in production:
-    // { urls: 'turn:your-coturn-server:3478', username: 'user', credential: 'pass' }
   ];
 
+  async function loadIceServers() {
+    try {
+      const config = await api.get<{ iceServers: RTCIceServer[] }>('/rtc/ice-servers');
+      iceServers = config.iceServers;
+    } catch (err) {
+      console.warn('[WebRTC] Failed to load TURN config, using STUN only');
+    }
+  }
+
   function createPeerConnection() {
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    const pc = new RTCPeerConnection({ iceServers });
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
@@ -52,9 +59,11 @@
   }
 
   async function startCall() {
+    let stream: MediaStream | null = null;
     try {
       error = '';
-      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localStream = stream;
 
       if (localVideo) {
         localVideo.srcObject = localStream;
@@ -76,6 +85,10 @@
 
       callState = 'calling';
     } catch (err) {
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+      }
+      localStream = null;
       error = 'Could not access camera/microphone. Please check permissions.';
       console.error('[WebRTC]', err);
     }
@@ -120,7 +133,11 @@
 
   async function handleIceCandidate(data: { candidate: RTCIceCandidateInit }) {
     if (peerConnection && data.candidate) {
-      await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+      try {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+      } catch (err) {
+        console.warn('[WebRTC] Failed to add ICE candidate:', err);
+      }
     }
   }
 
@@ -161,6 +178,8 @@
       goto('/login');
       return;
     }
+
+    loadIceServers();
 
     const sock = socketStore.getSocket();
     if (sock) {

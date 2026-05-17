@@ -9,20 +9,30 @@ RUN npm ci
 
 # Copy source and build
 COPY . .
-RUN npm run build
 RUN npm run db:generate
+RUN npm run build
 
 # ─── Production Stage ───
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs && adduser -S node -u 1001
+
 # Copy only necessary artifacts
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/prisma ./prisma
+COPY --from=builder --chown=node:nodejs /app/dist ./dist
+COPY --from=builder --chown=node:nodejs /app/package*.json ./
+COPY --from=builder --chown=node:nodejs /app/prisma ./prisma
+
+# Install only production dependencies
+RUN npm ci --omit=dev && npm cache clean --force
+
+USER node
 
 EXPOSE 3000
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -qO- http://localhost:3000/api/health || exit 1
 
 CMD ["node", "dist/server.js"]

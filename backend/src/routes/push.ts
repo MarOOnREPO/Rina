@@ -1,12 +1,9 @@
-import { Router } from 'express';
 import { z } from 'zod';
-import { prisma } from '../../server.js';
-import { authenticateJWT, type AuthenticatedRequest } from '../middleware/auth.js';
-
-const router = Router();
+import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
+import { prisma } from '../services/prisma.js';
+import { authenticateJWT } from '../middleware/auth.js';
 
 const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY || '';
-// VAPID_PRIVATE_KEY should be set in env when integrating web-push library
 
 const subSchema = z.object({
   endpoint: z.string().url(),
@@ -14,80 +11,94 @@ const subSchema = z.object({
   auth: z.string()
 });
 
-router.post('/subscribe', authenticateJWT, async (req: AuthenticatedRequest, res) => {
-  try {
-    const data = subSchema.parse(req.body);
-    let user = await prisma.user.findUnique({ where: { username: req.user!.username } });
-    if (!user) {
-      user = await prisma.user.create({
-        data: { username: req.user!.username, displayName: req.user!.displayName }
+const notifySchema = z.object({
+  title: z.string().max(100).optional(),
+  body: z.string().max(200).optional(),
+  tag: z.string().max(50).optional(),
+  url: z.string().url().optional()
+});
+
+export default async function pushRoutes(fastify: FastifyInstance, _opts: FastifyPluginOptions) {
+  fastify.post('/subscribe', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const data = subSchema.parse(request.body);
+
+      // Prevent subscription hijacking: check if endpoint already belongs to another user
+      const existing = await prisma.pushSubscription.findUnique({
+        where: { endpoint: data.endpoint }
       });
+      if (existing && existing.userId !== request.user!.id) {
+        return reply.status(409).send({ error: 'Endpoint already registered by another user' });
+      }
+
+      await prisma.pushSubscription.upsert({
+        where: { endpoint: data.endpoint },
+        update: { p256dh: data.p256dh, auth: data.auth, userId: request.user!.id },
+        create: { ...data, userId: request.user!.id }
+      });
+
+      return reply.status(201).send({ message: 'Subscribed' });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
+      return reply.status(500).send({ error: 'Failed to subscribe' });
     }
+  });
 
-    await prisma.pushSubscription.upsert({
-      where: { endpoint: data.endpoint },
-      update: { p256dh: data.p256dh, auth: data.auth, userId: user.id },
-      create: { ...data, userId: user.id }
-    });
-
-    res.status(201).json({ message: 'Subscribed' });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({ error: error.errors });
-      return;
+  fastify.post('/unsubscribe', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const schema = z.object({ endpoint: z.string().url() });
+      const { endpoint } = schema.parse(request.body);
+      await prisma.pushSubscription.deleteMany({
+        where: { endpoint, userId: request.user!.id }
+      });
+      return reply.status(204).send();
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
+      return reply.status(500).send({ error: 'Failed to unsubscribe' });
     }
-    res.status(500).json({ error: 'Failed to subscribe' });
-  }
-});
+  });
 
-router.post('/unsubscribe', authenticateJWT, async (req: AuthenticatedRequest, res) => {
-  try {
-    const { endpoint } = req.body;
-    await prisma.pushSubscription.deleteMany({
-      where: { endpoint, user: { username: req.user!.username } }
-    });
-    res.status(204).send();
-  } catch {
-    res.status(500).json({ error: 'Failed to unsubscribe' });
-  }
-});
+  fastify.post('/notify', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const body = notifySchema.parse(request.body);
+      const partnerUsername = request.user!.username === 'maroon' ? 'rina' : 'maroon';
+      const partner = await prisma.user.findUnique({
+        where: { username: partnerUsername },
+        include: { pushSubs: true }
+      });
 
-// Admin endpoint to send push to partner
-router.post('/notify', authenticateJWT, async (req: AuthenticatedRequest, res) => {
-  try {
-    const partnerUsername = req.user!.username === 'maroon' ? 'rina' : 'maroon';
-    const partner = await prisma.user.findUnique({
-      where: { username: partnerUsername },
-      include: { pushSubs: true }
-    });
+      if (!partner || partner.pushSubs.length === 0) {
+        return reply.status(404).send({ error: 'Partner has no push subscriptions' });
+      }
 
-    if (!partner || partner.pushSubs.length === 0) {
-      res.status(404).json({ error: 'Partner has no push subscriptions' });
-      return;
+      // NOTE: Actual web-push sending is not yet implemented.
+      // Install web-push and implement sendNotification here.
+      const payload = JSON.stringify({
+        title: body.title || 'Rina 💕',
+        body: body.body || 'Your partner sent you a message',
+        tag: body.tag || 'rina',
+        url: body.url || '/'
+      });
+
+      return reply.send({
+        message: 'Push notification queued (sending not yet implemented)',
+        recipients: partner.pushSubs.length,
+        payload
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
+      console.error('[Push Error]', error);
+      return reply.status(500).send({ error: 'Failed to send notification' });
     }
+  });
 
-    const payload = JSON.stringify({
-      title: req.body.title || 'Rina 💕',
-      body: req.body.body || 'Your partner sent you a message',
-      tag: req.body.tag || 'rina',
-      url: req.body.url || '/'
-    });
-
-    // web-push would be used here in production with VAPID keys
-    // For now, return the subscriptions that would be notified
-    res.json({
-      message: 'Push notification queued',
-      recipients: partner.pushSubs.length,
-      payload
-    });
-  } catch (error) {
-    console.error('[Push Error]', error);
-    res.status(500).json({ error: 'Failed to send notification' });
-  }
-});
-
-router.get('/vapid-public', (_req, res) => {
-  res.json({ key: VAPID_PUBLIC });
-});
-
-export default router;
+  fastify.get('/vapid-public', async (_request, reply) => {
+    return reply.send({ key: VAPID_PUBLIC });
+  });
+}

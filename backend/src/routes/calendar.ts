@@ -1,9 +1,7 @@
-import { Router } from 'express';
 import { z } from 'zod';
-import { prisma } from '../../server.js';
-import { authenticateJWT, type AuthenticatedRequest } from '../middleware/auth.js';
-
-const router = Router();
+import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
+import { prisma } from '../services/prisma.js';
+import { authenticateJWT } from '../middleware/auth.js';
 
 const eventSchema = z.object({
   title: z.string().min(1).max(200),
@@ -15,68 +13,107 @@ const eventSchema = z.object({
   color: z.string().max(7).optional()
 });
 
-router.get('/', authenticateJWT, async (req: AuthenticatedRequest, res) => {
-  try {
-    const { from, to } = req.query;
-    const where: Record<string, unknown> = {};
-
-    if (from || to) {
-      where.startTime = {};
-      if (from) (where.startTime as Record<string, Date>).gte = new Date(from as string);
-      if (to) (where.startTime as Record<string, Date>).lte = new Date(to as string);
-    }
-
-    const events = await prisma.calendarEvent.findMany({
-      where,
-      orderBy: { startTime: 'asc' }
-    });
-
-    res.json(events);
-  } catch (error) {
-    console.error('[Calendar Error]', error);
-    res.status(500).json({ error: 'Failed to fetch events' });
-  }
+const querySchema = z.object({
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional()
 });
 
-router.post('/', authenticateJWT, async (req: AuthenticatedRequest, res) => {
-  try {
-    const data = eventSchema.parse(req.body);
-    const event = await prisma.calendarEvent.create({
-      data: {
-        ...data,
-        creator: req.user!.username
+export default async function calendarRoutes(fastify: FastifyInstance, _opts: FastifyPluginOptions) {
+  fastify.get('/', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const query = querySchema.parse(request.query);
+      const where: Record<string, unknown> = {};
+
+      if (query.from || query.to) {
+        where.startTime = {};
+        if (query.from) (where.startTime as Record<string, Date>).gte = new Date(query.from);
+        if (query.to) (where.startTime as Record<string, Date>).lte = new Date(query.to);
       }
-    });
-    res.status(201).json(event);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({ error: error.errors });
-      return;
+
+      const events = await prisma.calendarEvent.findMany({
+        where,
+        orderBy: { startTime: 'asc' },
+        take: 500
+      });
+
+      return reply.send(events);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
+      console.error('[Calendar Error]', error);
+      return reply.status(500).send({ error: 'Failed to fetch events' });
     }
-    console.error('[Calendar Error]', error);
-    res.status(500).json({ error: 'Failed to create event' });
-  }
-});
+  });
 
-router.patch('/:id', authenticateJWT, async (req: AuthenticatedRequest, res) => {
-  try {
-    const event = await prisma.calendarEvent.update({
-      where: { id: req.params.id },
-      data: req.body
-    });
-    res.json(event);
-  } catch {
-    res.status(404).json({ error: 'Event not found' });
-  }
-});
+  fastify.post('/', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const data = eventSchema.parse(request.body);
+      const event = await prisma.calendarEvent.create({
+        data: {
+          ...data,
+          creatorId: request.user!.id
+        }
+      });
+      return reply.status(201).send(event);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
+      console.error('[Calendar Error]', error);
+      return reply.status(500).send({ error: 'Failed to create event' });
+    }
+  });
 
-router.delete('/:id', authenticateJWT, async (req: AuthenticatedRequest, res) => {
-  try {
-    await prisma.calendarEvent.delete({ where: { id: req.params.id } });
-    res.status(204).send();
-  } catch {
-    res.status(404).json({ error: 'Event not found' });
-  }
-});
+  fastify.patch('/:id', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const paramsSchema = z.object({ id: z.string().cuid() });
+      const params = paramsSchema.parse(request.params);
+      const body = eventSchema.partial().parse(request.body);
 
-export default router;
+      const existing = await prisma.calendarEvent.findUnique({ where: { id: params.id } });
+      if (!existing) {
+        return reply.status(404).send({ error: 'Event not found' });
+      }
+      if (existing.creatorId !== request.user!.id) {
+        return reply.status(403).send({ error: 'Not authorized to update this event' });
+      }
+
+      const event = await prisma.calendarEvent.update({
+        where: { id: params.id },
+        data: body
+      });
+      return reply.send(event);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
+      console.error('[Calendar Error]', error);
+      return reply.status(500).send({ error: 'Failed to update event' });
+    }
+  });
+
+  fastify.delete('/:id', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const paramsSchema = z.object({ id: z.string().cuid() });
+      const params = paramsSchema.parse(request.params);
+
+      const existing = await prisma.calendarEvent.findUnique({ where: { id: params.id } });
+      if (!existing) {
+        return reply.status(404).send({ error: 'Event not found' });
+      }
+      if (existing.creatorId !== request.user!.id) {
+        return reply.status(403).send({ error: 'Not authorized to delete this event' });
+      }
+
+      await prisma.calendarEvent.delete({ where: { id: params.id } });
+      return reply.status(204).send();
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
+      console.error('[Calendar Error]', error);
+      return reply.status(500).send({ error: 'Failed to delete event' });
+    }
+  });
+}
