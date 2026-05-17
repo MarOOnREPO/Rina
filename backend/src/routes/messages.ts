@@ -65,4 +65,39 @@ export default async function messageRoutes(fastify: FastifyInstance, _opts: Fas
       return reply.status(500).send({ error: 'Failed to send message' });
     }
   });
+
+  fastify.patch('/:id', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const paramsSchema = z.object({ id: z.string().cuid() });
+      const params = paramsSchema.parse(request.params);
+
+      const editSchema = z.object({
+        content: z.string().min(1).max(4000)
+      });
+      const data = editSchema.parse(request.body);
+
+      const existing = await prisma.message.findUnique({ where: { id: params.id } });
+      if (!existing) {
+        return reply.status(404).send({ error: 'Message not found' });
+      }
+      if (existing.senderId !== request.user!.id) {
+        return reply.status(403).send({ error: 'Not authorized to edit this message' });
+      }
+
+      const message = await prisma.message.update({
+        where: { id: params.id },
+        data: {
+          content: data.content,
+          editedAt: new Date()
+        }
+      });
+      return reply.send(message);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
+      console.error('[Message Error]', error);
+      return reply.status(500).send({ error: 'Failed to edit message' });
+    }
+  });
 }

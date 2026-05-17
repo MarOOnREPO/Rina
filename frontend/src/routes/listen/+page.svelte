@@ -119,11 +119,6 @@
     if (player) player.destroy();
   });
 
-  // TypeScript declarations for YouTube API
-  interface Window {
-    YT: typeof YT;
-    onYouTubeIframeAPIReady?: () => void;
-  }
 </script>
 
 

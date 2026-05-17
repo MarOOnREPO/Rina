@@ -1,4 +1,4 @@
-import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, GetObjectCommand, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const MINIO_ENDPOINT = process.env.MINIO_ENDPOINT;
@@ -48,6 +48,14 @@ export async function getPresignedDownloadUrl(
     Key: key
   });
   return getSignedUrl(s3Client, command, { expiresIn });
+}
+
+export async function deleteObject(key: string): Promise<void> {
+  const command = new DeleteObjectCommand({
+    Bucket: BUCKET_NAME,
+    Key: key
+  });
+  await s3Client.send(command);
 }
 
 export { BUCKET_NAME };

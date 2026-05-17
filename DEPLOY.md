@@ -40,9 +40,53 @@ docker --version
 docker compose version
 ```
 
-### 3. DNS Setup
+### 3. Domain & DNS Setup
 
-Point your domain (e.g., `rina.yourdomain.com`) to your Lightsail **static IP** using an A record.
+1. **Register a domain** (e.g., via Namecheap, Cloudflare, or Route 53).
+2. **Create a static IP** in the Lightsail console and attach it to your instance.
+3. **Point your domain** (e.g., `rina.yourdomain.com`) to your Lightsail **static IP** using an A record.
+4. **Wait for DNS propagation** (can take a few minutes to 48 hours). Verify with:
+   ```bash
+   dig +short rina.yourdomain.com
+   ```
+
+### 3.5 SSL / HTTPS (Let's Encrypt)
+
+After your domain resolves to the server IP:
+
+```bash
+# On the server — run Certbot
+docker run -it --rm \
+  -v certbot-data:/etc/letsencrypt \
+  -v certbot-www:/var/www/certbot \
+  certbot/certbot certonly --webroot \
+  --webroot-path=/var/www/certbot \
+  -d rina.yourdomain.com \
+  --agree-tos --no-eff-email -m your-email@example.com
+```
+
+Then update `nginx/default.conf`:
+1. Replace `server_name _;` with `server_name rina.yourdomain.com;`
+2. Uncomment the HTTPS server block and update the certificate paths.
+3. Uncomment the `return 301 https://$host$request_uri;` line in the HTTP block.
+4. Reload Nginx: `docker compose exec nginx nginx -s reload`
+
+### 3.6 GitHub Actions CI/CD Secrets
+
+For automatic deployment on push to `main`, add these secrets in your GitHub repo:
+
+| Secret | Value |
+|--------|-------|
+| `SSH_PRIVATE_KEY` | The private key for `ubuntu@YOUR_LIGHTSAIL_IP` |
+| `REMOTE_HOST` | Your Lightsail static IP |
+| `REMOTE_USER` | `ubuntu` |
+
+Generate a deploy key pair (do NOT use your personal SSH key):
+```bash
+ssh-keygen -t ed25519 -C "rina-deploy" -f rina-deploy-key
+# Add rina-deploy-key.pub to ~/.ssh/authorized_keys on the server
+# Add the contents of rina-deploy-key as the SSH_PRIVATE_KEY secret
+```
 
 ### 4. Build Frontend Locally
 

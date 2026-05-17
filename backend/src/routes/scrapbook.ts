@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { prisma } from '../services/prisma.js';
 import { authenticateJWT } from '../middleware/auth.js';
+import { deleteObject } from '../services/s3.js';
 
 const photoSchema = z.object({
   s3Key: z.string().min(1).max(500),
@@ -58,6 +59,7 @@ export default async function scrapbookRoutes(fastify: FastifyInstance, _opts: F
         return reply.status(403).send({ error: 'Not authorized to delete this photo' });
       }
 
+      await deleteObject(existing.s3Key);
       await prisma.scrapbookPhoto.delete({ where: { id: params.id } });
       return reply.status(204).send();
     } catch (error) {
