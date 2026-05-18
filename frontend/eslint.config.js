@@ -12,8 +12,18 @@ export default [
     languageOptions: {
       globals: {
         ...globals.browser,
-        ...globals.node
+        ...globals.node,
+        YT: 'readonly',
+        RTCIceServer: 'readonly',
+        RTCSessionDescriptionInit: 'readonly',
+        RTCIceCandidateInit: 'readonly'
       }
+    }
+  },
+  {
+    files: ['**/*.d.ts'],
+    rules: {
+      '@typescript-eslint/no-unsafe-declaration-merging': 'off'
     }
   },
   {
@@ -22,6 +32,10 @@ export default [
       parserOptions: {
         parser: ts.parser
       }
+    },
+    rules: {
+      // svelte-check already validates Svelte code; don't duplicate compiler warnings as errors
+      'svelte/valid-compile': ['error', { ignoreWarnings: true }]
     }
   },
   {

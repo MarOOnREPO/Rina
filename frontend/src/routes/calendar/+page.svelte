@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { isAuthenticated, isLoading, currentUser } from '$lib/stores/auth.svelte';
+  import { isAuthenticated, isLoading } from '$lib/stores/auth.svelte';
   import { fade, fly, slide } from 'svelte/transition';
   import { calendarApi, type CalendarEvent, cycleApi, type CycleEntry } from '$lib/utils/api';
   import GlassCard from '$lib/components/GlassCard.svelte';
@@ -99,8 +99,6 @@
   let showCycleSettings = $state(false);
   let cycleStartStr = $state('');
   let cycleLength = $state(28);
-  let cycleLoading = false;
-
   function getCycleEntryForDate(dateStr: string): CycleEntry | undefined {
     return cycleEntries.find((e) => e.date === dateStr);
   }
@@ -133,7 +131,6 @@
 
   async function loadCycleData() {
     try {
-      cycleLoading = true;
       const from = `${year}-${String(month + 1).padStart(2, '0')}-01`;
       const toDate = new Date(year, month + 1, 0);
       const to = `${toDate.getFullYear()}-${String(toDate.getMonth() + 1).padStart(2, '0')}-${String(toDate.getDate()).padStart(2, '0')}`;
@@ -142,7 +139,7 @@
     } catch {
       // ignore
     } finally {
-      cycleLoading = false;
+      // loading done
     }
   }
 
@@ -168,7 +165,7 @@
   // Reload cycle data when month changes
   $effect(() => {
     if (typeof window !== 'undefined') {
-      const _ = year + month; // track dependency
+      year + month; // track dependency
       loadCycleData();
     }
   });

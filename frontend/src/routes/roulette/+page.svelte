@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { isAuthenticated, isLoading } from '$lib/stores/auth.svelte';
   import { fade, scale } from 'svelte/transition';

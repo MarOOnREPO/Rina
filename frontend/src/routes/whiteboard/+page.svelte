@@ -6,7 +6,7 @@
   import * as Y from 'yjs';
   import { WebsocketProvider } from 'y-websocket';
 
-  let canvas: HTMLCanvasElement;
+  let canvas: HTMLCanvasElement | undefined = $state();
   let ctx: CanvasRenderingContext2D | null = null;
   let drawing = false;
   let color = $state('#fb7185');
@@ -20,7 +20,7 @@
   function initCanvas() {
     if (!canvas) return;
     const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
+    const rect = canvas!.getBoundingClientRect();
     canvas.width = rect.width * dpr;
     canvas.height = rect.height * dpr;
     ctx = canvas.getContext('2d');
@@ -32,7 +32,7 @@
   }
 
   function getPos(e: MouseEvent | TouchEvent): { x: number; y: number } {
-    const rect = canvas.getBoundingClientRect();
+    const rect = canvas!.getBoundingClientRect();
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
     return { x: clientX - rect.left, y: clientY - rect.top };
@@ -74,7 +74,7 @@
 
   function clearCanvas() {
     if (!ctx || !canvas) return;
-    const rect = canvas.getBoundingClientRect();
+    const rect = canvas!.getBoundingClientRect();
     ctx.clearRect(0, 0, rect.width, rect.height);
     if (yArray) {
       yArray.delete(0, yArray.length);
@@ -84,13 +84,13 @@
   function saveCanvas() {
     const link = document.createElement('a');
     link.download = `rina-whiteboard-${Date.now()}.png`;
-    link.href = canvas.toDataURL();
+    link.href = canvas!.toDataURL();
     link.click();
   }
 
   function redrawFromYArray() {
     if (!ctx || !yArray) return;
-    const rect = canvas.getBoundingClientRect();
+    const rect = canvas!.getBoundingClientRect();
     ctx.clearRect(0, 0, rect.width, rect.height);
 
     let currentPath: { x: number; y: number }[] = [];

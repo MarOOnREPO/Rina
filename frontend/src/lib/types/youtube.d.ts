@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-declaration-merging */
 // YouTube IFrame Player API Type Declarations
 // https://developers.google.com/youtube/iframe_api_reference
 

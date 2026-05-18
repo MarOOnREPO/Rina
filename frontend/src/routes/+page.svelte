@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { isAuthenticated, isLoading, currentUser } from '$lib/stores/auth.svelte';
-  import { socketStore, pingReceived } from '$lib/stores/socket.svelte';
+  import { socketStore } from '$lib/stores/socket.svelte';
   import { fly, fade, scale } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
 
@@ -10,7 +10,6 @@
   let now = $state(new Date());
   let kenitraTime = $state('');
   let permTime = $state('');
-  let weatherLoaded = $state(false);
   let kenitraTemp = $state('--');
   let permTemp = $state('--');
   let kenitraCode = $state(0);
@@ -48,7 +47,6 @@
       permTemp = Math.round(pData.current_weather.temperature).toString();
       permCode = pData.current_weather.weathercode;
 
-      weatherLoaded = true;
     } catch {
       // Silently fail weather
     }

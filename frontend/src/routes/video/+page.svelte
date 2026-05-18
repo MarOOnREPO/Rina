@@ -7,8 +7,8 @@
   import GlassCard from '$lib/components/GlassCard.svelte';
   import { api } from '$lib/utils/api';
 
-  let localVideo: HTMLVideoElement;
-  let remoteVideo: HTMLVideoElement;
+  let localVideo: HTMLVideoElement | undefined = $state();
+  let remoteVideo: HTMLVideoElement | undefined = $state();
   let peerConnection: RTCPeerConnection | null = null;
   let localStream: MediaStream | null = $state(null);
   let callState: 'idle' | 'calling' | 'incoming' | 'connected' | 'ended' = $state('idle');

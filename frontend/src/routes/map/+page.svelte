@@ -8,8 +8,7 @@
   // Mapbox token would come from env in production
   const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || '';
 
-  let mapContainer: HTMLDivElement;
-  let loading = true;
+  let mapContainer: HTMLDivElement | undefined = $state();
 
   // Mock data for demo (Kenitra & Perm)
   const demoPhotos = [
@@ -28,14 +27,13 @@
   onMount(() => {
     // If no Mapbox token, show a placeholder globe visualization
     if (!MAPBOX_TOKEN) {
-      loading = false;
       return;
     }
 
     // Dynamic import mapbox-gl
     import('mapbox-gl').then((mapboxgl) => {
       const map = new mapboxgl.default.Map({
-        container: mapContainer,
+        container: mapContainer!,
         style: 'mapbox://styles/mapbox/dark-v11',
         center: [20, 40],
         zoom: 1.5,
@@ -68,9 +66,8 @@
           .addTo(map);
       });
 
-      loading = false;
     }).catch(() => {
-      loading = false;
+      // ignore
     });
   });
 </script>

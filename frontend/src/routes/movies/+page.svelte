@@ -184,8 +184,8 @@
                     <span class="text-3xl">✅</span>
                     {#if movie.rating}
                       <div class="flex items-center justify-center gap-0.5 mt-1">
-                        {#each Array(5) as _, i}
-                          <span class="text-xs {i < Math.round(movie.rating / 2) ? 'text-yellow-400' : 'text-white/20'}">★</span>
+                        {#each [1, 2, 3, 4, 5] as star}
+                          <span class="text-xs {star <= Math.round(movie.rating / 2) ? 'text-yellow-400' : 'text-white/20'}">★</span>
                         {/each}
                       </div>
                     {/if}

@@ -47,7 +47,7 @@ export interface WebRTCIceEvent {
 // ─── Socket State ────────────────────────────────────────────────
 let socket: Socket | null = null;
 
-let socketState = $state<{
+const socketState = $state<{
   connected: boolean;
   connecting: boolean;
   error: string | null;
