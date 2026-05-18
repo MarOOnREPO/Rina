@@ -26,6 +26,10 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
+# ─── Host temp directory (mounted into Docker for visibility/debugging) ──────
+HOST_TMP="/home/ubuntu/.rina-install-tmp"
+mkdir -p "$HOST_TMP"
+
 # ─── Progress / Resume ──────────────────────────────────────────────────────
 PROGRESS_FILE=".install-progress.env"
 
@@ -190,37 +194,42 @@ JWT_SECRET=$(openssl rand -base64 64 | tr -d '\n')
 COOKIE_SECRET=$(openssl rand -base64 64 | tr -d '\n')
 COTURN_SECRET=$(openssl rand -hex 32)
 
-# ─── Bcrypt Hash Generation (via Docker, no host Node.js needed) ────────────
+# ─── Bcrypt Hash Generation (no npm CLI — download tarball directly) ────────
 LOG "🧬 Hashing passwords with bcrypt (cost factor 12)..."
 
 generate_hash() {
   local password="$1"
   local b64pw
   b64pw=$(printf '%s' "$password" | base64 -w0)
-  docker run --rm node:20-alpine sh -c "
-    mkdir -p /tmp/app && cd /tmp/app && npm init -y >/dev/null 2>&1 &&
-    npm install bcryptjs@2.4.3 >/dev/null 2>&1 &&
-    node -e '
-      const pw = Buffer.from(\"$b64pw\", \"base64\").toString(\"utf8\");
-      require(\"bcryptjs\").hash(pw, 12).then(console.log);
-    '
-  "
+  docker run --rm \
+    --user "$(id -u):$(id -g)" \
+    -v "$HOST_TMP:/work" \
+    -w /work \
+    node:20 \
+    sh -c "
+      mkdir -p /work/bcryptjs &&
+      curl -fsSL https://registry.npmjs.org/bcryptjs/-/bcryptjs-2.4.3.tgz | tar -xz -C /work/bcryptjs --strip-components=1 &&
+      node -e '
+        const bcrypt = require(\"/work/bcryptjs\");
+        const pw = Buffer.from(\"$b64pw\", \"base64\").toString(\"utf8\");
+        bcrypt.hash(pw, 12).then(console.log);
+      '
+    "
 }
 
 MAROON_PASSWORD_HASH=$(generate_hash "$MAROON_PW")
 RINA_PASSWORD_HASH=$(generate_hash "$RINA_PW")
 
-# ─── VAPID Key Generation (via Docker) ──────────────────────────────────────
+# ─── VAPID Key Generation (pure Node.js crypto — no packages needed) ────────
 LOG "📡 Generating Web Push VAPID keys..."
 
-VAPID_RESULT=$(docker run --rm node:20-alpine sh -c "
-  mkdir -p /tmp/app && cd /tmp/app && npm init -y >/dev/null 2>&1 &&
-  npm install web-push@3.6.7 >/dev/null 2>&1 &&
-  node -e '
-    const w = require(\"web-push\");
-    const k = w.generateVAPIDKeys();
-    console.log(k.publicKey + \"|\" + k.privateKey);
-  '
+VAPID_RESULT=$(docker run --rm node:20-alpine node -e "
+  const crypto = require('crypto');
+  const ecdh = crypto.createECDH('prime256v1');
+  ecdh.generateKeys();
+  const pub = ecdh.getPublicKey('base64url', 'uncompressed');
+  const priv = ecdh.getPrivateKey('base64url');
+  console.log(pub + '|' + priv);
 ")
 VAPID_PUBLIC_KEY=$(printf '%s' "$VAPID_RESULT" | cut -d'|' -f1)
 VAPID_PRIVATE_KEY=$(printf '%s' "$VAPID_RESULT" | cut -d'|' -f2)
@@ -311,6 +320,10 @@ LOG "🔒 Requesting real Let's Encrypt certificate for ${DOMAIN}..."
 # ─── First Deploy ───────────────────────────────────────────────────────────
 LOG "🚀 Running first deploy..."
 ./scripts/deploy.sh
+
+# ─── Cleanup temp directory ─────────────────────────────────────────────────
+LOG "🧹 Cleaning up install temp directory..."
+rm -rf "$HOST_TMP"
 
 # ─── Summary ─────────────────────────────────────────────────────────────────
 echo ""
