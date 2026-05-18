@@ -1,5 +1,5 @@
 # ─── Build Stage ───
-FROM node:20-alpine AS builder
+FROM node:20-slim AS builder
 WORKDIR /app
 
 # Install dependencies first (cache layer)
@@ -13,12 +13,17 @@ RUN npm run db:generate
 RUN npm run build
 
 # ─── Production Stage ───
-FROM node:20-alpine AS runner
+FROM node:20-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
 # Use the existing non-root 'node' user provided by the base image (uid 1000)
-# Do NOT create a new user — 'node' already exists in node:20-alpine
+# Do NOT create a new user — 'node' already exists in node:20-slim
+
+# Install curl for healthcheck and ca-certificates for HTTPS
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy only necessary artifacts
 COPY --from=builder --chown=node:node /app/dist ./dist
@@ -32,11 +37,14 @@ RUN npx prisma generate
 COPY --chown=node:node scripts/container-start.sh ./container-start.sh
 RUN chmod +x container-start.sh
 
+# Ensure node user owns everything (Prisma may need to write engines at runtime)
+RUN chown -R node:node /app
+
 USER node
 
 EXPOSE 3000
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -qO- http://localhost:3000/api/health || exit 1
+  CMD curl -sf http://localhost:3000/api/health || exit 1
 
 CMD ["sh", "container-start.sh"]
