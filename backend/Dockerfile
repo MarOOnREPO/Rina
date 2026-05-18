@@ -29,9 +29,6 @@ COPY --from=builder --chown=node:node /app/prisma ./prisma
 RUN npm ci --omit=dev && npm cache clean --force
 RUN npx prisma generate
 
-# Install Docker CLI so the setup wizard can run docker compose commands
-RUN apk add --no-cache docker-cli docker-cli-compose
-
 COPY scripts/container-start.sh ./container-start.sh
 RUN chmod +x container-start.sh
 

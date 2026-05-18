@@ -25,8 +25,6 @@ import uploadRoutes from './src/routes/uploads.js';
 import rtcRoutes from './src/routes/rtc.js';
 import whiteboardRoutes from './src/routes/whiteboard.js';
 import cycleRoutes from './src/routes/cycle.js';
-import setupRoutes from './src/routes/setup.js';
-import setupWizardRoutes from './src/routes/setup-wizard.js';
 
 // ─── Secret Validation ─────────────────────────────────────────
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -373,8 +371,6 @@ await app.register(uploadRoutes, { prefix: '/api/upload' });
 await app.register(rtcRoutes, { prefix: '/api/rtc' });
 await app.register(whiteboardRoutes, { prefix: '/api/whiteboard' });
 await app.register(cycleRoutes, { prefix: '/api/cycle' });
-await app.register(setupRoutes, { prefix: '/api/setup' });
-await app.register(setupWizardRoutes, { prefix: '/api/setup-wizard' });
 
 // ─── Global Error Handler ──────────────────────────────────────
 app.setErrorHandler((error, _request, reply) => {

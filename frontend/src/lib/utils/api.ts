@@ -257,40 +257,6 @@ export interface CycleEntry {
   createdAt: string;
 }
 
-export interface SetupStatus {
-  timestamp: string;
-  healthy: boolean;
-  checks: {
-    env: boolean;
-    database: boolean;
-    redis: boolean;
-    s3: boolean;
-  };
-}
-
-export interface SetupEnvResponse {
-  env: Record<string, string>;
-  exists: boolean;
-}
-
-export interface SetupCommandResponse {
-  success: boolean;
-  output?: string;
-  error?: string;
-  message?: string;
-}
-
-export const setupApi = {
-  status: () => api.get<SetupStatus>('/setup-wizard/status'),
-  getEnv: () => api.get<SetupEnvResponse>('/setup-wizard/env'),
-  saveEnv: (env: Record<string, string>) => api.post<SetupCommandResponse>('/setup-wizard/env', env),
-  runSSL: (domain: string, email: string) =>
-    api.post<SetupCommandResponse>('/setup-wizard/ssl', { domain, email }),
-  runDeploy: () => api.post<SetupCommandResponse>('/setup-wizard/deploy'),
-  runBackup: () => api.post<SetupCommandResponse>('/setup-wizard/backup'),
-  generateVapid: () => api.post<{ success: boolean; publicKey: string; privateKey: string }>('/setup-wizard/generate-vapid')
-};
-
 export const cycleApi = {
   list: (from?: string, to?: string) =>
     api.get<{ entries: CycleEntry[] }>(`/cycle?from=${from || ''}&to=${to || ''}`),

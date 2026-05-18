@@ -68,7 +68,7 @@ git clone https://github.com/MarOOnREPO/Rina.git && cd Rina
 cd frontend && npm install && cd ..
 
 # 3. Install backend dependencies
-cd backend && npm install && cd ..
+cd backend && sudo apt install npm && cd ..
 
 # 4. Copy environment template and fill in values
 cp .env.example .env

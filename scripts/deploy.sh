@@ -37,12 +37,14 @@ fi
 
 DATABASE_URL="postgresql://rina_user:${POSTGRES_PASSWORD}@postgres:5432/rina_db"
 
-# ─── SSL Check (warn only) ───────────────────────────────────────
+# ─── SSL Bootstrap (dummy cert so nginx can start) ─────────────
 if [ -n "${DOMAIN:-}" ]; then
   CERT_FILE="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
   if ! docker compose run --rm -v certbot-data:/etc/letsencrypt nginx test -f "$CERT_FILE" >/dev/null 2>&1; then
     LOG "⚠️  SSL certificate not found for $DOMAIN."
-    LOG "   Run: ./scripts/init-ssl.sh $DOMAIN your-email@example.com"
+    LOG "   Generating dummy self-signed cert so nginx can start..."
+    ./scripts/bootstrap-ssl.sh "$DOMAIN"
+    LOG "   Run ./scripts/init-ssl.sh $DOMAIN your-email@example.com for real certs."
   fi
 fi
 
