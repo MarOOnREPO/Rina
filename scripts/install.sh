@@ -55,12 +55,11 @@ offer_resume() {
     read -rp "Resume with saved values? [Y/n]: " resume_choice
     if [[ "${resume_choice:-Y}" =~ ^[Nn]$ ]]; then
       rm -f "$PROGRESS_FILE"
-      return 1
+      return 0
     fi
     load_progress
-    return 0
   fi
-  return 1
+  return 0
 }
 
 # ─── Prerequisites ──────────────────────────────────────────────────────────
