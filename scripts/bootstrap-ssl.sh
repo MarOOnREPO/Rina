@@ -25,11 +25,14 @@ docker run --rm \
   -e "DOMAIN=$DOMAIN" \
   nginx:alpine sh -c '
     mkdir -p "/etc/letsencrypt/live/$DOMAIN"
+    mkdir -p "/etc/letsencrypt/live/$DOMAIN"
     if [ ! -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
       openssl req -x509 -nodes -days 1 -newkey rsa:2048 \
         -keyout "/etc/letsencrypt/live/$DOMAIN/privkey.pem" \
         -out "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" \
         -subj "/CN=$DOMAIN"
+      # chain.pem is referenced by nginx ssl_trusted_certificate
+      cp "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" "/etc/letsencrypt/live/$DOMAIN/chain.pem"
       echo "✅ Dummy cert generated"
     else
       echo "ℹ️  Real cert already exists, skipping bootstrap"

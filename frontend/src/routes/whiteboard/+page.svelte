@@ -137,7 +137,7 @@
     yArray = ydoc.getArray('strokes');
 
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${wsProtocol}//${window.location.host}`;
+    const wsUrl = `${wsProtocol}//${window.location.host}/yjs`;
     provider = new WebsocketProvider(wsUrl, 'rina-whiteboard', ydoc, {
       connect: true,
       params: { room: 'rina-whiteboard' }

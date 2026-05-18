@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { authenticateJWT } from '../middleware/auth.js';
 import crypto from 'crypto';
 
-const COTURN_REALM = process.env.COTURN_REALM || 'localhost';
+const COTURN_REALM = process.env.COTURN_REALM || '';
 const COTURN_SECRET = process.env.COTURN_SECRET || '';
 
 interface IceServer {

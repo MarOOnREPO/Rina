@@ -180,20 +180,28 @@ io.on('connection', async (socket: Socket) => {
   const user = socket.data.user as JWTPayload;
   console.log(`[Socket] ${user.displayName} connected (${socket.id})`);
 
-  await presence.setSocket(user.username, socket.id);
-  await presence.setStatus(user.username, { status: 'online', lastSeen: new Date(), displayName: user.displayName });
+  try {
+    await presence.setSocket(user.username, socket.id);
+    await presence.setStatus(user.username, { status: 'online', lastSeen: new Date(), displayName: user.displayName });
 
-  // Notify partner of online status
-  socket.broadcast.emit('presence:update', {
-    username: user.username,
-    displayName: user.displayName,
-    status: 'online',
-    timestamp: new Date().toISOString()
-  });
+    // Notify partner of online status
+    socket.broadcast.emit('presence:update', {
+      username: user.username,
+      displayName: user.displayName,
+      status: 'online',
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('[Socket] Failed to initialize presence:', err);
+  }
 
   // ─── Typing Indicators ─────────────────────────────────────
   socket.on('typing:start', async (data: { channel: string }) => {
-    await presence.setStatus(user.username, { status: 'typing', lastSeen: new Date(), displayName: user.displayName });
+    try {
+      await presence.setStatus(user.username, { status: 'typing', lastSeen: new Date(), displayName: user.displayName });
+    } catch (err) {
+      console.error('[Socket] Failed to set typing status:', err);
+    }
     socket.to(data.channel).emit('typing:start', {
       username: user.username,
       displayName: user.displayName
@@ -201,7 +209,11 @@ io.on('connection', async (socket: Socket) => {
   });
 
   socket.on('typing:stop', async (data: { channel: string }) => {
-    await presence.setStatus(user.username, { status: 'online', lastSeen: new Date(), displayName: user.displayName });
+    try {
+      await presence.setStatus(user.username, { status: 'online', lastSeen: new Date(), displayName: user.displayName });
+    } catch (err) {
+      console.error('[Socket] Failed to set online status:', err);
+    }
     socket.to(data.channel).emit('typing:stop', {
       username: user.username,
       displayName: user.displayName
@@ -304,18 +316,22 @@ io.on('connection', async (socket: Socket) => {
   // ─── Disconnection ─────────────────────────────────────────
   socket.on('disconnect', async (reason: string) => {
     console.log(`[Socket] ${user.displayName} disconnected (${reason})`);
-    const currentSocketId = await presence.getSocket(user.username);
-    if (currentSocketId === socket.id) {
-      await presence.delSocket(user.username);
-    }
-    await presence.setStatus(user.username, { status: 'away', lastSeen: new Date(), displayName: user.displayName });
+    try {
+      const currentSocketId = await presence.getSocket(user.username);
+      if (currentSocketId === socket.id) {
+        await presence.delSocket(user.username);
+      }
+      await presence.setStatus(user.username, { status: 'away', lastSeen: new Date(), displayName: user.displayName });
 
-    socket.broadcast.emit('presence:update', {
-      username: user.username,
-      displayName: user.displayName,
-      status: 'away',
-      timestamp: new Date().toISOString()
-    });
+      socket.broadcast.emit('presence:update', {
+        username: user.username,
+        displayName: user.displayName,
+        status: 'away',
+        timestamp: new Date().toISOString()
+      });
+    } catch (err) {
+      console.error('[Socket] Failed to cleanup presence on disconnect:', err);
+    }
   });
 });
 

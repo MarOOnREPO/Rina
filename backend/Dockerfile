@@ -29,8 +29,10 @@ COPY --from=builder --chown=node:node /app/prisma ./prisma
 RUN npm ci --omit=dev && npm cache clean --force
 RUN npx prisma generate
 
-COPY scripts/container-start.sh ./container-start.sh
+COPY --chown=node:node scripts/container-start.sh ./container-start.sh
 RUN chmod +x container-start.sh
+
+USER node
 
 EXPOSE 3000
 

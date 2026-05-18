@@ -42,10 +42,26 @@ jobs:
 
       - name: Build Frontend for Production
         working-directory: ./frontend
+        env:
+          VITE_MAPBOX_TOKEN: ${{ secrets.VITE_MAPBOX_TOKEN }}
         run: npm run build
 
+      - name: Check deploy secrets
+        id: deploy-check
+        env:
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          HOST: ${{ secrets.REMOTE_HOST }}
+          USER: ${{ secrets.REMOTE_USER }}
+        run: |
+          if [ -n "$SSH_KEY" ] && [ -n "$HOST" ] && [ -n "$USER" ]; then
+            echo "has_secrets=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_secrets=false" >> "$GITHUB_OUTPUT"
+            echo "⚠️ Deploy secrets not configured. Skipping deployment."
+          fi
+
       - name: Deploy to Server (rsync)
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && steps.deploy-check.outputs.has_secrets == 'true'
         uses: easingthemes/ssh-deploy@2cc5b27bf3029d0455dd5e09fe02633904031447
         with:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -56,7 +72,7 @@ jobs:
           EXCLUDE: 'backend/node_modules,frontend/node_modules,frontend/.svelte-kit,backend/dist,.git,.env'
 
       - name: Restart services via SSH
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && steps.deploy-check.outputs.has_secrets == 'true'
         uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262
         with:
           host: ${{ secrets.REMOTE_HOST }}
@@ -67,7 +83,7 @@ jobs:
             ./scripts/deploy.sh
 
       - name: Post-deploy Health Check
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && steps.deploy-check.outputs.has_secrets == 'true'
         run: |
           sleep 10
           curl -sf "https://${{ secrets.REMOTE_HOST }}/api/health" || (echo "❌ Health check failed" && exit 1)

@@ -125,7 +125,7 @@ generate_hash() {
   local b64pw
   b64pw=$(printf '%s' "$password" | base64 -w0)
   docker run --rm node:20-alpine sh -c "
-    npm install bcryptjs@2.4.3 --no-save >/dev/null 2>&1
+    npm install bcryptjs@2.4.3 --no-save &&
     node -e '
       const pw = Buffer.from(\"$b64pw\", \"base64\").toString(\"utf8\");
       require(\"bcryptjs\").hash(pw, 12).then(console.log);
@@ -140,7 +140,7 @@ RINA_PASSWORD_HASH=$(generate_hash "$RINA_PW")
 LOG "📡 Generating Web Push VAPID keys..."
 
 VAPID_RESULT=$(docker run --rm node:20-alpine sh -c "
-  npm install web-push@3.6.7 --no-save >/dev/null 2>&1
+  npm install web-push@3.6.7 --no-save &&
   node -e '
     const w = require(\"web-push\");
     const k = w.generateVAPIDKeys();
@@ -217,6 +217,7 @@ LOG "🏗️  Building frontend (this may take 1–2 minutes)..."
 docker run --rm \
   -v "$PROJECT_DIR/frontend:/app" \
   -w /app \
+  -e "VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN:-}" \
   node:20-alpine \
   sh -c 'npm ci && npm run build'
 
