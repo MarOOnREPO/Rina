@@ -236,6 +236,11 @@ VAPID_PRIVATE_KEY=$(printf '%s' "$VAPID_RESULT" | cut -d'|' -f2)
 # ─── Write .env ─────────────────────────────────────────────────────────────
 LOG "📝 Writing .env file..."
 
+# Helper: escape single quotes for shell/Docker safety
+sq_env() {
+  printf "%s" "$1" | sed "s/'/'\"'\"'/g"
+}
+
 cat > .env <<EOF
 # ─────────────────────────────────────────────────────────────────
 # Project Rina — Environment Configuration
@@ -244,50 +249,50 @@ cat > .env <<EOF
 # ─────────────────────────────────────────────────────────────────
 
 # ─── Domain ──────────────────────────────────────────────────────
-DOMAIN=${DOMAIN}
+DOMAIN='$(sq_env "$DOMAIN")'
 
 # ─── Database ────────────────────────────────────────────────────
-POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+POSTGRES_PASSWORD='$(sq_env "$POSTGRES_PASSWORD")'
 
 # ─── JWT Authentication ──────────────────────────────────────────
-JWT_SECRET=${JWT_SECRET}
+JWT_SECRET='$(sq_env "$JWT_SECRET")'
 
 # ─── Cookie Signing (MUST be different from JWT_SECRET) ──────────
-COOKIE_SECRET=${COOKIE_SECRET}
+COOKIE_SECRET='$(sq_env "$COOKIE_SECRET")'
 
 # ─── CORS Origin (required in production) ────────────────────────
-CORS_ORIGIN=${CORS_ORIGIN}
+CORS_ORIGIN='$(sq_env "$CORS_ORIGIN")'
 
 # ─── Redis ───────────────────────────────────────────────────────
-REDIS_URL=redis://redis:6379
+REDIS_URL='redis://redis:6379'
 
 # ─── AWS S3 Storage ──────────────────────────────────────────────
-AWS_REGION=${AWS_REGION}
-AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-S3_BUCKET_NAME=${S3_BUCKET_NAME}
+AWS_REGION='$(sq_env "$AWS_REGION")'
+AWS_ACCESS_KEY_ID='$(sq_env "$AWS_ACCESS_KEY_ID")'
+AWS_SECRET_ACCESS_KEY='$(sq_env "$AWS_SECRET_ACCESS_KEY")'
+S3_BUCKET_NAME='$(sq_env "$S3_BUCKET_NAME")'
 
 # ─── Auth Password Hashes ────────────────────────────────────────
-MAROON_PASSWORD_HASH=${MAROON_PASSWORD_HASH}
-RINA_PASSWORD_HASH=${RINA_PASSWORD_HASH}
+MAROON_PASSWORD_HASH='$(sq_env "$MAROON_PASSWORD_HASH")'
+RINA_PASSWORD_HASH='$(sq_env "$RINA_PASSWORD_HASH")'
 
 # ─── TMDB API ────────────────────────────────────────────────────
-TMDB_API_KEY=${TMDB_API_KEY:-}
+TMDB_API_KEY='$(sq_env "${TMDB_API_KEY:-}")'
 
 # ─── Mapbox (Frontend Build Variable) ────────────────────────────
-VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN:-}
+VITE_MAPBOX_TOKEN='$(sq_env "${VITE_MAPBOX_TOKEN:-}")'
 
 # ─── Web Push VAPID Keys ─────────────────────────────────────────
-VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
-VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY}
+VAPID_PUBLIC_KEY='$(sq_env "$VAPID_PUBLIC_KEY")'
+VAPID_PRIVATE_KEY='$(sq_env "$VAPID_PRIVATE_KEY")'
 
 # ─── Coturn TURN Server (WebRTC) ─────────────────────────────────
-COTURN_REALM=${COTURN_REALM}
-COTURN_SECRET=${COTURN_SECRET}
+COTURN_REALM='$(sq_env "$COTURN_REALM")'
+COTURN_SECRET='$(sq_env "$COTURN_SECRET")'
 
 # ─── Application ─────────────────────────────────────────────────
-NODE_ENV=production
-PORT=3000
+NODE_ENV='production'
+PORT='3000'
 EOF
 
 chmod 600 .env

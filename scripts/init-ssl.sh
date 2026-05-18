@@ -19,10 +19,10 @@ LOG "🔒 Initializing SSL for $DOMAIN..."
 
 # Ensure domain is set in .env
 if ! grep -q "^DOMAIN=" .env 2>/dev/null; then
-  echo "DOMAIN=$DOMAIN" >> .env
+  echo "DOMAIN='$DOMAIN'" >> .env
   LOG "✅ Added DOMAIN=$DOMAIN to .env"
 else
-  sed -i "s/^DOMAIN=.*/DOMAIN=$DOMAIN/" .env
+  sed -i "s/^DOMAIN=.*/DOMAIN='$DOMAIN'/" .env
   LOG "✅ Updated DOMAIN in .env"
 fi
 

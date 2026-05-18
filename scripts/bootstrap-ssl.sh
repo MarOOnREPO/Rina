@@ -24,7 +24,7 @@ docker run --rm \
   -v rina-certbot-data:/etc/letsencrypt \
   -e "DOMAIN=$DOMAIN" \
   nginx:alpine sh -c '
-    mkdir -p "/etc/letsencrypt/live/$DOMAIN"
+    apk add --no-cache openssl >/dev/null 2>&1
     mkdir -p "/etc/letsencrypt/live/$DOMAIN"
     if [ ! -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
       openssl req -x509 -nodes -days 1 -newkey rsa:2048 \
