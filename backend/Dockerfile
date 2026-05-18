@@ -2,6 +2,9 @@
 FROM node:20-slim AS builder
 WORKDIR /app
 
+# Prisma needs openssl for engine detection & runtime
+RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
+
 # Install dependencies first (cache layer)
 COPY package*.json ./
 COPY prisma ./prisma/
@@ -20,9 +23,9 @@ ENV NODE_ENV=production
 # Use the existing non-root 'node' user provided by the base image (uid 1000)
 # Do NOT create a new user — 'node' already exists in node:20-slim
 
-# Install curl for healthcheck and ca-certificates for HTTPS
+# Install openssl (required by Prisma), curl for healthcheck, and ca-certificates
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl ca-certificates \
+    && apt-get install -y --no-install-recommends openssl curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy only necessary artifacts
