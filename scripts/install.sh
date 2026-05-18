@@ -251,7 +251,7 @@ echo "       0 3 * * * ${PROJECT_DIR}/scripts/backup-db.sh >> ${PROJECT_DIR}/bac
 echo "  3. Configure firewall (UFW):"
 echo "       sudo ufw default deny incoming"
 echo "       sudo ufw default allow outgoing"
-echo "       sudo ufw allow ssh"
+echo "       sudo ufw allow 2222/tcp"
 echo "       sudo ufw allow http"
 echo "       sudo ufw allow https"
 echo "       sudo ufw enable"

@@ -48,7 +48,7 @@ Do these **before** you SSH into the server. Every item here is a hard requireme
 | 1 | **Domain DNS** — A-record points to your server IP | `dig +short your-domain.com` returns your Lightsail IP |
 | 2 | **AWS S3 Bucket** — Exists and is accessible | Check AWS Console → S3 |
 | 3 | **AWS IAM User** — Has `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject` | Check IAM → Policies |
-| 4 | **Lightsail Firewall** — Ports 22, 80, 443 are open | Lightsail Console → Networking → Firewall |
+| 4 | **Lightsail Firewall** — Ports 2222 (SSH), 80, 443 are open | Lightsail Console → Networking → Firewall |
 | 5 | **GitHub Secrets (CI/CD only)** — `SSH_PRIVATE_KEY`, `REMOTE_HOST`, `REMOTE_USER`, `VITE_MAPBOX_TOKEN` | Repo Settings → Secrets and variables → Actions |
 
 **If any item is missing, stop here and fix it.** The install script cannot succeed without these.
@@ -60,7 +60,7 @@ Do these **before** you SSH into the server. Every item here is a hard requireme
 ### 1. Connect to Your Server
 
 ```bash
-ssh ubuntu@YOUR_SERVER_IP
+ssh -p 2222 ubuntu@YOUR_SERVER_IP
 ```
 
 > **Note:** Lightsail's default user is `ubuntu`. If you changed it during instance creation, use that username instead.
@@ -415,7 +415,7 @@ Expose only the ports Nginx needs. Never expose port 3000 (backend) directly.
 ```bash
 sudo ufw default deny incoming
 sudo ufw default allow outgoing
-sudo ufw allow ssh
+sudo ufw allow 2222/tcp
 sudo ufw allow http
 sudo ufw allow https
 sudo ufw enable
@@ -449,7 +449,7 @@ cd ~/Rina
 
 **On your local machine:**
 ```bash
-git remote add vps ssh://ubuntu@YOUR_SERVER_IP/home/ubuntu/rina.git
+git remote add vps ssh://ubuntu@YOUR_SERVER_IP:2222/home/ubuntu/rina.git
 git push vps main
 ```
 
@@ -458,10 +458,10 @@ The server automatically checks out the code and runs `./scripts/deploy.sh`.
 **If push fails:**
 ```bash
 # Test SSH connectivity from your local machine:
-ssh ubuntu@YOUR_SERVER_IP
+ssh -p 2222 ubuntu@YOUR_SERVER_IP
 
 # If that works, test git access:
-ssh ubuntu@YOUR_SERVER_IP "ls -la /home/ubuntu/rina.git"
+ssh -p 2222 ubuntu@YOUR_SERVER_IP "ls -la /home/ubuntu/rina.git"
 ```
 
 ### Method B: GitHub Actions CI/CD
@@ -486,7 +486,7 @@ Push to `main`. The workflow at `.github/workflows/deploy.yml` handles the rest.
 ### Method C: Manual Update
 
 ```bash
-ssh ubuntu@YOUR_SERVER_IP
+ssh -p 2222 ubuntu@YOUR_SERVER_IP
 cd ~/Rina
 git pull origin main
 ./scripts/deploy.sh
