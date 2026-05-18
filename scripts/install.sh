@@ -26,6 +26,39 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
+# ─── Progress / Resume ──────────────────────────────────────────────────────
+PROGRESS_FILE=".install-progress.env"
+
+save_progress() {
+  local var_name="$1"
+  if declare -p "$var_name" &>/dev/null; then
+    declare -p "$var_name" >> "$PROGRESS_FILE"
+  fi
+}
+
+load_progress() {
+  if [ -f "$PROGRESS_FILE" ]; then
+    source "$PROGRESS_FILE"
+    return 0
+  fi
+  return 1
+}
+
+offer_resume() {
+  if [ -f "$PROGRESS_FILE" ]; then
+    echo ""
+    echo -e "${YELLOW}⚠️  Previous installation attempt detected.${NC}"
+    read -rp "Resume with saved values? [Y/n]: " resume_choice
+    if [[ "${resume_choice:-Y}" =~ ^[Nn]$ ]]; then
+      rm -f "$PROGRESS_FILE"
+      return 1
+    fi
+    load_progress
+    return 0
+  fi
+  return 1
+}
+
 # ─── Prerequisites ──────────────────────────────────────────────────────────
 LOG "🔍 Checking prerequisites..."
 
@@ -60,17 +93,35 @@ prompt_required() {
   local message="$2"
   local is_secret="${3:-false}"
   local input
+  local current_value=""
+
+  if declare -p "$var_name" &>/dev/null; then
+    current_value="${!var_name:-}"
+  fi
 
   while true; do
+    local display_msg="$message"
+    if [ -n "$current_value" ]; then
+      if [ "$is_secret" = "true" ]; then
+        display_msg="${message} [press Enter to keep saved]"
+      else
+        display_msg="${message} [${current_value}]"
+      fi
+    fi
+
     if [ "$is_secret" = "true" ]; then
-      read -rsp "$message: " input
+      read -rsp "${display_msg}: " input
       echo ""
     else
-      read -rp "$message: " input
+      read -rp "${display_msg}: " input
     fi
 
     if [ -n "$input" ]; then
       printf -v "$var_name" '%s' "$input"
+      save_progress "$var_name"
+      break
+    elif [ -n "$current_value" ]; then
+      printf -v "$var_name" '%s' "$current_value"
       break
     else
       echo -e "${RED}This field is required.${NC}"
@@ -82,8 +133,27 @@ prompt_optional() {
   local var_name="$1"
   local message="$2"
   local input
-  read -rp "$message: " input
-  printf -v "$var_name" '%s' "$input"
+  local current_value=""
+
+  if declare -p "$var_name" &>/dev/null; then
+    current_value="${!var_name:-}"
+  fi
+
+  local display_msg="$message"
+  if [ -n "$current_value" ]; then
+    display_msg="${message} [${current_value}]"
+  fi
+
+  read -rp "${display_msg}: " input
+
+  if [ -n "$input" ]; then
+    printf -v "$var_name" '%s' "$input"
+  elif [ -n "$current_value" ]; then
+    printf -v "$var_name" '%s' "$current_value"
+  else
+    printf -v "$var_name" '%s' ""
+  fi
+  save_progress "$var_name"
 }
 
 # ─── Interactive Configuration ──────────────────────────────────────────────
@@ -92,6 +162,8 @@ echo -e "${CYAN}═════════════════════�
 echo -e "${CYAN}  Rina — Interactive Setup${NC}"
 echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
 echo ""
+
+offer_resume
 
 prompt_required DOMAIN   "🔷 Domain name (e.g., rina.example.com)"
 prompt_required EMAIL    "📧 Email address (for Let's Encrypt SSL)"
@@ -102,6 +174,7 @@ prompt_required AWS_SECRET_ACCESS_KEY "☁️  AWS Secret Access Key" true
 prompt_required S3_BUCKET_NAME        "🪣 S3 Bucket name"
 prompt_optional AWS_REGION            "🌎 AWS Region [us-east-1]"
 AWS_REGION="${AWS_REGION:-us-east-1}"
+save_progress "AWS_REGION"
 
 prompt_optional TMDB_API_KEY       "🎬 TMDB API Key (optional — press Enter to skip)"
 prompt_optional VITE_MAPBOX_TOKEN  "🗺️  Mapbox Token (optional — press Enter to skip)"
@@ -125,7 +198,8 @@ generate_hash() {
   local b64pw
   b64pw=$(printf '%s' "$password" | base64 -w0)
   docker run --rm node:20-alpine sh -c "
-    cd /tmp && npm install bcryptjs@2.4.3 --no-save &&
+    mkdir -p /tmp/app && cd /tmp/app && npm init -y >/dev/null 2>&1 &&
+    npm install bcryptjs@2.4.3 >/dev/null 2>&1 &&
     node -e '
       const pw = Buffer.from(\"$b64pw\", \"base64\").toString(\"utf8\");
       require(\"bcryptjs\").hash(pw, 12).then(console.log);
@@ -140,7 +214,8 @@ RINA_PASSWORD_HASH=$(generate_hash "$RINA_PW")
 LOG "📡 Generating Web Push VAPID keys..."
 
 VAPID_RESULT=$(docker run --rm node:20-alpine sh -c "
-  cd /tmp && npm install web-push@3.6.7 --no-save &&
+  mkdir -p /tmp/app && cd /tmp/app && npm init -y >/dev/null 2>&1 &&
+  npm install web-push@3.6.7 >/dev/null 2>&1 &&
   node -e '
     const w = require(\"web-push\");
     const k = w.generateVAPIDKeys();
@@ -208,6 +283,9 @@ PORT=3000
 EOF
 
 chmod 600 .env
+
+# Clean up progress file on success
+rm -f "$PROGRESS_FILE"
 
 LOG "✅ .env created with restricted permissions (600)."
 
