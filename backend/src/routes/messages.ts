@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { prisma } from '../services/prisma.js';
 import { authenticateJWT } from '../middleware/auth.js';
+import { broadcastToPartner } from '../services/broadcast.js';
 
 const messageSchema = z.object({
   content: z.string().min(1).max(4000),
@@ -56,6 +57,7 @@ export default async function messageRoutes(fastify: FastifyInstance, _opts: Fas
           senderId: request.user!.id
         }
       });
+      await broadcastToPartner(request.user!.id, { type: 'message', action: 'created', data: message });
       return reply.status(201).send(message);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -91,6 +93,7 @@ export default async function messageRoutes(fastify: FastifyInstance, _opts: Fas
           editedAt: new Date()
         }
       });
+      await broadcastToPartner(request.user!.id, { type: 'message', action: 'updated', data: message });
       return reply.send(message);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -115,6 +118,7 @@ export default async function messageRoutes(fastify: FastifyInstance, _opts: Fas
       }
 
       await prisma.message.delete({ where: { id: params.id } });
+      await broadcastToPartner(request.user!.id, { type: 'message', action: 'deleted', data: { id: params.id } });
       return reply.status(204).send();
     } catch (error) {
       if (error instanceof z.ZodError) {

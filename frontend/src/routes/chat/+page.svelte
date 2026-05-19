@@ -5,6 +5,7 @@
   import { socketStore, typing } from '$lib/stores/socket.svelte';
   import { fly, fade, slide } from 'svelte/transition';
   import { messageApi, type ChatMessage } from '$lib/utils/api';
+  import { formatTime } from '$lib/utils/timezone';
 
   let messages: ChatMessage[] = $state([]);
   let input = $state('');
@@ -33,10 +34,10 @@
   }
 
   function handleInput() {
-    socketStore.emit('typing:start', { channel: 'global' });
+    socketStore.emit('typing:start');
     clearTimeout(typingTimeout);
     typingTimeout = setTimeout(() => {
-      socketStore.emit('typing:stop', { channel: 'global' });
+      socketStore.emit('typing:stop');
     }, 1500);
   }
 
@@ -44,7 +45,7 @@
     const text = input.trim();
     if (!text) return;
     input = '';
-    socketStore.emit('typing:stop', { channel: 'global' });
+    socketStore.emit('typing:stop');
 
     try {
       const msg = await messageApi.send(text);
@@ -128,7 +129,7 @@
         </div>
       {:else}
         {#each messages as msg (msg.id)}
-          {@const isMe = msg.senderId === currentUser()?.username}
+          {@const isMe = msg.senderId === currentUser()?.id}
           <div
             class="flex {isMe ? 'justify-end' : 'justify-start'}"
             in:fly={{ y: 10, duration: 200 }}
@@ -141,7 +142,7 @@
             >
               <p class="break-words">{msg.content}</p>
               <p class="text-[10px] mt-1 opacity-50 text-right">
-                {new Date(msg.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                {formatTime(msg.createdAt)}
               </p>
             </div>
           </div>

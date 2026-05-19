@@ -21,6 +21,7 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/mapbox-gl": "^3.1.0",
     "@types/node": "^20.12.7",
+    "@vitejs/plugin-react": "^4.7.0",
     "autoprefixer": "^10.4.19",
     "eslint": "^8.57.0",
     "eslint-plugin-svelte": "^2.37.0",
@@ -38,11 +39,15 @@
     "vite": "^5.2.0"
   },
   "dependencies": {
+    "@excalidraw/excalidraw": "^0.17.6",
     "bcryptjs": "^3.0.3",
     "gsap": "^3.12.5",
     "mapbox-gl": "^3.3.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "socket.io-client": "^4.7.5",
     "tus-js-client": "^4.3.1",
+    "y-excalidraw": "^2.0.12",
     "y-websocket": "^3.0.0",
     "yjs": "^13.6.14"
   }

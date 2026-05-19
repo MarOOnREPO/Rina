@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { prisma } from '../services/prisma.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { deleteObject } from '../services/s3.js';
+import { broadcastToPartner } from '../services/broadcast.js';
 
 const photoSchema = z.object({
   s3Key: z.string().min(1).max(500),
@@ -42,6 +43,7 @@ export default async function scrapbookRoutes(fastify: FastifyInstance, _opts: F
           uploadedBy: request.user!.id
         }
       });
+      await broadcastToPartner(request.user!.id, { type: 'scrapbook', action: 'created', data: photo });
       return reply.status(201).send(photo);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -70,6 +72,7 @@ export default async function scrapbookRoutes(fastify: FastifyInstance, _opts: F
         where: { id: params.id },
         data
       });
+      await broadcastToPartner(request.user!.id, { type: 'scrapbook', action: 'updated', data: photo });
       return reply.send(photo);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -95,6 +98,7 @@ export default async function scrapbookRoutes(fastify: FastifyInstance, _opts: F
 
       await deleteObject(existing.s3Key);
       await prisma.scrapbookPhoto.delete({ where: { id: params.id } });
+      await broadcastToPartner(request.user!.id, { type: 'scrapbook', action: 'deleted', data: { id: params.id } });
       return reply.status(204).send();
     } catch (error) {
       if (error instanceof z.ZodError) {

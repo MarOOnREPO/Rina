@@ -3,6 +3,8 @@ import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import webPush from 'web-push';
 import { prisma } from '../services/prisma.js';
 import { authenticateJWT } from '../middleware/auth.js';
+import { getPartner } from '../services/partnership.js';
+import { sendPushToUser } from '../services/push.js';
 
 const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY || '';
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || '';
@@ -79,46 +81,23 @@ export default async function pushRoutes(fastify: FastifyInstance, _opts: Fastif
       }
 
       const body = notifySchema.parse(request.body);
-      const partnerUsername = request.user!.username === 'maroon' ? 'rina' : 'maroon';
-      const partner = await prisma.user.findUnique({
-        where: { username: partnerUsername },
-        include: { pushSubs: true }
-      });
+      const partner = await getPartner(request.user!.id);
 
-      if (!partner || partner.pushSubs.length === 0) {
-        return reply.status(404).send({ error: 'Partner has no push subscriptions' });
+      if (!partner) {
+        return reply.status(404).send({ error: 'Partner not found' });
       }
 
-      const payload = JSON.stringify({
+      const result = await sendPushToUser(partner.id, {
         title: body.title || 'Rina 💕',
         body: body.body || 'Your partner sent you a message',
         tag: body.tag || 'rina',
         url: body.url || '/'
       });
 
-      const results = await Promise.allSettled(
-        partner.pushSubs.map((sub) =>
-          webPush.sendNotification(
-            {
-              endpoint: sub.endpoint,
-              keys: {
-                p256dh: sub.p256dh,
-                auth: sub.auth
-              }
-            },
-            payload
-          )
-        )
-      );
-
-      const succeeded = results.filter((r) => r.status === 'fulfilled').length;
-      const failed = results.filter((r) => r.status === 'rejected').length;
-
       return reply.send({
         message: 'Push notifications sent',
-        recipients: partner.pushSubs.length,
-        succeeded,
-        failed
+        succeeded: result.succeeded,
+        failed: result.failed
       });
     } catch (error) {
       if (error instanceof z.ZodError) {

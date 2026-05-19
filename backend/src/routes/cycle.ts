@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { prisma } from '../services/prisma.js';
 import { authenticateJWT } from '../middleware/auth.js';
+import { broadcastToPartner } from '../services/broadcast.js';
 
 function isValidDateString(str: string): boolean {
   const d = new Date(str);
@@ -91,6 +92,7 @@ export default async function cycleRoutes(fastify: FastifyInstance, _opts: Fasti
           notes: data.notes
         }
       });
+      await broadcastToPartner(request.user!.id, { type: 'cycle', action: 'created', data: entry });
       return reply.status(201).send({ entry });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -124,6 +126,7 @@ export default async function cycleRoutes(fastify: FastifyInstance, _opts: Fasti
           ...(data.notes !== undefined && { notes: data.notes })
         }
       });
+      await broadcastToPartner(request.user!.id, { type: 'cycle', action: 'updated', data: entry });
       return reply.send({ entry });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -146,6 +149,7 @@ export default async function cycleRoutes(fastify: FastifyInstance, _opts: Fasti
         return reply.status(404).send({ error: 'Cycle entry not found' });
       }
       await prisma.cycleEntry.delete({ where: { id: params.id } });
+      await broadcastToPartner(request.user!.id, { type: 'cycle', action: 'deleted', data: { id: params.id } });
       return reply.status(204).send();
     } catch (error) {
       if (error instanceof z.ZodError) {

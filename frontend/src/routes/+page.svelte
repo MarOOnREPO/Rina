@@ -3,62 +3,48 @@
   import { goto } from '$app/navigation';
   import { isAuthenticated, isLoading, currentUser } from '$lib/stores/auth.svelte';
   import { socketStore, partnerPresence } from '$lib/stores/socket.svelte';
+  import { notificationApi, type AppNotification } from '$lib/utils/api';
+  import { getOffsetLabel, formatTime } from '$lib/utils/timezone';
   import { fade, fly } from 'svelte/transition';
   import PatchworkTile from '$lib/components/PatchworkTile.svelte';
+  import WeatherWidget from '$lib/components/WeatherWidget.svelte';
 
-  // ─── Time & Weather ────────────────────────────────────────────
+  // ─── Time ──────────────────────────────────────────────────────
   let now = $state(new Date());
   let kenitraTime = $state('--:--');
   let permTime = $state('--:--');
-  let kenitraTemp = $state('--');
-  let permTemp = $state('--');
-  let kenitraCode = $state(0);
-  let permCode = $state(0);
+  let kenitraOffset = $state('');
+  let permOffset = $state('');
 
   function updateClocks() {
     now = new Date();
-    kenitraTime = now.toLocaleTimeString('en-GB', {
-      timeZone: 'Africa/Casablanca',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-    permTime = now.toLocaleTimeString('en-GB', {
-      timeZone: 'Europe/Moscow',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    kenitraTime = formatTime(now, 'Africa/Casablanca');
+    permTime = formatTime(now, 'Asia/Yekaterinburg');
+    kenitraOffset = getOffsetLabel('Africa/Casablanca');
+    permOffset = getOffsetLabel('Asia/Yekaterinburg');
   }
 
-  async function fetchWeather() {
-    try {
-      const kRes = await fetch(
-        'https://api.open-meteo.com/v1/forecast?latitude=34.26&longitude=-6.58&current_weather=true'
-      );
-      const kData = await kRes.json();
-      kenitraTemp = Math.round(kData.current_weather.temperature).toString();
-      kenitraCode = kData.current_weather.weathercode;
+  // ─── Notifications ─────────────────────────────────────────────
+  let notifications = $state<AppNotification[]>([]);
+  let showNotifications = $state(false);
 
-      const pRes = await fetch(
-        'https://api.open-meteo.com/v1/forecast?latitude=58.01&longitude=56.25&current_weather=true'
-      );
-      const pData = await pRes.json();
-      permTemp = Math.round(pData.current_weather.temperature).toString();
-      permCode = pData.current_weather.weathercode;
+  async function fetchNotifications() {
+    try {
+      const { notifications: notifs } = await notificationApi.list();
+      notifications = notifs;
     } catch {
-      // Silently fail weather
+      // Silently fail
     }
   }
 
-  function weatherIcon(code: number): string {
-    if (code <= 1) return '☀️';
-    if (code <= 3) return '⛅';
-    if (code <= 48) return '🌫️';
-    if (code <= 67) return '🌧️';
-    if (code <= 77) return '🌨️';
-    if (code <= 82) return '🌦️';
-    if (code <= 86) return '❄️';
-    if (code <= 99) return '⛈️';
-    return '🌡️';
+  async function markAllRead() {
+    try {
+      await notificationApi.markRead();
+      notifications = [];
+      showNotifications = false;
+    } catch {
+      // Silently fail
+    }
   }
 
   function sendPing() {
@@ -68,7 +54,7 @@
   onMount(() => {
     updateClocks();
     const interval = setInterval(updateClocks, 1000);
-    fetchWeather();
+    fetchNotifications();
     return () => clearInterval(interval);
   });
 
@@ -77,54 +63,70 @@
       goto('/login');
     }
   });
-
-
 </script>
 
 {#if isAuthenticated()}
   <div class="max-w-7xl mx-auto px-3 md:px-4 py-4 md:py-6 space-y-4 md:space-y-5" in:fade={{ duration: 300 }}>
     
     <!-- Top Row: Time + Weather + Heart -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-      <!-- Kenitra -->
-      <div class="glass rounded-2xl p-4 md:p-5 flex items-center justify-between col-span-1" in:fly={{ y: 20, delay: 0 }}>
-        <div>
-          <p class="text-[10px] md:text-xs font-medium text-rina-slate uppercase tracking-wider">Kenitra, MA</p>
-          <p class="text-2xl md:text-3xl font-bold tabular-nums">{kenitraTime}</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+      <!-- Clocks -->
+      <div class="grid grid-cols-2 gap-3">
+        <!-- Kenitra -->
+        <div class="glass rounded-2xl p-4 md:p-5 flex items-center justify-between" in:fly={{ y: 20, delay: 0 }}>
+          <div>
+            <p class="text-[10px] md:text-xs font-medium text-rina-slate uppercase tracking-wider">Kenitra, MA</p>
+            <p class="text-2xl md:text-3xl font-bold tabular-nums">{kenitraTime}</p>
+          </div>
+          <div class="text-right">
+            <p class="text-xs text-rina-slate">{kenitraOffset}</p>
+          </div>
         </div>
-        <div class="text-right">
-          <span class="text-xl md:text-2xl">{weatherIcon(kenitraCode)}</span>
-          <p class="text-xs md:text-sm text-rina-slate">{kenitraTemp}°C</p>
+
+        <!-- Perm -->
+        <div class="glass rounded-2xl p-4 md:p-5 flex items-center justify-between" in:fly={{ y: 20, delay: 80 }}>
+          <div>
+            <p class="text-[10px] md:text-xs font-medium text-rina-slate uppercase tracking-wider">Perm, RU</p>
+            <p class="text-2xl md:text-3xl font-bold tabular-nums">{permTime}</p>
+          </div>
+          <div class="text-right">
+            <p class="text-xs text-rina-slate">{permOffset}</p>
+          </div>
         </div>
       </div>
 
-      <!-- Perm -->
-      <div class="glass rounded-2xl p-4 md:p-5 flex items-center justify-between col-span-1" in:fly={{ y: 20, delay: 80 }}>
-        <div>
-          <p class="text-[10px] md:text-xs font-medium text-rina-slate uppercase tracking-wider">Perm, RU</p>
-          <p class="text-2xl md:text-3xl font-bold tabular-nums">{permTime}</p>
-        </div>
-        <div class="text-right">
-          <span class="text-xl md:text-2xl">{weatherIcon(permCode)}</span>
-          <p class="text-xs md:text-sm text-rina-slate">{permTemp}°C</p>
-        </div>
+      <!-- Weather Widgets -->
+      <div class="flex flex-col gap-3">
+        <WeatherWidget lat={34.26} lon={-6.58} timezone="Africa/Casablanca" label="Kenitra" />
+        <WeatherWidget lat={58.01} lon={56.25} timezone="Asia/Yekaterinburg" label="Perm" />
       </div>
+    </div>
 
-      <!-- Welcome (hidden on mobile, shown on md+) -->
-      <div class="hidden md:flex flex-col justify-center glass rounded-2xl p-4 md:p-5 col-span-1" in:fly={{ y: 20, delay: 160 }}>
+    <!-- Heart Ping + Welcome -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-3 md:gap-4">
+      <!-- Welcome -->
+      <div class="glass rounded-2xl p-4 md:p-5 flex flex-col justify-center md:col-span-3" in:fly={{ y: 20, delay: 160 }}>
         <p class="text-[10px] md:text-xs font-medium text-rina-slate uppercase tracking-wider">Bienvenue</p>
         <h2 class="text-lg md:text-xl font-bold truncate">
           <span class="text-gradient">{currentUser()?.displayName || 'Love'}</span>
         </h2>
+        <p class="text-xs text-rina-slate-dark mt-1">
+          {now.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+        </p>
       </div>
 
       <!-- Heart Ping -->
       <button
         onclick={sendPing}
         class="glass rounded-2xl p-4 md:p-5 flex items-center justify-center gap-2 md:gap-3
-          hover:bg-rina-rose/10 active:scale-95 transition-all group cursor-pointer col-span-2 md:col-span-1"
+          hover:bg-rina-rose/10 active:scale-95 transition-all group cursor-pointer relative"
         in:fly={{ y: 20, delay: 240 }}
       >
+        {#if notifications.length > 0}
+          <span class="absolute top-3 right-3 w-5 h-5 bg-rina-rose text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+            {notifications.length}
+          </span>
+        {/if}
         <svg
           class="w-7 h-7 md:w-8 md:h-8 text-rina-rose group-hover:scale-110 transition-transform group-hover:animate-pulse"
           viewBox="0 0 24 24"
@@ -139,15 +141,33 @@
       </button>
     </div>
 
-    <!-- Mobile Welcome (visible only on small screens) -->
-    <div class="md:hidden text-center" in:fly={{ y: 20, delay: 300 }}>
-      <h2 class="text-xl font-bold">
-        Hello, <span class="text-gradient">{currentUser()?.displayName || 'Love'}</span>
-      </h2>
-      <p class="text-rina-slate text-xs mt-0.5">
-        {now.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-      </p>
-    </div>
+    <!-- Notification Dropdown -->
+    {#if notifications.length > 0}
+      <div class="flex justify-end px-1">
+        <button
+          onclick={() => showNotifications = !showNotifications}
+          class="text-xs text-rina-rose hover:underline flex items-center gap-1"
+        >
+          💌 {notifications.length} new notification{notifications.length > 1 ? 's' : ''}
+        </button>
+      </div>
+      {#if showNotifications}
+        <div class="glass rounded-xl p-3 space-y-2 max-w-md ml-auto" transition:fade={{ duration: 200 }}>
+          {#each notifications as notif (notif.id)}
+            <div class="text-sm border-b border-white/5 last:border-0 pb-2 last:pb-0">
+              <p class="font-medium text-rina-rose">{notif.title}</p>
+              <p class="text-rina-slate text-xs">{notif.body}</p>
+            </div>
+          {/each}
+          <button
+            onclick={markAllRead}
+            class="w-full text-xs py-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-rina-slate"
+          >
+            Mark all as read
+          </button>
+        </div>
+      {/if}
+    {/if}
 
     <!-- Main Patchwork Grid -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 auto-rows-[minmax(100px,auto)]">

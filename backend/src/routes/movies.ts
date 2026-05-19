@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { prisma } from '../services/prisma.js';
 import { authenticateJWT } from '../middleware/auth.js';
+import { broadcastToPartner } from '../services/broadcast.js';
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
 const TMDB_TIMEOUT = 8000;
@@ -111,6 +112,7 @@ export default async function movieRoutes(fastify: FastifyInstance, _opts: Fasti
             addedBy: request.user!.id
           }
         });
+        await broadcastToPartner(request.user!.id, { type: 'movie', action: 'created', data: movie });
         return reply.status(201).send(movie);
       } catch (createError: unknown) {
         const err = createError as { code?: string };
@@ -145,6 +147,7 @@ export default async function movieRoutes(fastify: FastifyInstance, _opts: Fasti
         where: { id: params.id },
         data: { watched: true, watchedAt: new Date() }
       });
+      await broadcastToPartner(request.user!.id, { type: 'movie', action: 'updated', data: movie });
       return reply.send(movie);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -174,6 +177,7 @@ export default async function movieRoutes(fastify: FastifyInstance, _opts: Fasti
         where: { id: params.id },
         data: { rating }
       });
+      await broadcastToPartner(request.user!.id, { type: 'movie', action: 'updated', data: movie });
       return reply.send(movie);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -198,6 +202,7 @@ export default async function movieRoutes(fastify: FastifyInstance, _opts: Fasti
       }
 
       await prisma.movie.delete({ where: { id: params.id } });
+      await broadcastToPartner(request.user!.id, { type: 'movie', action: 'deleted', data: { id: params.id } });
       return reply.status(204).send();
     } catch (error) {
       if (error instanceof z.ZodError) {

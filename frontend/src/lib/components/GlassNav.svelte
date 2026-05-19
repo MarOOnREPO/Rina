@@ -7,6 +7,7 @@
     { path: '/', label: 'Home', icon: '🏠' },
     { path: '/chat', label: 'Chat', icon: '💬' },
     { path: '/calendar', label: 'Calendar', icon: '📅' },
+    { path: '/goals', label: 'Goals', icon: '🎯' },
   ];
 
   $: currentPath = $page.url.pathname;

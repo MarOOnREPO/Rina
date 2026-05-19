@@ -1,10 +1,10 @@
 import { browser } from '$app/environment';
 import { goto } from '$app/navigation';
-import { authApi, type AuthUser } from '$lib/utils/api';
+import { authApi, type AuthUser, type PartnerInfo } from '$lib/utils/api';
 
 // ─── Types ───────────────────────────────────────────────────────
 interface AuthState {
-  user: AuthUser | null;
+  user: (AuthUser & { partner?: PartnerInfo | null }) | null;
   loading: boolean;
   error: string | null;
 }
@@ -27,8 +27,8 @@ export const auth = {
     state.loading = true;
     state.error = null;
     try {
-      const { user } = await authApi.me();
-      state.user = user;
+      const { user, partner } = await authApi.me();
+      state.user = { ...user, partner };
     } catch {
       state.user = null;
     } finally {
@@ -40,8 +40,8 @@ export const auth = {
     state.loading = true;
     state.error = null;
     try {
-      const { user } = await authApi.login({ username, password });
-      state.user = user;
+      const { user, partner } = await authApi.login({ username, password });
+      state.user = { ...user, partner };
       state.error = null;
       return user;
     } catch (err: unknown) {
@@ -85,5 +85,5 @@ export const currentUser = () => state.user;
 
 export const partnerName = () => {
   if (!state.user) return null;
-  return state.user.username === 'maroon' ? 'Rina' : 'MarOOn';
+  return state.user.partner?.displayName || (state.user.username === 'maroon' ? 'Rina' : 'MarOOn');
 };

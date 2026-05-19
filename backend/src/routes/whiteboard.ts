@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { prisma } from '../services/prisma.js';
 import { authenticateJWT } from '../middleware/auth.js';
+import { broadcastToPartner } from '../services/broadcast.js';
 
 const createSchema = z.object({
   name: z.string().min(1).max(200)
@@ -70,6 +71,7 @@ export default async function whiteboardRoutes(fastify: FastifyInstance, _opts: 
           createdBy: request.user!.id
         }
       });
+      await broadcastToPartner(request.user!.id, { type: 'whiteboard', action: 'created', data: session });
       return reply.status(201).send({ session });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -99,6 +101,7 @@ export default async function whiteboardRoutes(fastify: FastifyInstance, _opts: 
         where: { id: params.id },
         data: { name: data.name }
       });
+      await broadcastToPartner(request.user!.id, { type: 'whiteboard', action: 'updated', data: session });
       return reply.send({ session });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -122,6 +125,7 @@ export default async function whiteboardRoutes(fastify: FastifyInstance, _opts: 
         return reply.status(403).send({ error: 'Not authorized to delete this whiteboard session' });
       }
       await prisma.whiteboardSession.delete({ where: { id: params.id } });
+      await broadcastToPartner(request.user!.id, { type: 'whiteboard', action: 'deleted', data: { id: params.id } });
       return reply.status(204).send();
     } catch (error) {
       if (error instanceof z.ZodError) {

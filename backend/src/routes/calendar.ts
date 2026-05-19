@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { prisma } from '../services/prisma.js';
 import { authenticateJWT } from '../middleware/auth.js';
+import { broadcastToPartner } from '../services/broadcast.js';
 
 const eventSchema = z.object({
   title: z.string().min(1).max(200),
@@ -55,6 +56,7 @@ export default async function calendarRoutes(fastify: FastifyInstance, _opts: Fa
           creatorId: request.user!.id
         }
       });
+      await broadcastToPartner(request.user!.id, { type: 'calendar', action: 'created', data: event });
       return reply.status(201).send(event);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -83,6 +85,7 @@ export default async function calendarRoutes(fastify: FastifyInstance, _opts: Fa
         where: { id: params.id },
         data: body
       });
+      await broadcastToPartner(request.user!.id, { type: 'calendar', action: 'updated', data: event });
       return reply.send(event);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -107,6 +110,7 @@ export default async function calendarRoutes(fastify: FastifyInstance, _opts: Fa
       }
 
       await prisma.calendarEvent.delete({ where: { id: params.id } });
+      await broadcastToPartner(request.user!.id, { type: 'calendar', action: 'deleted', data: { id: params.id } });
       return reply.status(204).send();
     } catch (error) {
       if (error instanceof z.ZodError) {

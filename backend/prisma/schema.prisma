@@ -33,6 +33,9 @@ model User {
   calendarEvents     CalendarEvent[]
   countdowns         Countdown[]
   whiteboardSessions WhiteboardSession[]
+  notifications      Notification[]
+  partnershipsA      Partnership[] @relation("UserAPartnerships")
+  partnershipsB      Partnership[] @relation("UserBPartnerships")
 }
 
 // ─── Calendar Events ─────────────────────────────────────────────
@@ -209,6 +212,38 @@ model WhiteboardSession {
   creator User @relation(fields: [createdBy], references: [id], onDelete: Cascade)
 
   @@index([createdBy])
+}
+
+// ─── Partnerships ────────────────────────────────────────────────
+model Partnership {
+  id        String   @id @default(cuid())
+  userAId   String
+  userBId   String
+  createdAt DateTime @default(now())
+
+  userA User @relation("UserAPartnerships", fields: [userAId], references: [id], onDelete: Cascade)
+  userB User @relation("UserBPartnerships", fields: [userBId], references: [id], onDelete: Cascade)
+
+  @@unique([userAId, userBId])
+  @@index([userAId])
+  @@index([userBId])
+}
+
+// ─── Notifications (Offline Nudge Queue + Summary) ───────────────
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   @db.VarChar(50) // 'nudge', 'summary', etc.
+  title     String   @db.VarChar(200)
+  body      String   @db.VarChar(500)
+  data      Json?    // extra payload
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@index([createdAt])
 }
 
 // ─── Web Push Subscriptions ──────────────────────────────────────

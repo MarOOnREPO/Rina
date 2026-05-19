@@ -49,9 +49,19 @@ export const cache = {
 
 // ─── Presence & Socket Registry (Redis-backed for multi-node scaling) ──
 const SOCKET_TTL = 3600; // 1 hour
-const PRESENCE_TTL = 300; // 5 minutes
+const PRESENCE_TTL = 60; // 1 minute (strict heartbeat)
+const HEARTBEAT_INTERVAL = 15000; // 15 seconds
+
+export type PresenceStatus = 'online' | 'away' | 'typing' | 'offline';
+
+export interface PresenceData {
+  status: PresenceStatus;
+  lastSeen: string;
+  displayName: string;
+}
 
 export const presence = {
+  // Store a single active socket per user (latest wins for direct messaging)
   async setSocket(username: string, socketId: string): Promise<void> {
     await redis.setex(`rina:socket:${username}`, SOCKET_TTL, socketId);
   },
@@ -64,23 +74,46 @@ export const presence = {
     await redis.del(`rina:socket:${username}`);
   },
 
-  async setStatus(
-    username: string,
-    data: { status: 'online' | 'away' | 'typing'; lastSeen: Date; displayName: string }
-  ): Promise<void> {
+  // Multi-tab tracking: add socket to user's set
+  async addUserSocket(username: string, socketId: string): Promise<void> {
+    await redis.sadd(`rina:sockets:${username}`, socketId);
+    await redis.expire(`rina:sockets:${username}`, SOCKET_TTL);
+  },
+
+  async removeUserSocket(username: string, socketId: string): Promise<number> {
+    await redis.srem(`rina:sockets:${username}`, socketId);
+    const remaining = await redis.scard(`rina:sockets:${username}`);
+    if (remaining === 0) {
+      await redis.del(`rina:sockets:${username}`);
+    }
+    return remaining;
+  },
+
+  async getUserSocketCount(username: string): Promise<number> {
+    return redis.scard(`rina:sockets:${username}`);
+  },
+
+  async setStatus(username: string, data: PresenceData): Promise<void> {
     await redis.setex(`rina:presence:${username}`, PRESENCE_TTL, JSON.stringify(data));
   },
 
-  async getStatus(
-    username: string
-  ): Promise<{ status: 'online' | 'away' | 'typing'; lastSeen: Date; displayName: string } | null> {
+  async getStatus(username: string): Promise<PresenceData | null> {
     const data = await redis.get(`rina:presence:${username}`);
     if (!data) return null;
     try {
-      return JSON.parse(data) as { status: 'online' | 'away' | 'typing'; lastSeen: Date; displayName: string };
+      return JSON.parse(data) as PresenceData;
     } catch {
       return null;
     }
+  },
+
+  async setHeartbeat(username: string): Promise<void> {
+    await redis.setex(`rina:heartbeat:${username}`, PRESENCE_TTL, Date.now().toString());
+  },
+
+  async getHeartbeat(username: string): Promise<number | null> {
+    const ts = await redis.get(`rina:heartbeat:${username}`);
+    return ts ? parseInt(ts, 10) : null;
   }
 };
 
@@ -103,3 +136,5 @@ export function setupSocketAdapter(io: SocketIOServer): void {
   io.adapter(createAdapter(pubClient, subClient));
   console.log('[Socket.io] Redis adapter initialized');
 }
+
+export { HEARTBEAT_INTERVAL };

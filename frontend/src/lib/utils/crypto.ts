@@ -1,11 +1,29 @@
 /**
- * Client-side encryption using PBKDF2 + AES-GCM.
+ * Client-side encryption using PBKDF2 + AES-256-GCM.
  * Both partners must share the same passphrase to encrypt/decrypt capsules.
  */
 
 const SALT_LEN = 16;
 const IV_LEN = 12;
 const ITERATIONS = 100_000;
+
+function arrayToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+function base64ToArray(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
 
 async function deriveKey(passphrase: string, salt: Uint8Array): Promise<CryptoKey> {
   const baseKey = await crypto.subtle.importKey(
@@ -37,11 +55,11 @@ export async function encryptText(plaintext: string, passphrase: string): Promis
   result.set(iv, salt.length);
   result.set(new Uint8Array(ciphertext), salt.length + iv.length);
 
-  return btoa(String.fromCharCode(...result));
+  return arrayToBase64(result);
 }
 
 export async function decryptText(ciphertextBase64: string, passphrase: string): Promise<string> {
-  const data = Uint8Array.from(atob(ciphertextBase64), (c) => c.charCodeAt(0));
+  const data = base64ToArray(ciphertextBase64);
 
   const salt = data.slice(0, SALT_LEN);
   const iv = data.slice(SALT_LEN, SALT_LEN + IV_LEN);

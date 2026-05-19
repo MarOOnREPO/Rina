@@ -1,6 +1,6 @@
 <script lang="ts">
   import { partnerPresence } from '$lib/stores/socket.svelte';
-  import { currentUser } from '$lib/stores/auth.svelte';
+  import { partnerName } from '$lib/stores/auth.svelte';
 
   // Orb breathes based on partner status
   let status = $derived(partnerPresence()?.status ?? 'offline');
@@ -10,11 +10,7 @@
 
 <div class="relative flex items-center gap-2">
   <span class="text-xs font-medium text-rina-slate hidden sm:inline">
-    {#if currentUser()}
-      {currentUser()?.username === 'maroon' ? 'Rina' : 'MarOOn'}
-    {:else}
-      Partner
-    {/if}
+    {partnerName() || 'Partner'}
   </span>
   <div class="relative">
     <div

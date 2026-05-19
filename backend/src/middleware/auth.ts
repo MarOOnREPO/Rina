@@ -12,6 +12,7 @@ export interface JWTPayload {
   id: string;
   username: string;
   displayName: string;
+  timezone: string;
   iat?: number;
   exp?: number;
 }

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { prisma } from '../services/prisma.js';
 import { authenticateJWT } from '../middleware/auth.js';
+import { broadcastToPartner } from '../services/broadcast.js';
 
 const goalSchema = z.object({
   title: z.string().min(1).max(200),
@@ -34,6 +35,7 @@ export default async function goalRoutes(fastify: FastifyInstance, _opts: Fastif
       const goal = await prisma.goal.create({
         data: { ...data, createdBy: request.user!.id }
       });
+      await broadcastToPartner(request.user!.id, { type: 'goal', action: 'created', data: goal });
       return reply.status(201).send(goal);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -62,6 +64,7 @@ export default async function goalRoutes(fastify: FastifyInstance, _opts: Fastif
         where: { id: params.id },
         data
       });
+      await broadcastToPartner(request.user!.id, { type: 'goal', action: 'updated', data: goal });
       return reply.send(goal);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -105,6 +108,7 @@ export default async function goalRoutes(fastify: FastifyInstance, _opts: Fastif
       }
 
       const goal = await prisma.goal.findUnique({ where: { id: params.id } });
+      await broadcastToPartner(request.user!.id, { type: 'goal', action: 'updated', data: goal });
       return reply.send(goal);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -129,6 +133,7 @@ export default async function goalRoutes(fastify: FastifyInstance, _opts: Fastif
       }
 
       await prisma.goal.delete({ where: { id: params.id } });
+      await broadcastToPartner(request.user!.id, { type: 'goal', action: 'deleted', data: { id: params.id } });
       return reply.status(204).send();
     } catch (error) {
       if (error instanceof z.ZodError) {

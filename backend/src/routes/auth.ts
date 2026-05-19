@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { generateToken, authenticateJWT } from '../middleware/auth.js';
 import { prisma } from '../services/prisma.js';
+import { getPartner } from '../services/partnership.js';
 
 const COOKIE_NAME = 'rina_auth_token';
 const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -62,7 +63,8 @@ export default async function authRoutes(fastify: FastifyInstance, _opts: Fastif
       const token = generateToken({
         id: dbUser.id,
         username: user.username,
-        displayName: user.displayName
+        displayName: user.displayName,
+        timezone: dbUser.timezone
       });
 
       reply.setCookie(COOKIE_NAME, token, {
@@ -86,7 +88,49 @@ export default async function authRoutes(fastify: FastifyInstance, _opts: Fastif
   });
 
   fastify.get('/me', { preValidation: [authenticateJWT] }, async (request, reply) => {
-    return reply.status(200).send({ user: request.user });
+    const partner = await getPartner(request.user!.id);
+    return reply.status(200).send({ user: request.user, partner });
+  });
+
+  fastify.get('/notifications', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const notifications = await prisma.notification.findMany({
+        where: { userId: request.user!.id, read: false },
+        orderBy: { createdAt: 'desc' },
+        take: 50
+      });
+      return reply.send({ notifications });
+    } catch (error) {
+      console.error('[Auth Error]', error);
+      return reply.status(500).send({ error: 'Failed to fetch notifications' });
+    }
+  });
+
+  fastify.post('/notifications/read', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const schema = z.object({ ids: z.array(z.string().cuid()).optional() });
+      const { ids } = schema.parse(request.body);
+
+      if (ids && ids.length > 0) {
+        await prisma.notification.updateMany({
+          where: { id: { in: ids }, userId: request.user!.id },
+          data: { read: true }
+        });
+      } else {
+        await prisma.notification.updateMany({
+          where: { userId: request.user!.id, read: false },
+          data: { read: true }
+        });
+      }
+
+      return reply.send({ message: 'Notifications marked as read' });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
+      console.error('[Auth Error]', error);
+      return reply.status(500).send({ error: 'Failed to mark notifications as read' });
+    }
   });
 
   fastify.patch('/me', { preValidation: [authenticateJWT] }, async (request, reply) => {
@@ -106,7 +150,8 @@ export default async function authRoutes(fastify: FastifyInstance, _opts: Fastif
       const token = generateToken({
         id: user.id,
         username: user.username,
-        displayName: user.displayName
+        displayName: user.displayName,
+        timezone: user.timezone
       });
 
       reply.setCookie(COOKIE_NAME, token, {

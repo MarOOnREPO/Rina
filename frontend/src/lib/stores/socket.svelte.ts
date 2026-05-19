@@ -44,8 +44,23 @@ export interface WebRTCIceEvent {
   candidate: RTCIceCandidateInit;
 }
 
+export interface WebRTCHangupEvent {
+  sender: string;
+  senderDisplayName: string;
+}
+
+export interface SyncUpdateEvent {
+  type: string;
+  action: 'created' | 'updated' | 'deleted';
+  data: unknown;
+  senderId: string;
+  senderUsername: string;
+  timestamp: string;
+}
+
 // ─── Socket State ────────────────────────────────────────────────
 let socket: Socket | null = null;
+let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
 const socketState = $state<{
   connected: boolean;
@@ -71,7 +86,7 @@ export const socketStore = {
       path: '/socket.io',
       transports: ['websocket', 'polling'],
       reconnection: true,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: 10,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       timeout: 20000
@@ -82,12 +97,15 @@ export const socketStore = {
       socketState.connected = true;
       socketState.connecting = false;
       socketState.error = null;
+      attachGlobalListeners();
+      startHeartbeat();
     });
 
     socket.on('disconnect', (reason) => {
       console.log('[Socket] Disconnected:', reason);
       socketState.connected = false;
       socketState.connecting = false;
+      stopHeartbeat();
     });
 
     socket.on('connect_error', (err) => {
@@ -96,9 +114,16 @@ export const socketStore = {
       socketState.connected = false;
       socketState.connecting = false;
     });
+
+    socket.on('reconnect', () => {
+      console.log('[Socket] Reconnected');
+      attachGlobalListeners();
+      startHeartbeat();
+    });
   },
 
   disconnect() {
+    stopHeartbeat();
     if (socket) {
       socket.disconnect();
       socket = null;
@@ -124,6 +149,23 @@ export const socketStore = {
     socket?.off(event, callback);
   }
 };
+
+// ─── Heartbeat ───────────────────────────────────────────────────
+function startHeartbeat() {
+  stopHeartbeat();
+  heartbeatInterval = setInterval(() => {
+    if (socket?.connected) {
+      socket.emit('heartbeat:ping');
+    }
+  }, 15000);
+}
+
+function stopHeartbeat() {
+  if (heartbeatInterval) {
+    clearInterval(heartbeatInterval);
+    heartbeatInterval = null;
+  }
+}
 
 // ─── Presence State ──────────────────────────────────────────────
 let presenceState = $state<Record<string, PresenceState>>({});
@@ -153,9 +195,8 @@ export const presence = {
 // ─── Partner Presence ─────────────────────────────────────────────
 export const partnerPresence = () => {
   const user = currentUser();
-  if (!user) return undefined;
-  const partnerUsername = user.username === 'maroon' ? 'rina' : 'maroon';
-  return presenceState[partnerUsername];
+  if (!user || !user.partner) return undefined;
+  return presenceState[user.partner.username];
 };
 
 // ─── Ping State ───────────────────────────────────────────────────
@@ -230,32 +271,42 @@ export const typing = {
   }
 };
 
+// ─── Global Sync State ────────────────────────────────────────────
+let lastSyncUpdate = $state<SyncUpdateEvent | null>(null);
+
+export const globalSync = {
+  get lastUpdate() { return lastSyncUpdate; },
+
+  receive(data: SyncUpdateEvent) {
+    lastSyncUpdate = data;
+  },
+
+  init(socket: Socket) {
+    socket.on('sync:update', (data: SyncUpdateEvent) => {
+      this.receive(data);
+    });
+  }
+};
+
 // ─── Global Socket Initialization ─────────────────────────────────
+function attachGlobalListeners() {
+  const s = socketStore.getSocket();
+  if (!s) return;
+  presence.init(s);
+  pingReceived.init(s);
+  mediaSync.init(s);
+  typing.init(s);
+  globalSync.init(s);
+}
+
 export function initializeSockets() {
   if (!browser) return;
 
   const sock = socketStore.getSocket();
   if (!sock || !sock.connected) {
     socketStore.connect();
+  } else {
+    attachGlobalListeners();
+    startHeartbeat();
   }
-
-  let retries = 0;
-  const maxRetries = 50;
-  const checkAndInit = () => {
-    const s = socketStore.getSocket();
-    if (s?.connected) {
-      presence.init(s);
-      pingReceived.init(s);
-      mediaSync.init(s);
-      typing.init(s);
-      return;
-    }
-    if (++retries < maxRetries) {
-      setTimeout(checkAndInit, 100);
-    } else {
-      console.error('[Socket] Failed to initialize listeners after max retries');
-    }
-  };
-
-  checkAndInit();
 }

@@ -11,6 +11,9 @@ import { prisma } from './src/services/prisma.js';
 import { redis, setupSocketAdapter, presence } from './src/services/redis.js';
 import { createYjsWSS } from './src/services/yjs-server.js';
 import { authPlugin, verifyToken, type JWTPayload } from './src/middleware/auth.js';
+import { ensureDefaultPartnership, getPartner } from './src/services/partnership.js';
+import { setBroadcastServer } from './src/services/broadcast.js';
+import { sendPushToUser } from './src/services/push.js';
 
 import authRoutes from './src/routes/auth.js';
 import calendarRoutes from './src/routes/calendar.js';
@@ -104,11 +107,12 @@ await app.register(helmet, {
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", 'https://www.youtube.com', 'https://s.ytimg.com'],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
       connectSrc: ["'self'", 'wss:', 'ws:'],
       fontSrc: ["'self'"],
+      frameSrc: ["'self'", 'https://www.youtube.com', 'https://www.youtube-nocookie.com'],
       objectSrc: ["'none'"],
       upgradeInsecureRequests: []
     }
@@ -153,6 +157,7 @@ const io = new SocketIOServer(server, {
 });
 
 setupSocketAdapter(io);
+setBroadcastServer(io);
 
 // Socket.io Authentication Middleware
 io.use((socket: Socket, next: (err?: Error) => void) => {
@@ -181,10 +186,12 @@ io.on('connection', async (socket: Socket) => {
   console.log(`[Socket] ${user.displayName} connected (${socket.id})`);
 
   try {
+    await presence.addUserSocket(user.username, socket.id);
     await presence.setSocket(user.username, socket.id);
-    await presence.setStatus(user.username, { status: 'online', lastSeen: new Date(), displayName: user.displayName });
+    await presence.setStatus(user.username, { status: 'online', lastSeen: new Date().toISOString(), displayName: user.displayName });
+    await presence.setHeartbeat(user.username);
 
-    // Notify partner of online status
+    // Broadcast online to all sockets (multi-tab aware)
     socket.broadcast.emit('presence:update', {
       username: user.username,
       displayName: user.displayName,
@@ -195,40 +202,67 @@ io.on('connection', async (socket: Socket) => {
     console.error('[Socket] Failed to initialize presence:', err);
   }
 
-  // ─── Typing Indicators ─────────────────────────────────────
-  socket.on('typing:start', async (data: { channel: string }) => {
+  // ─── Heartbeat ─────────────────────────────────────────────
+  socket.on('heartbeat:ping', async () => {
     try {
-      await presence.setStatus(user.username, { status: 'typing', lastSeen: new Date(), displayName: user.displayName });
+      await presence.setHeartbeat(user.username);
+      await presence.setStatus(user.username, { status: 'online', lastSeen: new Date().toISOString(), displayName: user.displayName });
+      socket.emit('heartbeat:pong', { serverTime: Date.now() });
+    } catch (err) {
+      console.error('[Socket] Heartbeat error:', err);
+    }
+  });
+
+  // ─── Typing Indicators ─────────────────────────────────────
+  socket.on('typing:start', async () => {
+    try {
+      await presence.setStatus(user.username, { status: 'typing', lastSeen: new Date().toISOString(), displayName: user.displayName });
     } catch (err) {
       console.error('[Socket] Failed to set typing status:', err);
     }
-    socket.to(data.channel).emit('typing:start', {
-      username: user.username,
-      displayName: user.displayName
-    });
+
+    const partner = await getPartner(user.id);
+    if (partner) {
+      const partnerSocketId = await presence.getSocket(partner.username);
+      if (partnerSocketId) {
+        io.to(partnerSocketId).emit('typing:start', {
+          username: user.username,
+          displayName: user.displayName
+        });
+      }
+    }
   });
 
-  socket.on('typing:stop', async (data: { channel: string }) => {
+  socket.on('typing:stop', async () => {
     try {
-      await presence.setStatus(user.username, { status: 'online', lastSeen: new Date(), displayName: user.displayName });
+      await presence.setStatus(user.username, { status: 'online', lastSeen: new Date().toISOString(), displayName: user.displayName });
     } catch (err) {
       console.error('[Socket] Failed to set online status:', err);
     }
-    socket.to(data.channel).emit('typing:stop', {
-      username: user.username,
-      displayName: user.displayName
-    });
+
+    const partner = await getPartner(user.id);
+    if (partner) {
+      const partnerSocketId = await presence.getSocket(partner.username);
+      if (partnerSocketId) {
+        io.to(partnerSocketId).emit('typing:stop', {
+          username: user.username,
+          displayName: user.displayName
+        });
+      }
+    }
   });
 
   // ─── Chat Relay & Persistence ──────────────────────────────
-  socket.on('chat:message', async (msg: { id: string; content?: string }) => {
+  socket.on('chat:message', async (msg: { id: string; content?: string; type?: string; mediaUrl?: string; replyToId?: string }) => {
     try {
       if (msg.content && user.id) {
         await prisma.message.create({
           data: {
             senderId: user.id,
             content: msg.content,
-            type: 'TEXT'
+            type: (msg.type as any) || 'TEXT',
+            mediaUrl: msg.mediaUrl || null,
+            replyToId: msg.replyToId || null
           }
         });
       }
@@ -236,23 +270,52 @@ io.on('connection', async (socket: Socket) => {
       console.error('[Socket] Failed to persist message:', err);
     }
 
-    const partnerUsername = user.username === 'maroon' ? 'rina' : 'maroon';
-    const partnerSocketId = await presence.getSocket(partnerUsername);
-    if (partnerSocketId) {
-      io.to(partnerSocketId).emit('chat:message', msg);
+    const partner = await getPartner(user.id);
+    if (partner) {
+      const partnerSocketId = await presence.getSocket(partner.username);
+      if (partnerSocketId) {
+        io.to(partnerSocketId).emit('chat:message', msg);
+      }
     }
   });
 
-  // ─── "Thinking of You" Ping ────────────────────────────────
+  // ─── "Thinking of You" Ping / Nudge ────────────────────────
   socket.on('ping:partner', async () => {
-    const partnerUsername = user.username === 'maroon' ? 'rina' : 'maroon';
-    const partnerSocketId = await presence.getSocket(partnerUsername);
+    const partner = await getPartner(user.id);
+    if (!partner) return;
+
+    const partnerSocketId = await presence.getSocket(partner.username);
+    const payload = {
+      from: user.displayName,
+      fromUsername: user.username,
+      timestamp: new Date().toISOString()
+    };
+
     if (partnerSocketId) {
-      io.to(partnerSocketId).emit('ping:received', {
-        from: user.displayName,
-        fromUsername: user.username,
-        timestamp: new Date().toISOString()
-      });
+      // Partner is online — emit immediately
+      io.to(partnerSocketId).emit('ping:received', payload);
+    } else {
+      // Partner is offline — queue in DB + push notification
+      try {
+        await prisma.notification.create({
+          data: {
+            userId: partner.id,
+            type: 'nudge',
+            title: `${user.displayName} is thinking of you`,
+            body: 'Your partner sent you a love nudge 💕',
+            data: payload
+          }
+        });
+
+        await sendPushToUser(partner.id, {
+          title: `${user.displayName} is thinking of you`,
+          body: 'Your partner sent you a love nudge 💕',
+          tag: 'rina-nudge',
+          url: '/'
+        });
+      } catch (err) {
+        console.error('[Socket] Failed to queue offline nudge:', err);
+      }
     }
   });
 
@@ -299,17 +362,29 @@ io.on('connection', async (socket: Socket) => {
     }
   });
 
+  socket.on('webrtc:hangup', async (data: { target: string }) => {
+    const targetSocket = await presence.getSocket(data.target);
+    if (targetSocket) {
+      io.to(targetSocket).emit('webrtc:hungup', {
+        sender: user.username,
+        senderDisplayName: user.displayName
+      });
+    }
+  });
+
   // ─── Listen Together (Synced Media) ────────────────────────
   socket.on('media:sync', async (data: { action: string; time: number; videoId: string }) => {
-    const partnerUsername = user.username === 'maroon' ? 'rina' : 'maroon';
-    const partnerSocketId = await presence.getSocket(partnerUsername);
-    if (partnerSocketId) {
-      io.to(partnerSocketId).emit('media:sync', {
-        ...data,
-        sender: user.username,
-        senderDisplayName: user.displayName,
-        serverTime: Date.now()
-      });
+    const partner = await getPartner(user.id);
+    if (partner) {
+      const partnerSocketId = await presence.getSocket(partner.username);
+      if (partnerSocketId) {
+        io.to(partnerSocketId).emit('media:sync', {
+          ...data,
+          sender: user.username,
+          senderDisplayName: user.displayName,
+          serverTime: Date.now()
+        });
+      }
     }
   });
 
@@ -317,18 +392,23 @@ io.on('connection', async (socket: Socket) => {
   socket.on('disconnect', async (reason: string) => {
     console.log(`[Socket] ${user.displayName} disconnected (${reason})`);
     try {
-      const currentSocketId = await presence.getSocket(user.username);
-      if (currentSocketId === socket.id) {
-        await presence.delSocket(user.username);
-      }
-      await presence.setStatus(user.username, { status: 'away', lastSeen: new Date(), displayName: user.displayName });
+      const remaining = await presence.removeUserSocket(user.username, socket.id);
 
-      socket.broadcast.emit('presence:update', {
-        username: user.username,
-        displayName: user.displayName,
-        status: 'away',
-        timestamp: new Date().toISOString()
-      });
+      // Only mark away if this was the last socket for the user
+      if (remaining === 0) {
+        const currentSocketId = await presence.getSocket(user.username);
+        if (currentSocketId === socket.id) {
+          await presence.delSocket(user.username);
+        }
+        await presence.setStatus(user.username, { status: 'away', lastSeen: new Date().toISOString(), displayName: user.displayName });
+
+        socket.broadcast.emit('presence:update', {
+          username: user.username,
+          displayName: user.displayName,
+          status: 'away',
+          timestamp: new Date().toISOString()
+        });
+      }
     } catch (err) {
       console.error('[Socket] Failed to cleanup presence on disconnect:', err);
     }
@@ -417,6 +497,9 @@ const startServer = async (): Promise<void> => {
         await new Promise((r) => setTimeout(r, 3000));
       }
     }
+
+    // Ensure default partnership exists (maroon <-> rina)
+    await ensureDefaultPartnership();
 
     await app.listen({ port: PORT, host: '0.0.0.0' });
     app.log.info(`[Server] HTTP server running on port ${PORT} (${NODE_ENV})`);

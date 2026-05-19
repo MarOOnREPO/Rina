@@ -81,6 +81,14 @@ export const api = new ApiClient();
 
 // ─── Typed Auth API ──────────────────────────────────────────────
 export interface AuthUser {
+  id: string;
+  username: string;
+  displayName: string;
+  timezone: string;
+}
+
+export interface PartnerInfo {
+  id: string;
   username: string;
   displayName: string;
 }
@@ -92,11 +100,11 @@ export interface LoginCredentials {
 
 export const authApi = {
   login: (credentials: LoginCredentials) =>
-    api.post<{ user: AuthUser }>('/auth/login', credentials),
+    api.post<{ user: AuthUser; partner?: PartnerInfo | null }>('/auth/login', credentials),
 
   logout: () => api.post<void>('/auth/logout'),
 
-  me: () => api.get<{ user: AuthUser }>('/auth/me')
+  me: () => api.get<{ user: AuthUser; partner?: PartnerInfo | null }>('/auth/me')
 };
 
 // ─── Calendar API ────────────────────────────────────────────────
@@ -225,6 +233,7 @@ export interface Goal {
 export const goalApi = {
   list: () => api.get<Goal[]>('/goals'),
   create: (data: Partial<Goal>) => api.post<Goal>('/goals', data),
+  update: (id: string, data: Partial<Goal>) => api.patch<Goal>(`/goals/${id}`, data),
   contribute: (id: string, amount: number) =>
     api.patch<Goal>(`/goals/${id}/contribute`, { amount }),
   remove: (id: string) => api.delete<void>(`/goals/${id}`)
@@ -265,4 +274,21 @@ export const cycleApi = {
   update: (id: string, data: Partial<CycleEntry>) =>
     api.patch<{ entry: CycleEntry }>(`/cycle/${id}`, data),
   remove: (id: string) => api.delete<void>(`/cycle/${id}`)
+};
+
+// ─── Notification API ────────────────────────────────────────────
+export interface AppNotification {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  data?: unknown;
+  read: boolean;
+  createdAt: string;
+}
+
+export const notificationApi = {
+  list: () => api.get<{ notifications: AppNotification[] }>('/auth/notifications'),
+  markRead: (ids?: string[]) =>
+    api.post<void>('/auth/notifications/read', { ids })
 };
