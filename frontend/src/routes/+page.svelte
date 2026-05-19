@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { isAuthenticated, isLoading, currentUser, partnerName } from '$lib/stores/auth.svelte';
+  import { isAuthenticated, isLoading, currentUser } from '$lib/stores/auth.svelte';
   import { socketStore, partnerPresence } from '$lib/stores/socket.svelte';
   import { fade, fly } from 'svelte/transition';
   import PatchworkTile from '$lib/components/PatchworkTile.svelte';
@@ -78,19 +78,7 @@
     }
   });
 
-  // ─── Patchwork Tiles Config ────────────────────────────────────
-  const tiles = [
-    { href: '/chat', icon: '💬', title: 'Chat', subtitle: 'Messages privés', color: 'from-rina-rose/15 to-rina-rose/5', size: 'wide' as const },
-    { href: '/calendar', icon: '📅', title: 'Calendar', subtitle: 'Événements & compte à rebours', color: 'from-emerald-500/15 to-emerald-500/5', size: 'wide' as const },
-    { href: '/movies', icon: '🎬', title: 'Movies', subtitle: 'Films à regarder ensemble', color: 'from-amber-500/15 to-amber-500/5', size: 'md' as const },
-    { href: '/listen', icon: '🎵', title: 'Music', subtitle: 'Écouter ensemble', color: 'from-pink-500/15 to-pink-500/5', size: 'md' as const },
-    { href: '/roulette', icon: '🍽️', title: 'Food', subtitle: 'Roulette des repas', color: 'from-orange-500/15 to-orange-500/5', size: 'md' as const },
-    { href: '/video', icon: '📹', title: 'Video Call', subtitle: 'Appel en face à face', color: 'from-rina-indigo/15 to-rina-indigo/5', size: 'md' as const },
-    { href: '/capsules', icon: '🔐', title: 'Capsules', subtitle: 'Messages dans le temps', color: 'from-violet-500/15 to-violet-500/5', size: 'md' as const },
-    { href: '/goals', icon: '🎯', title: 'Goals', subtitle: 'Objectifs communs', color: 'from-cyan-500/15 to-cyan-500/5', size: 'md' as const },
-    { href: '/map', icon: '🗺️', title: 'Map', subtitle: 'Notre monde', color: 'from-teal-500/15 to-teal-500/5', size: 'md' as const },
-    { href: '/whiteboard', icon: '🎨', title: 'Whiteboard', subtitle: 'Dessiner ensemble', color: 'from-fuchsia-500/15 to-fuchsia-500/5', size: 'md' as const },
-  ];
+
 </script>
 
 {#if isAuthenticated()}
