@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { fade, scale } from 'svelte/transition';
-  import GlassCard from './GlassCard.svelte';
+
 
   interface HourlyData {
     time: string[];

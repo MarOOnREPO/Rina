@@ -93,10 +93,6 @@ export function datetimeLocalToIso(value: string): string {
   const tz = getUserTimezone();
   // Append seconds so it's a valid ISO-like string, then parse
   const withSeconds = value.length === 16 ? `${value}:00` : value;
-  // Use the timezone to compute the correct UTC time
-  const date = new Date(withSeconds);
-  // If the browser interpreted it as local, we need to adjust.
-  // A robust approach: construct the date explicitly in the target timezone
   const match = withSeconds.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/);
   if (!match) return new Date(withSeconds).toISOString();
 
