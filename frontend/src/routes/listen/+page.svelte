@@ -75,7 +75,7 @@
           updateTitle();
         },
         onStateChange: handleStateChange,
-        onError: (e: YT.OnErrorEvent) => {
+        onError: (e: { data: number }) => {
           console.error('[YouTube] Player error:', e.data);
         }
       }
@@ -173,7 +173,7 @@
 
     if (player && playerReady) {
       // Use cueVideoById to avoid triggering autoplay/play state change
-      player.cueVideoById(id);
+      (player as unknown as { cueVideoById: (id: string) => void }).cueVideoById(id);
       currentVideoId = id;
       currentVideoTitle = '';
       updateTitle();

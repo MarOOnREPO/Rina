@@ -71,7 +71,7 @@
             ? `<div style="color:#0f0f1a;font-family:sans-serif;max-width:200px;">
                 <img src="${photo.url}" style="width:100%;border-radius:6px;margin-bottom:4px;" />
                 <p style="font-weight:600;margin:0;font-size:13px;">${photo.caption || 'Untitled'}</p>
-                <p style="font-size:11px;color:#666;margin:2px 0 0;">${photo.takenAt ? new Date(photo.takenAt).toLocaleDateString('en-GB') : ''}</p>
+                <p style="font-size:11px;color:#666;margin:2px 0 0;">${'takenAt' in photo && photo.takenAt ? new Date(photo.takenAt).toLocaleDateString('en-GB') : ''}</p>
               </div>`
             : `<div style="color:#0f0f1a;font-family:sans-serif;">
                 <p style="font-weight:600;margin:0">${photo.caption || 'Untitled'}</p>

@@ -477,7 +477,7 @@
             </div>
             <div class="flex gap-2 pt-2">
               {#if modalMode === 'edit' && editingEvent}
-                <button onclick={() => deleteEvent(editingEvent.id)} class="px-4 py-2 rounded-lg bg-red-500/20 text-red-400 text-sm hover:bg-red-500/30 transition-colors">Delete</button>
+                <button onclick={() => deleteEvent(editingEvent!.id)} class="px-4 py-2 rounded-lg bg-red-500/20 text-red-400 text-sm hover:bg-red-500/30 transition-colors">Delete</button>
               {/if}
               <button onclick={() => showEventModal = false} class="flex-1 py-2 rounded-lg border border-rina-border text-sm hover:bg-white/5 transition-colors">Cancel</button>
               <button onclick={saveEvent} class="flex-1 py-2 rounded-lg bg-rina-rose text-white text-sm font-medium hover:opacity-90 transition-opacity">Save</button>

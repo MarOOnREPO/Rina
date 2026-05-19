@@ -15,7 +15,8 @@
     "declaration": false,
     "declarationMap": false,
     "sourceMap": true,
-    "types": ["vite/client", "node"]
+    "jsx": "react-jsx",
+    "types": ["vite/client", "node", "react", "react-dom"]
   },
   "include": ["src/**/*", "src/**/*.svelte", ".svelte-kit/ambient.d.ts"],
   "exclude": ["node_modules", "build"]

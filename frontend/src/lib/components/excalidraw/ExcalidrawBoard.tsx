@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Excalidraw, type ExcalidrawImperativeAPI } from '@excalidraw/excalidraw';
+import { Excalidraw } from '@excalidraw/excalidraw';
+import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types/types';
 import { ExcalidrawBinding } from 'y-excalidraw';
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
