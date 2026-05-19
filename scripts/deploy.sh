@@ -65,6 +65,23 @@ for i in {1..30}; do
   sleep 2
 done
 
+# ─── Build Frontend ──────────────────────────────────────────────
+LOG "🏗️  Building frontend..."
+
+# Robustly load .env for VITE_MAPBOX_TOKEN
+set -a
+source .env
+set +a
+
+docker run --rm \
+  -v "${PROJECT_DIR}/frontend:/app" \
+  -w /app \
+  -e "VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN:-}" \
+  node:20-alpine \
+  sh -c 'npm ci && npm run build'
+
+LOG "✅ Frontend built."
+
 # ─── Database migrations ─────────────────────────────────────────
 LOG "🗄️ Running database migrations..."
 
