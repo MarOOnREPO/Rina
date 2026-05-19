@@ -7,9 +7,6 @@
     { path: '/', label: 'Home', icon: '🏠' },
     { path: '/chat', label: 'Chat', icon: '💬' },
     { path: '/calendar', label: 'Calendar', icon: '📅' },
-    { path: '/movies', label: 'Movies', icon: '🎬' },
-    { path: '/listen', label: 'Music', icon: '🎵' },
-    { path: '/roulette', label: 'Food', icon: '🍽️' },
   ];
 
   $: currentPath = $page.url.pathname;
@@ -50,7 +47,7 @@
       {#each navItems as item}
         <a
           href={item.path}
-          class="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-all duration-200
+          class="flex flex-col items-center gap-0.5 px-4 py-1 rounded-lg transition-all duration-200
             {currentPath === item.path
               ? 'text-rina-rose'
               : 'text-rina-slate-dark'}"
