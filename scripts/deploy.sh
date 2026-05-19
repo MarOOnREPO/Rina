@@ -95,6 +95,11 @@ docker compose run --rm --no-deps backend npx prisma migrate deploy
 LOG "🏗️ Building and starting all services..."
 docker compose up -d --build
 
+# Nginx must be recreated (not just restarted) so its bind mount picks up
+# the new frontend/build directory inode (SvelteKit deletes & recreates it).
+LOG "🔄 Recreating nginx to pick up new frontend build..."
+docker compose up -d --force-recreate nginx
+
 # ─── Health Check ────────────────────────────────────────────────
 if [ -n "${DOMAIN:-}" ]; then
   LOG "⏳ Waiting for services to stabilize..."
