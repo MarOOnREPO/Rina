@@ -43,6 +43,9 @@ async function deriveKey(passphrase: string, salt: Uint8Array): Promise<CryptoKe
 }
 
 export async function encryptText(plaintext: string, passphrase: string): Promise<string> {
+  if (!window.isSecureContext) {
+    throw new Error('Encryption requires a secure context (HTTPS or localhost).');
+  }
   const salt = new Uint8Array(crypto.getRandomValues(new Uint8Array(SALT_LEN)));
   const iv = new Uint8Array(crypto.getRandomValues(new Uint8Array(IV_LEN)));
 
@@ -59,6 +62,9 @@ export async function encryptText(plaintext: string, passphrase: string): Promis
 }
 
 export async function decryptText(ciphertextBase64: string, passphrase: string): Promise<string> {
+  if (!window.isSecureContext) {
+    throw new Error('Decryption requires a secure context (HTTPS or localhost).');
+  }
   const data = base64ToArray(ciphertextBase64);
 
   const salt = data.slice(0, SALT_LEN);

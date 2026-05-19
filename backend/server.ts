@@ -208,6 +208,19 @@ io.on('connection', async (socket: Socket) => {
       await presence.setHeartbeat(user.username);
       await presence.setStatus(user.username, { status: 'online', lastSeen: new Date().toISOString(), displayName: user.displayName });
       socket.emit('heartbeat:pong', { serverTime: Date.now() });
+
+      const partner = await getPartner(user.id);
+      if (partner) {
+        const partnerSocketId = await presence.getSocket(partner.username);
+        if (partnerSocketId) {
+          io.to(partnerSocketId).emit('presence:update', {
+            username: user.username,
+            displayName: user.displayName,
+            status: 'online',
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
     } catch (err) {
       console.error('[Socket] Heartbeat error:', err);
     }
@@ -394,18 +407,18 @@ io.on('connection', async (socket: Socket) => {
     try {
       const remaining = await presence.removeUserSocket(user.username, socket.id);
 
-      // Only mark away if this was the last socket for the user
+      // Only mark offline if this was the last socket for the user
       if (remaining === 0) {
         const currentSocketId = await presence.getSocket(user.username);
         if (currentSocketId === socket.id) {
           await presence.delSocket(user.username);
         }
-        await presence.setStatus(user.username, { status: 'away', lastSeen: new Date().toISOString(), displayName: user.displayName });
+        await presence.setStatus(user.username, { status: 'offline', lastSeen: new Date().toISOString(), displayName: user.displayName });
 
         socket.broadcast.emit('presence:update', {
           username: user.username,
           displayName: user.displayName,
-          status: 'away',
+          status: 'offline',
           timestamp: new Date().toISOString()
         });
       }

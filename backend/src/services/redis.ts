@@ -49,8 +49,8 @@ export const cache = {
 
 // ─── Presence & Socket Registry (Redis-backed for multi-node scaling) ──
 const SOCKET_TTL = 3600; // 1 hour
-const PRESENCE_TTL = 60; // 1 minute (strict heartbeat)
-const HEARTBEAT_INTERVAL = 15000; // 15 seconds
+const PRESENCE_TTL = 30; // 30 seconds (strict heartbeat)
+const HEARTBEAT_INTERVAL = 10000; // 10 seconds
 
 export type PresenceStatus = 'online' | 'away' | 'typing' | 'offline';
 

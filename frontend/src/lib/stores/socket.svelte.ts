@@ -61,6 +61,7 @@ export interface SyncUpdateEvent {
 // ─── Socket State ────────────────────────────────────────────────
 let socket: Socket | null = null;
 let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+let heartbeatTimeout: ReturnType<typeof setTimeout> | null = null;
 
 const socketState = $state<{
   connected: boolean;
@@ -108,11 +109,22 @@ export const socketStore = {
       stopHeartbeat();
     });
 
+    socket.on('heartbeat:pong', () => {
+      if (heartbeatTimeout) {
+        clearTimeout(heartbeatTimeout);
+        heartbeatTimeout = null;
+      }
+    });
+
     socket.on('connect_error', (err) => {
       console.error('[Socket] Connection error:', err.message);
-      socketState.error = err.message;
+      socketState.error = err.message || 'Connection error — retrying with backoff...';
       socketState.connected = false;
       socketState.connecting = false;
+    });
+
+    socket.on('reconnect_attempt', (attempt: number) => {
+      socketState.error = `Reconnecting... (attempt ${attempt})`;
     });
 
     socket.on('reconnect', () => {
@@ -156,14 +168,23 @@ function startHeartbeat() {
   heartbeatInterval = setInterval(() => {
     if (socket?.connected) {
       socket.emit('heartbeat:ping');
+      heartbeatTimeout = setTimeout(() => {
+        socketState.error = 'Connection unstable';
+        socket?.disconnect();
+        socket?.connect();
+      }, 25000);
     }
-  }, 15000);
+  }, 10000);
 }
 
 function stopHeartbeat() {
   if (heartbeatInterval) {
     clearInterval(heartbeatInterval);
     heartbeatInterval = null;
+  }
+  if (heartbeatTimeout) {
+    clearTimeout(heartbeatTimeout);
+    heartbeatTimeout = null;
   }
 }
 

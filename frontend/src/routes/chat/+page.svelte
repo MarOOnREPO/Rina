@@ -2,14 +2,14 @@
   import { onMount, onDestroy, tick } from 'svelte';
   import { goto } from '$app/navigation';
   import { isAuthenticated, isLoading, currentUser } from '$lib/stores/auth.svelte';
-  import { socketStore, typing } from '$lib/stores/socket.svelte';
+  import { socketStore, typing, globalSync } from '$lib/stores/socket.svelte';
   import { fly, fade, slide } from 'svelte/transition';
   import { messageApi, type ChatMessage } from '$lib/utils/api';
   import { formatTime } from '$lib/utils/timezone';
 
   let messages: ChatMessage[] = $state([]);
   let input = $state('');
-  let containerRef: HTMLDivElement;
+  let containerRef = $state<HTMLDivElement | undefined>(undefined);
   let loading = $state(true);
   let typingTimeout: ReturnType<typeof setTimeout>;
   let sendError = $state('');
@@ -78,6 +78,13 @@
     }
   });
 
+  $effect(() => {
+    const update = globalSync.lastUpdate;
+    if (update && update.type === 'message') {
+      loadHistory();
+    }
+  });
+
   onMount(() => {
     loadHistory();
 
@@ -99,7 +106,7 @@
 </script>
 
 {#if isAuthenticated()}
-  <div class="max-w-3xl mx-auto h-[calc(100vh-7rem)] flex flex-col px-4" in:fade>
+  <div class="h-full flex flex-col px-3 py-4" in:fade>
     <!-- Chat Header -->
     <div class="glass rounded-2xl p-4 mb-3 flex items-center justify-between shrink-0">
       <div>

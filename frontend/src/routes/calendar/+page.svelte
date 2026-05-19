@@ -8,12 +8,16 @@
   import GlassCard from '$lib/components/GlassCard.svelte';
   import CountdownTimer from '$lib/components/CountdownTimer.svelte';
   import { countdownApi, type Countdown } from '$lib/utils/api';
+import { globalSync } from '$lib/stores/socket.svelte';
 
   let currentDate = $state(new Date());
   let events: CalendarEvent[] = $state([]);
   let countdowns: Countdown[] = $state([]);
   let loading = $state(true);
   let error = $state('');
+
+  // View toggle: 'agenda' | 'grid'
+  let viewMode = $state<'agenda' | 'grid'>('agenda');
 
   // Modal states
   let showEventModal = $state(false);
@@ -47,7 +51,6 @@
   const isToday = (day: number) =>
     day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
 
-  // Use UTC dates for comparison to avoid timezone bugs
   function eventMatchesDay(event: CalendarEvent, day: number): boolean {
     const d = new Date(event.startTime);
     return d.getUTCDate() === day && d.getUTCMonth() === month && d.getUTCFullYear() === year;
@@ -103,12 +106,12 @@
     editingEvent = null;
   }
 
-  function openCreateModal(dateStr: string) {
-    selectedDate = dateStr;
+  function openCreateModal(dateStr?: string) {
+    selectedDate = dateStr || new Date().toISOString().split('T')[0];
     modalMode = 'create';
     resetForm();
-    formEvent.startTime = isoToDatetimeLocal(`${dateStr}T09:00:00Z`);
-    formEvent.endTime = isoToDatetimeLocal(`${dateStr}T10:00:00Z`);
+    formEvent.startTime = isoToDatetimeLocal(`${selectedDate}T09:00:00Z`);
+    formEvent.endTime = isoToDatetimeLocal(`${selectedDate}T10:00:00Z`);
     showEventModal = true;
   }
 
@@ -128,7 +131,7 @@
   }
 
   async function saveEvent() {
-    if (!formEvent.title || !formEvent.startTime) {
+    if (!formEvent.title?.trim() || !formEvent.startTime) {
       error = 'Title and start time are required';
       return;
     }
@@ -185,6 +188,13 @@
   function formatEventDate(event: CalendarEvent): string {
     return formatDate(event.startTime, getUserTimezone());
   }
+
+  // ─── Agenda View Helpers ───────────────────────────────────────
+  let upcomingEvents = $derived(
+    [...events]
+      .filter((e) => new Date(e.startTime).getTime() >= new Date(new Date().setHours(0,0,0,0)).getTime() - 86400000)
+      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+  );
 
   // ─── Cycle Tracker ─────────────────────────────────────────────
   let cycleEntries: CycleEntry[] = [];
@@ -266,166 +276,174 @@
     }
   });
 
+  $effect(() => {
+    const update = globalSync.lastUpdate;
+    if (update && update.type === 'calendar') {
+      loadData();
+    }
+  });
+
   onMount(() => {
     loadData();
   });
 </script>
 
 {#if isAuthenticated()}
-  <div class="max-w-5xl mx-auto px-4 py-6" in:fade>
-    <h2 class="text-2xl font-bold mb-6">📅 Calendar</h2>
+  <div class="px-3 py-4 space-y-4" in:fade>
+    <div class="flex items-center justify-between">
+      <h2 class="text-xl font-bold">📅 Calendar</h2>
+      <div class="flex items-center gap-2">
+        <button
+          onclick={() => viewMode = viewMode === 'agenda' ? 'grid' : 'agenda'}
+          class="touch-target px-3 py-1.5 rounded-lg glass text-xs font-medium text-rina-slate hover:text-white transition-colors"
+        >
+          {viewMode === 'agenda' ? 'Grid' : 'Agenda'}
+        </button>
+      </div>
+    </div>
 
     {#if error}
-      <div class="glass rounded-xl p-3 mb-4 text-rina-rose text-sm" transition:slide>
+      <div class="glass rounded-xl p-3 text-rina-rose text-sm" transition:slide>
         {error}
       </div>
     {/if}
 
     <!-- Countdowns -->
     {#if countdowns.length > 0}
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div class="space-y-3">
         {#each countdowns as cd (cd.id)}
           <CountdownTimer targetDate={cd.targetDate} title={cd.title} />
         {/each}
       </div>
     {/if}
 
-    <!-- Calendar Grid -->
-    <GlassCard class="mb-6">
-      <div class="flex items-center justify-between mb-4">
-        <button onclick={prevMonth} class="p-2 rounded-lg hover:bg-white/5 transition-colors text-rina-slate">←</button>
-        <h3 class="text-lg font-semibold">{monthName}</h3>
-        <button onclick={nextMonth} class="p-2 rounded-lg hover:bg-white/5 transition-colors text-rina-slate">→</button>
-      </div>
-
-      <!-- Weekday headers -->
-      <div class="grid grid-cols-7 gap-1 mb-2">
-        {#each ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as day}
-          <div class="text-center text-xs font-medium text-rina-slate py-2">{day}</div>
-        {/each}
-      </div>
-
-      <!-- Days -->
-      <div class="grid grid-cols-7 gap-1">
-        {#each daysWithEvents as cell}
-          {#if cell}
-            {@const { day, dateStr, events: dayEvents } = cell}
-            {@const period = isPeriodDay(day)}
-            {@const fertile = isFertileDay(day)}
-            <button
-              onclick={() => openCreateModal(dateStr)}
-              class="relative aspect-square rounded-xl p-1.5 flex flex-col items-start gap-0.5
-                hover:bg-white/5 transition-colors text-left
-                {isToday(day) ? 'ring-2 ring-rina-rose ring-offset-2 ring-offset-rina-bg' : ''}
-                {period ? 'bg-red-500/10' : ''}
-                {fertile && !period ? 'bg-blue-500/10' : ''}"
-            >
-              <span class="text-sm font-medium {isToday(day) ? 'text-rina-rose' : period ? 'text-red-400' : fertile ? 'text-blue-400' : 'text-white'}">
-                {day}
-              </span>
-              {#if dayEvents.length > 0}
-                <div class="flex flex-col gap-0.5 w-full overflow-hidden">
-                  {#each dayEvents.slice(0, 2) as event}
-                    <div
-                      class="h-1.5 rounded-full w-full"
-                      style="background-color: {getEventColor(event.type, event.color)}"
-                    ></div>
-                  {/each}
-                  {#if dayEvents.length > 2}
-                    <span class="text-[8px] text-rina-slate pl-0.5">+{dayEvents.length - 2}</span>
-                  {/if}
-                </div>
-              {/if}
-              <!-- Cycle indicators -->
-              <div class="absolute top-1 right-1 flex gap-0.5">
-                {#if period}
-                  <span class="w-1.5 h-1.5 rounded-full bg-red-500" title="Period"></span>
-                {/if}
-                {#if fertile}
-                  <span class="w-1.5 h-1.5 rounded-full bg-blue-500" title="Fertile window"></span>
-                {/if}
-              </div>
-            </button>
-          {:else}
-            <div class="aspect-square"></div>
-          {/if}
-        {/each}
-      </div>
-
-      <!-- Legend -->
-      <div class="flex items-center justify-between mt-4 text-xs text-rina-slate">
-        <div class="flex items-center gap-3 flex-wrap">
-          <div class="flex items-center gap-1.5">
-            <div class="w-2 h-2 rounded-full bg-rina-rose"></div>
-            Shared
-          </div>
-          <div class="flex items-center gap-1.5">
-            <div class="w-2 h-2 rounded-full bg-rina-indigo"></div>
-            Work
-          </div>
-          <div class="flex items-center gap-1.5">
-            <div class="w-2 h-2 rounded-full bg-red-500"></div>
-            Period
-          </div>
-          <div class="flex items-center gap-1.5">
-            <div class="w-2 h-2 rounded-full bg-blue-500"></div>
-            Fertile
-          </div>
+    {#if viewMode === 'grid'}
+      <!-- Month Grid -->
+      <GlassCard class="mb-4">
+        <div class="flex items-center justify-between mb-4">
+          <button onclick={prevMonth} class="touch-target p-2 rounded-lg hover:bg-white/5 transition-colors text-rina-slate">←</button>
+          <h3 class="text-base font-semibold">{monthName}</h3>
+          <button onclick={nextMonth} class="touch-target p-2 rounded-lg hover:bg-white/5 transition-colors text-rina-slate">→</button>
         </div>
-        <button onclick={() => showCycleSettings = true} class="hover:text-rina-rose transition-colors">⚙️ Cycle</button>
-      </div>
-    </GlassCard>
 
-    <!-- Upcoming Events List -->
-    <GlassCard>
-      <h3 class="text-lg font-semibold mb-4">Upcoming Events</h3>
-      {#if loading}
-        <p class="text-rina-slate text-sm">Loading...</p>
-      {:else if events.length === 0}
-        <p class="text-rina-slate-dark text-sm">No events yet. Tap a date to add one.</p>
-      {:else}
-        <div class="space-y-2">
-          {#each events.slice(0, 15).sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()) as event (event.id)}
-            <button
-              onclick={() => openEditModal(event)}
-              class="w-full flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] transition-colors text-left"
-              transition:slide
-            >
-              <div class="w-1 h-8 rounded-full shrink-0" style="background-color: {getEventColor(event.type, event.color)}"></div>
-              <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium truncate">{event.title}</p>
-                <p class="text-xs text-rina-slate">
-                  {formatEventDate(event)}
-                  {event.allDay ? '' : formatEventTime(event)}
-                  {#if event.endTime}
-                    – {formatTime(event.endTime, getUserTimezone())}
-                  {/if}
-                </p>
-              </div>
-              <span class="text-xs text-rina-slate-dark shrink-0">Edit →</span>
-            </button>
+        <div class="grid grid-cols-7 gap-1 mb-2">
+          {#each ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as day}
+            <div class="text-center text-[10px] font-medium text-rina-slate py-1">{day}</div>
           {/each}
         </div>
-      {/if}
-    </GlassCard>
+
+        <div class="grid grid-cols-7 gap-1">
+          {#each daysWithEvents as cell}
+            {#if cell}
+              {@const { day, dateStr, events: dayEvents } = cell}
+              {@const period = isPeriodDay(day)}
+              {@const fertile = isFertileDay(day)}
+              <button
+                onclick={() => openCreateModal(dateStr)}
+                class="relative aspect-square rounded-xl p-1 flex flex-col items-start gap-0.5
+                  hover:bg-white/5 transition-colors text-left touch-target
+                  {isToday(day) ? 'ring-2 ring-rina-rose ring-offset-2 ring-offset-rina-bg' : ''}
+                  {period ? 'bg-red-500/10' : ''}
+                  {fertile && !period ? 'bg-blue-500/10' : ''}"
+              >
+                <span class="text-xs font-medium {isToday(day) ? 'text-rina-rose' : period ? 'text-red-400' : fertile ? 'text-blue-400' : 'text-white'}">
+                  {day}
+                </span>
+                {#if dayEvents.length > 0}
+                  <div class="flex flex-col gap-[2px] w-full overflow-hidden">
+                    {#each dayEvents.slice(0, 2) as event}
+                      <div class="h-1 rounded-full w-full" style="background-color: {getEventColor(event.type, event.color)}"></div>
+                    {/each}
+                    {#if dayEvents.length > 2}
+                      <span class="text-[7px] text-rina-slate pl-0.5">+{dayEvents.length - 2}</span>
+                    {/if}
+                  </div>
+                {/if}
+                <div class="absolute top-0.5 right-0.5 flex gap-[2px]">
+                  {#if period}
+                    <span class="w-1 h-1 rounded-full bg-red-500" title="Period"></span>
+                  {/if}
+                  {#if fertile}
+                    <span class="w-1 h-1 rounded-full bg-blue-500" title="Fertile window"></span>
+                  {/if}
+                </div>
+              </button>
+            {:else}
+              <div class="aspect-square"></div>
+            {/if}
+          {/each}
+        </div>
+
+        <div class="flex items-center justify-between mt-3 text-[10px] text-rina-slate">
+          <div class="flex items-center gap-2 flex-wrap">
+            <div class="flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-full bg-rina-rose"></div>Shared</div>
+            <div class="flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-full bg-rina-indigo"></div>Work</div>
+            <div class="flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-full bg-red-500"></div>Period</div>
+            <div class="flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-full bg-blue-500"></div>Fertile</div>
+          </div>
+          <button onclick={() => showCycleSettings = true} class="hover:text-rina-rose transition-colors">⚙️ Cycle</button>
+        </div>
+      </GlassCard>
+    {:else}
+      <!-- iOS Agenda View -->
+      <GlassCard>
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-base font-semibold">Upcoming</h3>
+          <span class="text-xs text-rina-slate">{monthName}</span>
+        </div>
+
+        {#if loading}
+          <p class="text-rina-slate text-sm">Loading...</p>
+        {:else if upcomingEvents.length === 0}
+          <p class="text-rina-slate-dark text-sm">No upcoming events. Tap + to add one.</p>
+        {:else}
+          <div class="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+            {#each upcomingEvents as event (event.id)}
+              <button
+                onclick={() => openEditModal(event)}
+                class="w-full flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] transition-colors text-left"
+                transition:slide
+              >
+                <div class="flex flex-col items-center min-w-[3rem]">
+                  <span class="text-[10px] text-rina-slate uppercase">{new Date(event.startTime).toLocaleDateString('en-GB', { month: 'short' })}</span>
+                  <span class="text-xl font-bold">{new Date(event.startTime).getDate()}</span>
+                </div>
+                <div class="w-1 h-8 rounded-full shrink-0" style="background-color: {getEventColor(event.type, event.color)}"></div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-medium truncate">{event.title}</p>
+                  <p class="text-[11px] text-rina-slate">
+                    {formatEventDate(event)}
+                    {event.allDay ? '' : formatEventTime(event)}
+                    {#if event.endTime}
+                      – {formatTime(event.endTime, getUserTimezone())}
+                    {/if}
+                  </p>
+                </div>
+                <span class="text-xs text-rina-slate-dark shrink-0">→</span>
+              </button>
+            {/each}
+          </div>
+        {/if}
+      </GlassCard>
+    {/if}
 
     <!-- Cycle Settings Modal -->
     {#if showCycleSettings}
-      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" transition:fade role="button" tabindex="0" onclick={() => showCycleSettings = false} onkeydown={(e) => e.key === 'Escape' && (showCycleSettings = false)}>
-        <div class="glass-strong rounded-2xl p-6 w-full max-w-sm" transition:fly={{ y: 20 }} onclick={(e) => e.stopPropagation()}>
+      <div class="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 bg-black/60 backdrop-blur-sm" transition:fade role="button" tabindex="0" onclick={() => showCycleSettings = false} onkeydown={(e) => e.key === 'Escape' && (showCycleSettings = false)}>
+        <div class="glass-strong rounded-t-2xl md:rounded-2xl p-5 w-full max-w-sm" transition:fly={{ y: 20 }} onclick={(e) => e.stopPropagation()}>
           <h3 class="text-lg font-semibold mb-4">Cycle Settings</h3>
           <div class="space-y-4">
             <div>
               <label class="block text-xs text-rina-slate mb-1">Last Period Start</label>
-              <input type="date" bind:value={cycleStartStr} class="w-full px-3 py-2 rounded-lg bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50" />
+              <input type="date" bind:value={cycleStartStr} class="input-safe w-full px-3 py-2.5 rounded-xl bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50" />
             </div>
             <div>
               <label class="block text-xs text-rina-slate mb-1">Cycle Length (days)</label>
-              <input type="number" bind:value={cycleLength} min="20" max="40" class="w-full px-3 py-2 rounded-lg bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50" />
+              <input type="number" bind:value={cycleLength} min="20" max="40" class="input-safe w-full px-3 py-2.5 rounded-xl bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50" />
             </div>
             <div class="flex gap-2 pt-2">
-              <button onclick={() => showCycleSettings = false} class="flex-1 py-2 rounded-lg border border-rina-border text-sm hover:bg-white/5 transition-colors">Cancel</button>
-              <button onclick={saveCycleSettings} class="flex-1 py-2 rounded-lg bg-rina-rose text-white text-sm font-medium hover:opacity-90 transition-opacity">Save</button>
+              <button onclick={() => showCycleSettings = false} class="touch-target flex-1 py-2.5 rounded-xl border border-rina-border text-sm hover:bg-white/5 transition-colors">Cancel</button>
+              <button onclick={saveCycleSettings} class="touch-target flex-1 py-2.5 rounded-xl bg-rina-rose text-white text-sm font-medium hover:opacity-90 transition-opacity">Save</button>
             </div>
           </div>
         </div>
@@ -434,57 +452,72 @@
 
     <!-- Event Modal (Create/Edit) -->
     {#if showEventModal}
-      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" transition:fade role="button" tabindex="0" onclick={() => showEventModal = false} onkeydown={(e) => e.key === 'Escape' && (showEventModal = false)}>
-        <div class="glass-strong rounded-2xl p-6 w-full max-w-md" transition:fly={{ y: 20 }} onclick={(e) => e.stopPropagation()}>
+      <div class="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 bg-black/60 backdrop-blur-sm" transition:fade role="button" tabindex="0" onclick={() => showEventModal = false} onkeydown={(e) => e.key === 'Escape' && (showEventModal = false)}>
+        <div class="glass-strong rounded-t-2xl md:rounded-2xl p-5 w-full max-w-md max-h-[90vh] overflow-y-auto" transition:fly={{ y: 20 }} onclick={(e) => e.stopPropagation()}>
           <h3 class="text-lg font-semibold mb-4">
             {modalMode === 'edit' ? 'Edit Event' : 'Add Event'} — {selectedDate}
           </h3>
           <div class="space-y-4">
             <div>
               <label class="block text-xs text-rina-slate mb-1">Title *</label>
-              <input bind:value={formEvent.title} class="w-full px-3 py-2 rounded-lg bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50" />
+              <input bind:value={formEvent.title} class="input-safe w-full px-3 py-2.5 rounded-xl bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50" />
             </div>
             <div>
               <label class="block text-xs text-rina-slate mb-1">Description</label>
-              <textarea bind:value={formEvent.description} rows={2} class="w-full px-3 py-2 rounded-lg bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50"></textarea>
+              <textarea bind:value={formEvent.description} rows={2} class="input-safe w-full px-3 py-2.5 rounded-xl bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50 resize-none"></textarea>
             </div>
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <label class="block text-xs text-rina-slate mb-1">Start *</label>
-                <input type="datetime-local" bind:value={formEvent.startTime} class="w-full px-3 py-2 rounded-lg bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50" />
+                <input type="datetime-local" bind:value={formEvent.startTime} class="input-safe w-full px-3 py-2.5 rounded-xl bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50" />
               </div>
               <div>
                 <label class="block text-xs text-rina-slate mb-1">End</label>
-                <input type="datetime-local" bind:value={formEvent.endTime} class="w-full px-3 py-2 rounded-lg bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50" />
+                <input type="datetime-local" bind:value={formEvent.endTime} class="input-safe w-full px-3 py-2.5 rounded-xl bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50" />
               </div>
             </div>
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <label class="block text-xs text-rina-slate mb-1">Type</label>
-                <select bind:value={formEvent.type} class="w-full px-3 py-2 rounded-lg bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50">
+                <select bind:value={formEvent.type} class="input-safe w-full px-3 py-2.5 rounded-xl bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50">
                   <option value="SHARED">Shared</option>
                   <option value="WORK">Work</option>
                 </select>
               </div>
               <div>
                 <label class="block text-xs text-rina-slate mb-1">Color</label>
-                <input type="color" bind:value={formEvent.color} class="w-full h-[38px] px-1 py-1 rounded-lg bg-rina-bg border border-rina-border text-white text-sm" />
+                <input type="color" bind:value={formEvent.color} class="input-safe w-full h-[42px] px-1 py-1 rounded-xl bg-rina-bg border border-rina-border text-white text-sm" />
               </div>
             </div>
             <div class="flex items-center gap-2">
-              <input type="checkbox" bind:checked={formEvent.allDay} id="allDay" class="rounded" />
+              <input type="checkbox" bind:checked={formEvent.allDay} id="allDay" class="rounded w-4 h-4" />
               <label for="allDay" class="text-sm text-rina-slate">All day</label>
             </div>
             <div class="flex gap-2 pt-2">
               {#if modalMode === 'edit' && editingEvent}
-                <button onclick={() => deleteEvent(editingEvent!.id)} class="px-4 py-2 rounded-lg bg-red-500/20 text-red-400 text-sm hover:bg-red-500/30 transition-colors">Delete</button>
+                <button onclick={() => deleteEvent(editingEvent!.id)} class="touch-target px-4 py-2.5 rounded-xl bg-red-500/20 text-red-400 text-sm hover:bg-red-500/30 transition-colors">Delete</button>
               {/if}
-              <button onclick={() => showEventModal = false} class="flex-1 py-2 rounded-lg border border-rina-border text-sm hover:bg-white/5 transition-colors">Cancel</button>
-              <button onclick={saveEvent} class="flex-1 py-2 rounded-lg bg-rina-rose text-white text-sm font-medium hover:opacity-90 transition-opacity">Save</button>
+              <button onclick={() => showEventModal = false} class="touch-target flex-1 py-2.5 rounded-xl border border-rina-border text-sm hover:bg-white/5 transition-colors">Cancel</button>
+              <button onclick={saveEvent} class="touch-target flex-1 py-2.5 rounded-xl bg-rina-rose text-white text-sm font-medium hover:opacity-90 transition-opacity">Save</button>
             </div>
           </div>
         </div>
       </div>
     {/if}
   </div>
+
+  <!-- Floating Action Button -->
+  {#if !showEventModal}
+    <div class="fixed-mobile bottom-[calc(5rem+env(safe-area-inset-bottom,0px))] z-40 pointer-events-none" transition:scale>
+      <div class="relative w-full h-0">
+        <button
+          onclick={() => openCreateModal()}
+          class="absolute right-4 -top-6 w-12 h-12 rounded-full bg-rina-rose text-white shadow-lg flex items-center justify-center text-xl hover:scale-105 active:scale-95 transition-transform pointer-events-auto"
+          aria-label="Add event"
+        >
+          +
+        </button>
+      </div>
+    </div>
+  {/if}
 {/if}

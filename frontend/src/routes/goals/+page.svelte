@@ -5,6 +5,7 @@
   import { fade, scale, fly } from 'svelte/transition';
   import { goalApi, type Goal } from '$lib/utils/api';
   import GlassCard from '$lib/components/GlassCard.svelte';
+import { globalSync } from '$lib/stores/socket.svelte';
 
   let goals: Goal[] = $state([]);
   let loading = $state(true);
@@ -16,8 +17,12 @@
   let editingGoal: Goal | null = $state(null);
   let contributingGoal: Goal | null = $state(null);
 
-  // Form states
-  let newGoal: Partial<Goal> = $state({ title: '', targetAmount: 0, currency: 'EUR', icon: '🎯', deadline: '' });
+  // Form states — use explicit string states for inputs, parse on save
+  let formTitle = $state('');
+  let formTargetAmount = $state('');
+  let formCurrency = $state('EUR');
+  let formIcon = $state('🎯');
+  let formDeadline = $state('');
   let contributeAmount = $state('');
 
   const currencies = ['EUR', 'USD', 'GBP', 'MAD', 'RUB'];
@@ -36,22 +41,30 @@
     }
   }
 
-  function resetNewGoal() {
-    newGoal = { title: '', targetAmount: 0, currency: 'EUR', icon: '🎯', deadline: '' };
+  function resetForm() {
+    formTitle = '';
+    formTargetAmount = '';
+    formCurrency = 'EUR';
+    formIcon = '🎯';
+    formDeadline = '';
     editingGoal = null;
+    error = '';
   }
 
   async function saveGoal() {
-    if (!newGoal.title || !newGoal.targetAmount || newGoal.targetAmount <= 0) {
-      error = 'Title and target amount are required';
+    const target = parseFloat(formTargetAmount);
+    if (!formTitle.trim() || isNaN(target) || target <= 0) {
+      error = 'Title and a valid target amount are required';
       return;
     }
     error = '';
 
-    // Convert whole units to cents for API
     const payload: Partial<Goal> = {
-      ...newGoal,
-      targetAmount: Math.round(newGoal.targetAmount * 100)
+      title: formTitle.trim(),
+      targetAmount: Math.round(target * 100),
+      currency: formCurrency,
+      icon: formIcon,
+      deadline: formDeadline || undefined
     };
 
     try {
@@ -63,7 +76,7 @@
         goals = [goal, ...goals];
       }
       showAddModal = false;
-      resetNewGoal();
+      resetForm();
     } catch (err) {
       error = editingGoal ? 'Failed to update goal' : 'Failed to create goal';
       console.error('[Goals]', err);
@@ -132,13 +145,11 @@
 
   function openEdit(goal: Goal) {
     editingGoal = goal;
-    newGoal = {
-      title: goal.title,
-      targetAmount: goal.targetAmount / 100,
-      currency: goal.currency,
-      icon: goal.icon || '🎯',
-      deadline: goal.deadline ? goal.deadline.slice(0, 10) : ''
-    };
+    formTitle = goal.title;
+    formTargetAmount = (goal.targetAmount / 100).toString();
+    formCurrency = goal.currency;
+    formIcon = goal.icon || '🎯';
+    formDeadline = goal.deadline ? goal.deadline.slice(0, 10) : '';
     showAddModal = true;
   }
 
@@ -165,25 +176,32 @@
     }
   });
 
+  $effect(() => {
+    const update = globalSync.lastUpdate;
+    if (update && (update.type === 'goal' || update.type === 'goals')) {
+      loadGoals();
+    }
+  });
+
   onMount(() => {
     loadGoals();
   });
 </script>
 
 {#if isAuthenticated()}
-  <div class="max-w-3xl mx-auto px-4 py-6" in:fade>
-    <div class="flex items-center justify-between mb-6">
-      <h2 class="text-2xl font-bold">🎯 Goals</h2>
+  <div class="px-3 py-4 space-y-4" in:fade>
+    <div class="flex items-center justify-between">
+      <h2 class="text-xl font-bold">🎯 Goals</h2>
       <button
-        onclick={() => { resetNewGoal(); showAddModal = true; }}
-        class="px-4 py-2 rounded-xl bg-rina-rose text-white text-sm font-medium hover:opacity-90 transition-opacity"
+        onclick={() => { resetForm(); showAddModal = true; }}
+        class="touch-target px-4 py-2 rounded-xl bg-rina-rose text-white text-sm font-medium hover:opacity-90 transition-opacity"
       >
-        + New Goal
+        + New
       </button>
     </div>
 
     {#if error}
-      <div class="glass rounded-xl p-3 mb-4 text-rina-rose text-sm" transition:fly={{ y: -10 }}>
+      <div class="glass rounded-xl p-3 text-rina-rose text-sm" transition:fly={{ y: -10 }}>
         {error}
       </div>
     {/if}
@@ -196,7 +214,7 @@
         <p class="text-rina-slate">No goals yet. Start dreaming together.</p>
       </GlassCard>
     {:else}
-      <div class="space-y-4">
+      <div class="space-y-3">
         {#each sortedGoals as goal (goal.id)}
           {@const pct = getProgressPct(goal.currentAmount, goal.targetAmount)}
           {@const isComplete = pct >= 100}
@@ -208,25 +226,25 @@
                 <div class="absolute top-2 right-2 text-lg" title="Completed!">🏆</div>
               {/if}
 
-              <div class="flex items-start gap-4">
-                <div class="text-3xl shrink-0">{goal.icon || '🎯'}</div>
+              <div class="flex items-start gap-3">
+                <div class="text-2xl shrink-0">{goal.icon || '🎯'}</div>
                 <div class="flex-1 min-w-0">
-                  <div class="flex items-center justify-between mb-1">
-                    <h3 class="font-semibold truncate">{goal.title}</h3>
-                    <span class="text-sm font-bold {isComplete ? 'text-emerald-400' : 'text-gradient'}">
+                  <div class="flex items-center justify-between mb-1.5">
+                    <h3 class="font-semibold text-sm truncate pr-4">{goal.title}</h3>
+                    <span class="text-sm font-bold shrink-0 {isComplete ? 'text-emerald-400' : 'text-gradient'}">
                       {Math.floor(pct)}%
                     </span>
                   </div>
 
                   <!-- Progress bar -->
-                  <div class="h-3 rounded-full bg-white/10 overflow-hidden mb-2">
+                  <div class="h-2.5 rounded-full bg-white/10 overflow-hidden mb-2">
                     <div
                       class="h-full rounded-full transition-all duration-700 ease-out {isComplete ? 'bg-emerald-500' : 'bg-gradient-to-r from-rina-rose to-rina-indigo'}"
                       style="width: {pct}%"
                     ></div>
                   </div>
 
-                  <div class="flex items-center justify-between text-xs text-rina-slate mb-3">
+                  <div class="flex items-center justify-between text-[11px] text-rina-slate mb-2">
                     <span>{formatCurrency(goal.currentAmount, goal.currency)} of {formatCurrency(goal.targetAmount, goal.currency)}</span>
                     {#if !isComplete && remaining > 0}
                       <span>{formatCurrency(remaining, goal.currency)} left</span>
@@ -234,12 +252,12 @@
                   </div>
 
                   <!-- Meta row -->
-                  <div class="flex items-center gap-3 flex-wrap">
+                  <div class="flex items-center gap-2 flex-wrap">
                     {#if goal.deadline}
                       <span class="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-rina-slate">
                         📅 {formatDate(goal.deadline)}
                         {#if daysLeft !== null && daysLeft > 0 && !isComplete}
-                          <span class="text-rina-rose">({daysLeft}d left)</span>
+                          <span class="text-rina-rose">({daysLeft}d)</span>
                         {:else if daysLeft !== null && daysLeft <= 0 && !isComplete}
                           <span class="text-red-400">(overdue)</span>
                         {/if}
@@ -249,7 +267,7 @@
                     {#if !isComplete}
                       <button
                         onclick={() => openContribute(goal)}
-                        class="text-[10px] px-2 py-0.5 rounded-full bg-rina-rose/20 text-rina-rose hover:bg-rina-rose/30 transition-colors"
+                        class="touch-target text-[10px] px-2 py-0.5 rounded-full bg-rina-rose/20 text-rina-rose hover:bg-rina-rose/30 transition-colors"
                       >
                         + Contribute
                       </button>
@@ -257,14 +275,14 @@
 
                     <button
                       onclick={() => openEdit(goal)}
-                      class="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-rina-slate hover:bg-white/10 transition-colors"
+                      class="touch-target text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-rina-slate hover:bg-white/10 transition-colors"
                     >
                       Edit
                     </button>
 
                     <button
                       onclick={() => deleteGoal(goal.id)}
-                      class="text-[10px] px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
+                      class="touch-target text-[10px] px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
                     >
                       Delete
                     </button>
@@ -279,19 +297,19 @@
 
     <!-- Add/Edit Modal -->
     {#if showAddModal}
-      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" transition:fade role="button" tabindex="0" onclick={() => showAddModal = false} onkeydown={(e) => e.key === 'Escape' && (showAddModal = false)}>
-        <div class="glass-strong rounded-2xl p-6 w-full max-w-sm" transition:scale onclick={(e) => e.stopPropagation()}>
+      <div class="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 bg-black/60 backdrop-blur-sm" transition:fade role="button" tabindex="0" onclick={() => showAddModal = false} onkeydown={(e) => e.key === 'Escape' && (showAddModal = false)}>
+        <div class="glass-strong rounded-t-2xl md:rounded-2xl p-5 w-full max-w-sm max-h-[90vh] overflow-y-auto" transition:scale onclick={(e) => e.stopPropagation()}>
           <h3 class="text-lg font-semibold mb-4">{editingGoal ? 'Edit Goal' : 'New Goal'}</h3>
           <div class="space-y-4">
             <div>
               <label class="block text-xs text-rina-slate mb-1">Title</label>
-              <input bind:value={newGoal.title} placeholder="e.g. Trip to Japan" class="w-full px-3 py-2 rounded-lg bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50" />
+              <input bind:value={formTitle} placeholder="e.g. Trip to Japan" class="input-safe w-full px-3 py-2.5 rounded-xl bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50" />
             </div>
             <div>
               <label class="block text-xs text-rina-slate mb-1">Target Amount</label>
               <div class="flex gap-2">
-                <input type="number" min="1" step="0.01" bind:value={newGoal.targetAmount} placeholder="1000" class="flex-1 px-3 py-2 rounded-lg bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50" />
-                <select bind:value={newGoal.currency} class="px-2 py-2 rounded-lg bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50">
+                <input type="number" min="0.01" step="0.01" bind:value={formTargetAmount} placeholder="1000" class="input-safe flex-1 px-3 py-2.5 rounded-xl bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50" />
+                <select bind:value={formCurrency} class="input-safe px-2 py-2.5 rounded-xl bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50">
                   {#each currencies as c}
                     <option value={c}>{c}</option>
                   {/each}
@@ -301,15 +319,15 @@
             </div>
             <div>
               <label class="block text-xs text-rina-slate mb-1">Deadline</label>
-              <input type="date" bind:value={newGoal.deadline} class="w-full px-3 py-2 rounded-lg bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50" />
+              <input type="date" bind:value={formDeadline} class="input-safe w-full px-3 py-2.5 rounded-xl bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50" />
             </div>
             <div>
               <label class="block text-xs text-rina-slate mb-1">Icon</label>
               <div class="flex gap-2 flex-wrap">
                 {#each icons as icon}
                   <button
-                    onclick={() => newGoal.icon = icon}
-                    class="w-9 h-9 rounded-lg text-lg flex items-center justify-center transition-colors {newGoal.icon === icon ? 'bg-rina-rose/20 ring-1 ring-rina-rose' : 'bg-white/5 hover:bg-white/10'}"
+                    onclick={() => formIcon = icon}
+                    class="touch-target w-10 h-10 rounded-xl text-lg flex items-center justify-center transition-colors {formIcon === icon ? 'bg-rina-rose/20 ring-1 ring-rina-rose' : 'bg-white/5 hover:bg-white/10'}"
                   >
                     {icon}
                   </button>
@@ -317,8 +335,8 @@
               </div>
             </div>
             <div class="flex gap-2 pt-2">
-              <button onclick={() => showAddModal = false} class="flex-1 py-2 rounded-lg border border-rina-border text-sm hover:bg-white/5 transition-colors">Cancel</button>
-              <button onclick={saveGoal} class="flex-1 py-2 rounded-lg bg-rina-rose text-white text-sm font-medium hover:opacity-90 transition-opacity">Save</button>
+              <button onclick={() => showAddModal = false} class="touch-target flex-1 py-2.5 rounded-xl border border-rina-border text-sm hover:bg-white/5 transition-colors">Cancel</button>
+              <button onclick={saveGoal} class="touch-target flex-1 py-2.5 rounded-xl bg-rina-rose text-white text-sm font-medium hover:opacity-90 transition-opacity">Save</button>
             </div>
           </div>
         </div>
@@ -327,8 +345,8 @@
 
     <!-- Contribute Modal -->
     {#if showContributeModal && contributingGoal}
-      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" transition:fade role="button" tabindex="0" onclick={() => showContributeModal = false} onkeydown={(e) => e.key === 'Escape' && (showContributeModal = false)}>
-        <div class="glass-strong rounded-2xl p-6 w-full max-w-sm" transition:scale onclick={(e) => e.stopPropagation()}>
+      <div class="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 bg-black/60 backdrop-blur-sm" transition:fade role="button" tabindex="0" onclick={() => showContributeModal = false} onkeydown={(e) => e.key === 'Escape' && (showContributeModal = false)}>
+        <div class="glass-strong rounded-t-2xl md:rounded-2xl p-5 w-full max-w-sm" transition:scale onclick={(e) => e.stopPropagation()}>
           <h3 class="text-lg font-semibold mb-1">Contribute</h3>
           <p class="text-xs text-rina-slate mb-4">{contributingGoal.title}</p>
 
@@ -338,7 +356,7 @@
               {#each [10, 50, 100] as amt}
                 <button
                   onclick={() => contributeAmount = amt.toString()}
-                  class="py-2 rounded-lg text-sm bg-white/5 hover:bg-white/10 transition-colors {contributeAmount === amt.toString() ? 'ring-1 ring-rina-rose' : ''}"
+                  class="touch-target py-2.5 rounded-xl text-sm bg-white/5 hover:bg-white/10 transition-colors {contributeAmount === amt.toString() ? 'ring-1 ring-rina-rose' : ''}"
                 >
                   {new Intl.NumberFormat('en-GB', { style: 'currency', currency: contributingGoal.currency, maximumFractionDigits: 0 }).format(amt)}
                 </button>
@@ -355,15 +373,15 @@
                   step="0.01"
                   bind:value={contributeAmount}
                   placeholder="Enter amount..."
-                  class="flex-1 px-3 py-2 rounded-lg bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50"
+                  class="input-safe flex-1 px-3 py-2.5 rounded-xl bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50"
                 />
-                <span class="px-3 py-2 rounded-lg bg-white/5 text-rina-slate text-sm">{contributingGoal.currency}</span>
+                <span class="px-3 py-2.5 rounded-xl bg-white/5 text-rina-slate text-sm">{contributingGoal.currency}</span>
               </div>
             </div>
 
             <div class="flex gap-2 pt-2">
-              <button onclick={() => showContributeModal = false} class="flex-1 py-2 rounded-lg border border-rina-border text-sm hover:bg-white/5 transition-colors">Cancel</button>
-              <button onclick={handleContribute} class="flex-1 py-2 rounded-lg bg-rina-rose text-white text-sm font-medium hover:opacity-90 transition-opacity">Add</button>
+              <button onclick={() => showContributeModal = false} class="touch-target flex-1 py-2.5 rounded-xl border border-rina-border text-sm hover:bg-white/5 transition-colors">Cancel</button>
+              <button onclick={handleContribute} class="touch-target flex-1 py-2.5 rounded-xl bg-rina-rose text-white text-sm font-medium hover:opacity-90 transition-opacity">Add</button>
             </div>
           </div>
         </div>

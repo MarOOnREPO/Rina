@@ -17,6 +17,7 @@
   <div
     class="fixed inset-0 z-[100] pointer-events-none flex items-center justify-center"
     transition:fade={{ duration: 400 }}
+    aria-hidden="true"
   >
     <!-- Soft screen glow -->
     <div
@@ -26,7 +27,7 @@
 
     <!-- Heart -->
     <div
-      class="relative z-10"
+      class="relative z-10 pointer-events-none"
       in:scale={{ duration: 600, easing: elasticOut, start: 0.2 }}
       out:scale={{ duration: 300, start: 1, delay: 300 }}
     >

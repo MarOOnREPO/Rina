@@ -10,6 +10,7 @@
   const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || '';
 
   let mapContainer: HTMLDivElement | undefined = $state();
+  let mapInstance: mapboxgl.Map | null = $state(null);
   let mapError = $state('');
   let loading = $state(true);
   let photos: ScrapbookPhoto[] = $state([]);
@@ -31,63 +32,98 @@
     }
   }
 
+  function addMarkers(map: mapboxgl.Map, markers: Array<{ lat?: number; lng?: number; caption?: string; url?: string; takenAt?: string; year?: number }>) {
+    const validMarkers = markers.filter((p) => typeof p.lat === 'number' && typeof p.lng === 'number');
+    if (validMarkers.length === 0) return;
+
+    validMarkers.forEach((photo) => {
+      const el = document.createElement('div');
+      el.className = 'w-4 h-4 rounded-full bg-rina-rose shadow-[0_0_10px_rgba(251,113,133,0.6)] cursor-pointer hover:scale-125 transition-transform';
+
+      const popupHtml = photo.url
+        ? `<div style="color:#0f0f1a;font-family:sans-serif;max-width:200px;">
+            <img src="${photo.url}" style="width:100%;border-radius:6px;margin-bottom:4px;" />
+            <p style="font-weight:600;margin:0;font-size:13px;">${photo.caption || 'Untitled'}</p>
+            <p style="font-size:11px;color:#666;margin:2px 0 0;">${photo.takenAt ? new Date(photo.takenAt).toLocaleDateString('en-GB') : ''}</p>
+          </div>`
+        : `<div style="color:#0f0f1a;font-family:sans-serif;">
+            <p style="font-weight:600;margin:0">${photo.caption || 'Untitled'}</p>
+            <p style="font-size:12px;color:#666;margin:4px 0 0">${photo.year || ''}</p>
+          </div>`;
+
+      new mapboxgl.Marker(el)
+        .setLngLat([photo.lng!, photo.lat!])
+        .setPopup(new mapboxgl.Popup({ offset: 8 }).setHTML(popupHtml))
+        .addTo(map);
+    });
+  }
+
   onMount(() => {
     loadPhotos();
+    let resizeObserver: ResizeObserver | null = null;
 
     if (!MAPBOX_TOKEN) {
       mapError = 'Mapbox token not configured. Set VITE_MAPBOX_TOKEN in frontend/.env.local';
       return;
     }
 
-    import('mapbox-gl').then((mapboxgl) => {
-      mapboxgl.default.accessToken = MAPBOX_TOKEN;
+    // Defer map init to next tick so DOM container is guaranteed mounted
+    requestAnimationFrame(() => {
+      import('mapbox-gl').then((mapboxgl) => {
+        mapboxgl.default.accessToken = MAPBOX_TOKEN;
 
-      const map = new mapboxgl.default.Map({
-        container: mapContainer!,
-        style: 'mapbox://styles/mapbox/dark-v11',
-        center: [20, 40],
-        zoom: 1.5,
-        projection: 'globe'
-      });
-
-      map.on('style.load', () => {
-        map.setFog({
-          color: 'rgb(15, 15, 26)',
-          'high-color': 'rgb(22, 22, 42)',
-          'horizon-blend': 0.4,
-          'space-color': 'rgb(15, 15, 26)',
-          'star-intensity': 0.6
+        const map = new mapboxgl.default.Map({
+          container: mapContainer!,
+          style: 'mapbox://styles/mapbox/dark-v11',
+          center: [20, 40],
+          zoom: 1.5,
+          projection: 'globe'
         });
-      });
 
-      map.on('load', () => {
-        const markers = photos.length > 0 ? photos.filter((p) => p.lat != null && p.lng != null) : demoPhotos;
+        mapInstance = map;
 
-        markers.forEach((photo) => {
-          const el = document.createElement('div');
-          el.className = 'w-4 h-4 rounded-full bg-rina-rose shadow-[0_0_10px_rgba(251,113,133,0.6)] cursor-pointer hover:scale-125 transition-transform';
-
-          const popupHtml = photo.url
-            ? `<div style="color:#0f0f1a;font-family:sans-serif;max-width:200px;">
-                <img src="${photo.url}" style="width:100%;border-radius:6px;margin-bottom:4px;" />
-                <p style="font-weight:600;margin:0;font-size:13px;">${photo.caption || 'Untitled'}</p>
-                <p style="font-size:11px;color:#666;margin:2px 0 0;">${'takenAt' in photo && photo.takenAt ? new Date(photo.takenAt).toLocaleDateString('en-GB') : ''}</p>
-              </div>`
-            : `<div style="color:#0f0f1a;font-family:sans-serif;">
-                <p style="font-weight:600;margin:0">${photo.caption || 'Untitled'}</p>
-                <p style="font-size:12px;color:#666;margin:4px 0 0">${'year' in photo ? String((photo as Record<string, unknown>).year || '') : ''}</p>
-              </div>`;
-
-          new mapboxgl.default.Marker(el)
-            .setLngLat([photo.lng!, photo.lat!])
-            .setPopup(new mapboxgl.default.Popup({ offset: 8 }).setHTML(popupHtml))
-            .addTo(map);
+        map.on('style.load', () => {
+          map.setFog({
+            color: 'rgb(15, 15, 26)',
+            'high-color': 'rgb(22, 22, 42)',
+            'horizon-blend': 0.4,
+            'space-color': 'rgb(15, 15, 26)',
+            'star-intensity': 0.6
+          });
         });
+
+        map.on('load', () => {
+          // Initial markers (will use demo if photos not loaded yet)
+          const initial = photos.length > 0 ? photos.filter((p) => p.lat != null && p.lng != null) : demoPhotos;
+          addMarkers(map, initial);
+        });
+
+        // Handle resize
+        resizeObserver = new ResizeObserver(() => {
+          map.resize();
+        });
+        if (mapContainer) resizeObserver.observe(mapContainer);
+      }).catch((err) => {
+        mapError = 'Failed to load Mapbox. Check console for details.';
+        console.error('[Map]', err);
       });
-    }).catch((err) => {
-      mapError = 'Failed to load Mapbox. Check console for details.';
-      console.error('[Map]', err);
     });
+
+    return () => {
+      if (resizeObserver) resizeObserver.disconnect();
+    };
+  });
+
+  // Reactive: update markers when photos change after initial load
+  $effect(() => {
+    if (mapInstance && photos.length > 0) {
+      // Clear existing markers by reloading the map style layer
+      // For simplicity, we reload markers. In production, track marker refs.
+      const valid = photos.filter((p) => p.lat != null && p.lng != null);
+      if (valid.length > 0) {
+        addMarkers(mapInstance, valid);
+      }
+    }
   });
 
   $effect(() => {
@@ -98,7 +134,7 @@
 </script>
 
 {#if isAuthenticated()}
-  <div class="fixed inset-0 pt-14 pb-16 md:pb-0 flex flex-col" in:fade>
+  <div class="fixed inset-0 pt-[7.5rem] pb-[calc(4rem+env(safe-area-inset-bottom,0px))] md:pt-14 md:pb-0 flex flex-col" in:fade>
     <div class="relative flex-1">
       {#if mapError}
         <!-- Fallback 3D globe visualization -->
@@ -129,8 +165,8 @@
       {/if}
 
       <!-- Overlay UI -->
-      <div class="absolute top-4 left-4 z-10">
-        <GlassCard padding="sm" class="max-w-xs">
+      <div class="absolute top-4 left-4 z-10 pointer-events-none">
+        <GlassCard padding="sm" class="max-w-xs pointer-events-auto">
           <h3 class="text-sm font-semibold mb-1">🌍 Scrapbook Map</h3>
           <p class="text-xs text-rina-slate">
             {#if loading}

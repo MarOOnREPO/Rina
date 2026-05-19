@@ -4,25 +4,8 @@
   import { isAuthenticated, isLoading, currentUser } from '$lib/stores/auth.svelte';
   import { socketStore, partnerPresence } from '$lib/stores/socket.svelte';
   import { notificationApi, type AppNotification } from '$lib/utils/api';
-  import { getOffsetLabel, formatTime } from '$lib/utils/timezone';
   import { fade, fly } from 'svelte/transition';
   import PatchworkTile from '$lib/components/PatchworkTile.svelte';
-  import WeatherWidget from '$lib/components/WeatherWidget.svelte';
-
-  // ─── Time ──────────────────────────────────────────────────────
-  let now = $state(new Date());
-  let kenitraTime = $state('--:--');
-  let permTime = $state('--:--');
-  let kenitraOffset = $state('');
-  let permOffset = $state('');
-
-  function updateClocks() {
-    now = new Date();
-    kenitraTime = formatTime(now, 'Africa/Casablanca');
-    permTime = formatTime(now, 'Asia/Yekaterinburg');
-    kenitraOffset = getOffsetLabel('Africa/Casablanca');
-    permOffset = getOffsetLabel('Asia/Yekaterinburg');
-  }
 
   // ─── Notifications ─────────────────────────────────────────────
   let notifications = $state<AppNotification[]>([]);
@@ -52,10 +35,7 @@
   }
 
   onMount(() => {
-    updateClocks();
-    const interval = setInterval(updateClocks, 1000);
     fetchNotifications();
-    return () => clearInterval(interval);
   });
 
   $effect(() => {
@@ -66,61 +46,14 @@
 </script>
 
 {#if isAuthenticated()}
-  <div class="max-w-7xl mx-auto px-3 md:px-4 py-4 md:py-6 space-y-4 md:space-y-5" in:fade={{ duration: 300 }}>
-    
-    <!-- Top Row: Time + Weather + Heart -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-      <!-- Clocks -->
-      <div class="grid grid-cols-2 gap-3">
-        <!-- Kenitra -->
-        <div class="glass rounded-2xl p-4 md:p-5 flex items-center justify-between" in:fly={{ y: 20, delay: 0 }}>
-          <div>
-            <p class="text-[10px] md:text-xs font-medium text-rina-slate uppercase tracking-wider">Kenitra, MA</p>
-            <p class="text-2xl md:text-3xl font-bold tabular-nums">{kenitraTime}</p>
-          </div>
-          <div class="text-right">
-            <p class="text-xs text-rina-slate">{kenitraOffset}</p>
-          </div>
-        </div>
-
-        <!-- Perm -->
-        <div class="glass rounded-2xl p-4 md:p-5 flex items-center justify-between" in:fly={{ y: 20, delay: 80 }}>
-          <div>
-            <p class="text-[10px] md:text-xs font-medium text-rina-slate uppercase tracking-wider">Perm, RU</p>
-            <p class="text-2xl md:text-3xl font-bold tabular-nums">{permTime}</p>
-          </div>
-          <div class="text-right">
-            <p class="text-xs text-rina-slate">{permOffset}</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Weather Widgets -->
-      <div class="flex flex-col gap-3">
-        <WeatherWidget lat={34.26} lon={-6.58} timezone="Africa/Casablanca" label="Kenitra" />
-        <WeatherWidget lat={58.01} lon={56.25} timezone="Asia/Yekaterinburg" label="Perm" />
-      </div>
-    </div>
-
-    <!-- Heart Ping + Welcome -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-3 md:gap-4">
-      <!-- Welcome -->
-      <div class="glass rounded-2xl p-4 md:p-5 flex flex-col justify-center md:col-span-3" in:fly={{ y: 20, delay: 160 }}>
-        <p class="text-[10px] md:text-xs font-medium text-rina-slate uppercase tracking-wider">Bienvenue</p>
-        <h2 class="text-lg md:text-xl font-bold truncate">
-          <span class="text-gradient">{currentUser()?.displayName || 'Love'}</span>
-        </h2>
-        <p class="text-xs text-rina-slate-dark mt-1">
-          {now.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-        </p>
-      </div>
-
-      <!-- Heart Ping -->
+  <div class="px-3 py-4 space-y-4" in:fade={{ duration: 300 }}>
+    <!-- Heart Ping + Notifications -->
+    <div class="flex items-center gap-3">
       <button
         onclick={sendPing}
-        class="glass rounded-2xl p-4 md:p-5 flex items-center justify-center gap-2 md:gap-3
+        class="flex-1 glass rounded-2xl p-4 flex items-center justify-center gap-3
           hover:bg-rina-rose/10 active:scale-95 transition-all group cursor-pointer relative"
-        in:fly={{ y: 20, delay: 240 }}
+        in:fly={{ y: 20, delay: 0 }}
       >
         {#if notifications.length > 0}
           <span class="absolute top-3 right-3 w-5 h-5 bg-rina-rose text-white text-[10px] font-bold rounded-full flex items-center justify-center">
@@ -128,7 +61,7 @@
           </span>
         {/if}
         <svg
-          class="w-7 h-7 md:w-8 md:h-8 text-rina-rose group-hover:scale-110 transition-transform group-hover:animate-pulse"
+          class="w-7 h-7 text-rina-rose group-hover:scale-110 transition-transform group-hover:animate-pulse"
           viewBox="0 0 24 24"
           fill="currentColor"
         >
@@ -170,10 +103,9 @@
     {/if}
 
     <!-- Main Patchwork Grid -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 auto-rows-[minmax(100px,auto)]">
-      
+    <div class="grid grid-cols-2 gap-3 auto-rows-[minmax(100px,auto)]">
       <!-- Chat -->
-      <PatchworkTile href="/chat" icon="💬" title="Chat" subtitle="Messages chiffrés" color="from-rina-rose/15 to-rina-rose/5" size="wide" delay={320}>
+      <PatchworkTile href="/chat" icon="💬" title="Chat" subtitle="Messages chiffrés" color="from-rina-rose/15 to-rina-rose/5" size="wide" delay={80}>
         <div class="mt-2 flex items-center gap-2">
           <span class="relative flex h-2.5 w-2.5">
             <span class="animate-ping absolute inline-flex h-full w-full rounded-full {partnerPresence()?.status === 'online' ? 'bg-emerald-400' : 'bg-rina-slate-dark'} opacity-75"></span>
@@ -184,40 +116,33 @@
       </PatchworkTile>
 
       <!-- Calendar -->
-      <PatchworkTile href="/calendar" icon="📅" title="Calendar" subtitle="Planning & dates" color="from-emerald-500/15 to-emerald-500/5" size="wide" delay={380}>
+      <PatchworkTile href="/calendar" icon="📅" title="Calendar" subtitle="Planning & dates" color="from-emerald-500/15 to-emerald-500/5" size="wide" delay={140}>
         <p class="text-[10px] text-rina-slate-dark mt-1">Prochain événement →</p>
       </PatchworkTile>
 
       <!-- Movies -->
-      <PatchworkTile href="/movies" icon="🎬" title="Movies" subtitle="À voir ensemble" color="from-amber-500/15 to-amber-500/5" delay={440} />
+      <PatchworkTile href="/movies" icon="🎬" title="Movies" subtitle="À voir ensemble" color="from-amber-500/15 to-amber-500/5" delay={200} />
 
       <!-- Music -->
-      <PatchworkTile href="/listen" icon="🎵" title="Music" subtitle="Écoute synchronisée" color="from-pink-500/15 to-pink-500/5" delay={480} />
+      <PatchworkTile href="/listen" icon="🎵" title="Music" subtitle="Écoute synchronisée" color="from-pink-500/15 to-pink-500/5" delay={260} />
 
       <!-- Food -->
-      <PatchworkTile href="/roulette" icon="🍽️" title="Food" subtitle="Roulette des repas" color="from-orange-500/15 to-orange-500/5" delay={520} />
+      <PatchworkTile href="/roulette" icon="🍽️" title="Food" subtitle="Roulette des repas" color="from-orange-500/15 to-orange-500/5" delay={320} />
 
       <!-- Video -->
-      <PatchworkTile href="/video" icon="📹" title="Video Call" subtitle="Appel visio" color="from-rina-indigo/15 to-rina-indigo/5" delay={560} />
+      <PatchworkTile href="/video" icon="📹" title="Video Call" subtitle="Appel visio" color="from-rina-indigo/15 to-rina-indigo/5" delay={380} />
 
       <!-- Capsules -->
-      <PatchworkTile href="/capsules" icon="🔐" title="Capsules" subtitle="Messages temporels" color="from-violet-500/15 to-violet-500/5" delay={600} />
+      <PatchworkTile href="/capsules" icon="🔐" title="Capsules" subtitle="Messages temporels" color="from-violet-500/15 to-violet-500/5" delay={440} />
 
       <!-- Goals -->
-      <PatchworkTile href="/goals" icon="🎯" title="Goals" subtitle="Objectifs communs" color="from-cyan-500/15 to-cyan-500/5" delay={640} />
+      <PatchworkTile href="/goals" icon="🎯" title="Goals" subtitle="Objectifs communs" color="from-cyan-500/15 to-cyan-500/5" delay={500} />
 
       <!-- Map -->
-      <PatchworkTile href="/map" icon="🗺️" title="Map" subtitle="Notre monde" color="from-teal-500/15 to-teal-500/5" delay={680} />
+      <PatchworkTile href="/map" icon="🗺️" title="Map" subtitle="Notre monde" color="from-teal-500/15 to-teal-500/5" delay={560} />
 
       <!-- Whiteboard -->
-      <PatchworkTile href="/whiteboard" icon="🎨" title="Whiteboard" subtitle="Dessin collaboratif" color="from-fuchsia-500/15 to-fuchsia-500/5" delay={720} />
-    </div>
-
-    <!-- Footer date (desktop) -->
-    <div class="hidden md:block text-center pt-2" in:fade={{ delay: 800 }}>
-      <p class="text-xs text-rina-slate-dark">
-        {now.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-      </p>
+      <PatchworkTile href="/whiteboard" icon="🎨" title="Whiteboard" subtitle="Dessin collaboratif" color="from-fuchsia-500/15 to-fuchsia-500/5" delay={620} />
     </div>
   </div>
 {/if}

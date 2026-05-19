@@ -16,48 +16,94 @@
   let currentVideoTitle = $state('');
   let lastReportedTime = $state(0);
   let syncStatus = $state<'idle' | 'syncing'>('idle');
+  let playerContainerId = $state(`yt-player-${Math.random().toString(36).slice(2, 9)}`);
 
-  // Load YouTube IFrame API with error handling
+  // ─── Robust YouTube IFrame API Loader ──────────────────────────
+  // Global promise ensures we never inject the script twice and handle
+  // race conditions between multiple components or fast unmount/remount.
+  let ytApiPromise: Promise<void> | null = null;
+
   function loadYouTubeAPI(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (window.YT && window.YT.Player) {
-        resolve();
-        return;
-      }
-      if (apiError) {
-        reject(new Error('YouTube API previously failed'));
+    if (typeof window === 'undefined') return Promise.reject(new Error('Not in browser'));
+    if (window.YT && window.YT.Player) {
+      apiLoaded = true;
+      return Promise.resolve();
+    }
+    if (apiError) {
+      return Promise.reject(new Error('YouTube API previously failed'));
+    }
+    if (ytApiPromise) {
+      return ytApiPromise;
+    }
+
+    ytApiPromise = new Promise<void>((resolve, reject) => {
+      const existing = document.querySelector('script[src="https://www.youtube.com/iframe_api"]');
+      if (existing) {
+        // Script already in DOM, wait for callback
+        const check = setInterval(() => {
+          if (window.YT?.Player) {
+            clearInterval(check);
+            apiLoaded = true;
+            resolve();
+          }
+        }, 200);
+        setTimeout(() => {
+          clearInterval(check);
+          if (!window.YT?.Player) {
+            apiError = true;
+            reject(new Error('YouTube API load timeout (script existed)'));
+          }
+        }, 15000);
         return;
       }
 
       const tag = document.createElement('script');
       tag.src = 'https://www.youtube.com/iframe_api';
+      tag.async = true;
       tag.onerror = () => {
         apiError = true;
-        reject(new Error('Failed to load YouTube IFrame API'));
+        ytApiPromise = null;
+        reject(new Error('Failed to load YouTube IFrame API script'));
       };
+
       const firstScript = document.getElementsByTagName('script')[0];
       firstScript.parentNode?.insertBefore(tag, firstScript);
 
-      (window as unknown as Record<string, unknown>).onYouTubeIframeAPIReady = () => {
+      const originalCallback = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => {
         apiLoaded = true;
+        if (originalCallback) originalCallback();
         resolve();
       };
 
-      // Timeout fallback
+      // Fallback timeout
       setTimeout(() => {
         if (!window.YT?.Player) {
           apiError = true;
-          reject(new Error('YouTube API load timeout'));
+          ytApiPromise = null;
+          reject(new Error('YouTube API load timeout (15s)'));
         }
-      }, 10000);
+      }, 15000);
     });
+
+    return ytApiPromise;
   }
 
   function initPlayer(id: string) {
     if (!id || !window.YT?.Player) return;
     currentVideoId = id;
 
-    player = new window.YT.Player('yt-player', {
+    // Destroy previous player if exists to prevent DOM conflicts
+    if (player) {
+      try {
+        player.destroy();
+      } catch {
+        // ignore
+      }
+      player = null;
+    }
+
+    player = new window.YT.Player(playerContainerId, {
       height: '100%',
       width: '100%',
       videoId: id,
@@ -66,17 +112,18 @@
         controls: 1,
         rel: 0,
         modestbranding: 1,
-        enablejsapi: 1
+        enablejsapi: 1,
+        origin: typeof window !== 'undefined' ? window.location.origin : undefined
       },
       events: {
         onReady: () => {
           playerReady = true;
-          // Title may not be available immediately; retry
           updateTitle();
         },
         onStateChange: handleStateChange,
         onError: (e: { data: number }) => {
           console.error('[YouTube] Player error:', e.data);
+          apiError = true;
         }
       }
     });
@@ -84,10 +131,15 @@
 
   function updateTitle() {
     if (!player) return;
-    const data = player.getVideoData?.();
-    if (data?.title) {
-      currentVideoTitle = data.title;
-    } else {
+    try {
+      const data = player.getVideoData?.();
+      if (data?.title) {
+        currentVideoTitle = data.title;
+      } else {
+        setTimeout(updateTitle, 500);
+      }
+    } catch {
+      // API may not be ready yet
       setTimeout(updateTitle, 500);
     }
   }
@@ -96,20 +148,14 @@
     if (isSyncing || !player) return;
 
     const time = player.getCurrentTime() || 0;
-
-    // Detect seek: if time jumped by > 3s between state changes while playing/paused
     const timeJump = Math.abs(time - lastReportedTime);
     const isSeek = timeJump > 3 && event.data !== window.YT.PlayerState.BUFFERING;
 
     if (event.data === window.YT.PlayerState.PLAYING) {
-      if (isSeek) {
-        emitSync('seek', time);
-      }
+      if (isSeek) emitSync('seek', time);
       emitSync('play', time);
     } else if (event.data === window.YT.PlayerState.PAUSED) {
-      if (isSeek) {
-        emitSync('seek', time);
-      }
+      if (isSeek) emitSync('seek', time);
       emitSync('pause', time);
     }
 
@@ -126,13 +172,11 @@
 
     syncStatus = 'syncing';
 
-    // If partner loaded a different video, switch to it
     if (event.videoId && event.videoId !== currentVideoId) {
       currentVideoId = event.videoId;
       videoInput = event.videoId;
       currentVideoTitle = '';
       player.loadVideoById(event.videoId);
-      // Wait for video to load before seeking/playing
       setTimeout(() => applySyncAction(event), 800);
       return;
     }
@@ -158,7 +202,6 @@
       player.seekTo(event.time, true);
     }
 
-    // Clear sync flag once the state change settles
     requestAnimationFrame(() => {
       setTimeout(() => {
         isSyncing = false;
@@ -172,15 +215,21 @@
     if (!id) return;
 
     if (player && playerReady) {
-      // Use cueVideoById to avoid triggering autoplay/play state change
       (player as unknown as { cueVideoById: (id: string) => void }).cueVideoById(id);
       currentVideoId = id;
       currentVideoTitle = '';
       updateTitle();
-      // Explicitly broadcast the video change
       emitSync('seek', 0);
     } else if (apiLoaded || window.YT?.Player) {
       initPlayer(id);
+    } else {
+      // Wait for API then init
+      loadYouTubeAPI()
+        .then(() => initPlayer(id))
+        .catch((err) => {
+          console.error('[YouTube] Failed to load API:', err);
+          apiError = true;
+        });
     }
   }
 
@@ -211,35 +260,46 @@
 
   onDestroy(() => {
     if (player) {
-      player.destroy();
+      try {
+        player.destroy();
+      } catch {
+        // ignore
+      }
       player = null;
     }
   });
 </script>
 
 {#if isAuthenticated()}
-  <div class="max-w-5xl mx-auto px-4 py-6" in:fade>
-    <h2 class="text-2xl font-bold mb-6">🎵 Listen Together</h2>
+  <div class="px-3 py-4 space-y-4" in:fade>
+    <h2 class="text-xl font-bold">🎵 Listen Together</h2>
 
     {#if apiError}
-      <div class="glass rounded-xl p-4 mb-4 text-rina-rose text-sm text-center">
-        Failed to load YouTube API. Please check your connection or try again.
+      <div class="glass rounded-xl p-4 text-rina-rose text-sm text-center">
+        <p class="font-semibold mb-1">Failed to load YouTube API</p>
+        <p class="text-xs text-rina-slate">Please check your connection or try again.</p>
+        <button
+          onclick={() => { apiError = false; loadYouTubeAPI().then(() => { if (videoInput) loadVideo(); }); }}
+          class="mt-2 px-4 py-1.5 rounded-lg bg-white/5 text-xs hover:bg-white/10 transition-colors"
+        >
+          Retry
+        </button>
       </div>
     {/if}
 
-    <GlassCard class="mb-6">
+    <GlassCard class="mb-4">
       <div class="flex gap-2">
         <input
           bind:value={videoInput}
           placeholder="Paste YouTube URL or Video ID..."
-          class="flex-1 px-4 py-3 rounded-xl bg-rina-bg border border-rina-border text-white placeholder-rina-slate-dark
+          class="input-safe flex-1 px-4 py-3 rounded-xl bg-rina-bg border border-rina-border text-white placeholder-rina-slate-dark
             focus:outline-none focus:border-rina-rose/50 transition-all"
           onkeydown={(e) => e.key === 'Enter' && loadVideo()}
         />
         <button
           onclick={loadVideo}
           disabled={!videoInput.trim() || apiError}
-          class="px-6 py-3 rounded-xl bg-rina-rose text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+          class="touch-target px-5 py-3 rounded-xl bg-rina-rose text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
         >
           Load
         </button>
@@ -254,9 +314,9 @@
 
     <!-- Player Container -->
     <div class="glass rounded-2xl overflow-hidden aspect-video relative" in:scale>
-      <div id="yt-player" class="w-full h-full"></div>
+      <div id={playerContainerId} class="w-full h-full"></div>
       {#if !playerReady}
-        <div class="absolute inset-0 flex flex-col items-center justify-center text-rina-slate">
+        <div class="absolute inset-0 flex flex-col items-center justify-center text-rina-slate pointer-events-none">
           <span class="text-5xl mb-4">🎵</span>
           <p class="text-lg font-medium">Paste a YouTube link to start listening together</p>
           <p class="text-sm text-rina-slate-dark mt-1">Play, pause, and seek are synced in real-time</p>
@@ -264,7 +324,7 @@
       {/if}
     </div>
 
-    <div class="mt-4 text-center">
+    <div class="text-center">
       <p class="text-xs text-rina-slate-dark">
         💡 Synced to the millisecond via Socket.io. Your partner's player will mirror yours automatically.
       </p>
