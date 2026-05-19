@@ -48,7 +48,12 @@ for i in {1..15}; do
 done
 
 LOG "📜 Requesting certificate from Let's Encrypt..."
-docker compose run --rm certbot certonly --webroot \
+
+# Remove dummy cert so certbot can create a real one
+docker run --rm -v rina-certbot-data:/etc/letsencrypt nginx:alpine sh -c \
+  "rm -rf /etc/letsencrypt/live/$DOMAIN /etc/letsencrypt/archive/$DOMAIN 2>/dev/null; echo 'Cleaned old cert'"
+
+docker compose run --rm --entrypoint certbot certbot certonly --webroot \
   -w /var/www/certbot \
   --email "$EMAIL" \
   -d "$DOMAIN" \
