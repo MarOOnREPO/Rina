@@ -186,7 +186,7 @@
     </GlassCard>
 
     {#if showAdd}
-      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" transition:fade onclick={() => showAdd = false}>
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" transition:fade role="button" tabindex="0" onclick={() => showAdd = false} onkeydown={(e) => e.key === 'Escape' && (showAdd = false)}>
         <div class="glass-strong rounded-2xl p-6 w-full max-w-sm" transition:scale onclick={(e) => e.stopPropagation()}>
           <h3 class="text-lg font-semibold mb-4">Add Meal</h3>
           <input

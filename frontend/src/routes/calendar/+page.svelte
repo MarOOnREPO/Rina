@@ -411,7 +411,7 @@
 
     <!-- Cycle Settings Modal -->
     {#if showCycleSettings}
-      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" transition:fade onclick={() => showCycleSettings = false}>
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" transition:fade role="button" tabindex="0" onclick={() => showCycleSettings = false} onkeydown={(e) => e.key === 'Escape' && (showCycleSettings = false)}>
         <div class="glass-strong rounded-2xl p-6 w-full max-w-sm" transition:fly={{ y: 20 }} onclick={(e) => e.stopPropagation()}>
           <h3 class="text-lg font-semibold mb-4">Cycle Settings</h3>
           <div class="space-y-4">
@@ -434,7 +434,7 @@
 
     <!-- Event Modal (Create/Edit) -->
     {#if showEventModal}
-      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" transition:fade onclick={() => showEventModal = false}>
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" transition:fade role="button" tabindex="0" onclick={() => showEventModal = false} onkeydown={(e) => e.key === 'Escape' && (showEventModal = false)}>
         <div class="glass-strong rounded-2xl p-6 w-full max-w-md" transition:fly={{ y: 20 }} onclick={(e) => e.stopPropagation()}>
           <h3 class="text-lg font-semibold mb-4">
             {modalMode === 'edit' ? 'Edit Event' : 'Add Event'} — {selectedDate}

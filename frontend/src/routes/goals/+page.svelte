@@ -279,7 +279,7 @@
 
     <!-- Add/Edit Modal -->
     {#if showAddModal}
-      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" transition:fade onclick={() => showAddModal = false}>
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" transition:fade role="button" tabindex="0" onclick={() => showAddModal = false} onkeydown={(e) => e.key === 'Escape' && (showAddModal = false)}>
         <div class="glass-strong rounded-2xl p-6 w-full max-w-sm" transition:scale onclick={(e) => e.stopPropagation()}>
           <h3 class="text-lg font-semibold mb-4">{editingGoal ? 'Edit Goal' : 'New Goal'}</h3>
           <div class="space-y-4">
@@ -327,7 +327,7 @@
 
     <!-- Contribute Modal -->
     {#if showContributeModal && contributingGoal}
-      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" transition:fade onclick={() => showContributeModal = false}>
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" transition:fade role="button" tabindex="0" onclick={() => showContributeModal = false} onkeydown={(e) => e.key === 'Escape' && (showContributeModal = false)}>
         <div class="glass-strong rounded-2xl p-6 w-full max-w-sm" transition:scale onclick={(e) => e.stopPropagation()}>
           <h3 class="text-lg font-semibold mb-1">Contribute</h3>
           <p class="text-xs text-rina-slate mb-4">{contributingGoal.title}</p>
