@@ -11,8 +11,7 @@ if (!REDIS_URL) {
 // ─── Core Redis Client ───────────────────────────────────────────
 export const redis = new Redis(REDIS_URL, {
   retryStrategy: (times) => Math.min(times * 50, 2000),
-  maxRetriesPerRequest: 3,
-  enableOfflineQueue: false
+  maxRetriesPerRequest: 3
 });
 
 redis.on('error', (err) => {
@@ -89,8 +88,7 @@ export const presence = {
 export function setupSocketAdapter(io: SocketIOServer): void {
   const pubClient = new Redis(REDIS_URL, {
     retryStrategy: (times) => Math.min(times * 50, 2000),
-    maxRetriesPerRequest: 3,
-    enableOfflineQueue: false
+    maxRetriesPerRequest: 3
   });
   const subClient = pubClient.duplicate();
 
