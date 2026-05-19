@@ -327,20 +327,28 @@ interface SpotifyTrack {
 interface SpotifyDevice {
   id: string;
   name: string;
+  type: string;
   is_active: boolean;
+}
+
+interface SpotifyApiResponse<T = unknown> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  status: number;
 }
 
 export const spotifyApi = {
   connect: (body: { accessToken: string; refreshToken: string; expiresIn: number }) =>
     api.post<void>('/spotify/connect', body),
   disconnect: () => api.delete<void>('/spotify/connect'),
-  me: () => api.get<{ id: string; display_name?: string; email?: string }>('/spotify/me'),
-  devices: () => api.get<{ devices: SpotifyDevice[] }>('/spotify/devices'),
-  search: (q: string) => api.get<{ tracks?: { items: SpotifyTrack[] } }>(`/spotify/search?q=${encodeURIComponent(q)}`),
-  play: (body: { uris?: string[]; position_ms?: number; device_id?: string }) => api.put<void>('/spotify/play', body),
+  me: () => api.get<SpotifyApiResponse<{ item?: SpotifyTrack; is_playing?: boolean }>>('/spotify/me'),
+  devices: () => api.get<SpotifyApiResponse<{ devices: SpotifyDevice[] }>>('/spotify/devices'),
+  search: (q: string) => api.get<SpotifyApiResponse<{ tracks?: { items: SpotifyTrack[] } }>>(`/spotify/search?q=${encodeURIComponent(q)}`),
+  play: (body: { uris?: string[]; position_ms?: number; device_id?: string }) => api.put<SpotifyApiResponse<unknown>>('/spotify/play', body),
   pause: (query?: { device_id?: string }) => {
     const qs = query ? `?${new URLSearchParams(query).toString()}` : '';
-    return api.put<void>(`/spotify/pause${qs}`, {});
+    return api.put<SpotifyApiResponse<unknown>>(`/spotify/pause${qs}`, {});
   },
-  seek: (body: { position_ms: number; device_id?: string }) => api.put<void>('/spotify/seek', body)
+  seek: (body: { position_ms: number; device_id?: string }) => api.put<SpotifyApiResponse<unknown>>('/spotify/seek', body)
 };

@@ -29,20 +29,30 @@
   interface SpotifyDevice {
     id: string;
     name: string;
+    type: string;
     is_active: boolean;
+  }
+
+  interface LocalTrack {
+    uri: string;
+    name: string;
+    artists?: SpotifyArtist[] | string;
+    artist?: string;
+    image?: string;
+    album?: SpotifyAlbum;
   }
 
   let query = $state('');
   let results = $state<SpotifyTrack[]>([]);
   let loading = $state(false);
   let error = $state('');
-  let currentTrack = $state<SpotifyTrack | null>(null);
+  let currentTrack = $state<LocalTrack | null>(null);
   let isPlaying = $state(false);
   let isConnected = $state(false);
   let devices = $state<SpotifyDevice[]>([]);
   let selectedDevice = $state('');
   let searchFocused = $state(false);
-  let clientIdWarning = $state(SPOTIFY_CLIENT_ID === 'YOUR_SPOTIFY_CLIENT_ID_HERE');
+  let clientIdWarning = $state((SPOTIFY_CLIENT_ID as string) === 'YOUR_SPOTIFY_CLIENT_ID_HERE');
 
   onMount(() => {
     socketStore.emit('spotify:join');
@@ -59,7 +69,7 @@
       isConnected = res.success;
       if (res.data?.item) {
         currentTrack = res.data.item;
-        isPlaying = res.data.is_playing;
+        isPlaying = res.data.is_playing ?? false;
       }
     } catch {
       isConnected = false;
@@ -69,7 +79,7 @@
   async function loadDevices() {
     try {
       const res = await spotifyApi.devices();
-      if (res.success) devices = res.data.devices || [];
+      if (res.success && res.data) devices = res.data.devices || [];
     } catch {
       /* ignore */
     }
@@ -290,7 +300,7 @@
           {#each results as track}
             <button
               onclick={() => {
-                playTrack(track.uri, track.name, track.artists.map((a: SpotifyArtist) => a.name).join(', '), getSmallestImage(track.album.images));
+                playTrack(track.uri, track.name, track.artists.map((a: SpotifyArtist) => a.name).join(', '), getSmallestImage(track.album.images) || '');
                 searchFocused = false;
               }}
               class="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 transition text-left group"
@@ -321,7 +331,11 @@
         {/if}
         <div class="flex-1 min-w-0">
           <p class="text-sm text-white truncate font-medium">{currentTrack.name}</p>
-          <p class="text-xs text-rina-slate-dark truncate">{currentTrack.artists || (currentTrack.artist ? currentTrack.artist : 'Spotify')}</p>
+          <p class="text-xs text-rina-slate-dark truncate">
+            {Array.isArray(currentTrack.artists)
+              ? currentTrack.artists.map((a) => a.name).join(', ')
+              : (currentTrack.artists || currentTrack.artist || 'Spotify')}
+          </p>
         </div>
         <button
           onclick={togglePlay}

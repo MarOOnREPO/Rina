@@ -68,8 +68,9 @@
 
       window.opener?.postMessage({ type: 'SPOTIFY_CONNECTED' }, window.location.origin);
     } catch (err) {
-      popupError = err instanceof Error ? err.message : String(err);
-      window.opener?.postMessage({ type: 'SPOTIFY_CONNECTED', error: err.message }, window.location.origin);
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      popupError = errorMsg;
+      window.opener?.postMessage({ type: 'SPOTIFY_CONNECTED', error: errorMsg }, window.location.origin);
     } finally {
       sessionStorage.removeItem('spotify_code_verifier');
       setTimeout(() => window.close(), 800);
