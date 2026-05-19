@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { isAuthenticated, isLoading } from '$lib/stores/auth.svelte';
-  import { fade, fly, slide } from 'svelte/transition';
+  import { fade, fly, slide, scale } from 'svelte/transition';
   import { calendarApi, type CalendarEvent, cycleApi, type CycleEntry } from '$lib/utils/api';
   import { formatTime, formatDate, getUserTimezone, isoToDatetimeLocal, datetimeLocalToIso } from '$lib/utils/timezone';
   import GlassCard from '$lib/components/GlassCard.svelte';

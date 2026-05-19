@@ -6,11 +6,13 @@
   import { scrapbookApi, type ScrapbookPhoto } from '$lib/utils/api';
   import GlassCard from '$lib/components/GlassCard.svelte';
   import 'mapbox-gl/dist/mapbox-gl.css';
+import type { Map } from 'mapbox-gl';
 
   const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || '';
 
   let mapContainer: HTMLDivElement | undefined = $state();
-  let mapInstance: mapboxgl.Map | null = $state(null);
+  let mapInstance: Map | null = $state(null);
+  let mapboxModule: typeof import('mapbox-gl').default | null = null;
   let mapError = $state('');
   let loading = $state(true);
   let photos: ScrapbookPhoto[] = $state([]);
@@ -32,7 +34,8 @@
     }
   }
 
-  function addMarkers(map: mapboxgl.Map, markers: Array<{ lat?: number; lng?: number; caption?: string; url?: string; takenAt?: string; year?: number }>) {
+  function addMarkers(map: Map, markers: Array<{ lat?: number; lng?: number; caption?: string; url?: string; takenAt?: string; year?: number }>) {
+    if (!mapboxModule) return;
     const validMarkers = markers.filter((p) => typeof p.lat === 'number' && typeof p.lng === 'number');
     if (validMarkers.length === 0) return;
 
@@ -51,9 +54,9 @@
             <p style="font-size:12px;color:#666;margin:4px 0 0">${photo.year || ''}</p>
           </div>`;
 
-      new mapboxgl.Marker(el)
+      new mapboxModule!.Marker(el)
         .setLngLat([photo.lng!, photo.lat!])
-        .setPopup(new mapboxgl.Popup({ offset: 8 }).setHTML(popupHtml))
+        .setPopup(new mapboxModule!.Popup({ offset: 8 }).setHTML(popupHtml))
         .addTo(map);
     });
   }
@@ -70,6 +73,7 @@
     // Defer map init to next tick so DOM container is guaranteed mounted
     requestAnimationFrame(() => {
       import('mapbox-gl').then((mapboxgl) => {
+        mapboxModule = mapboxgl.default;
         mapboxgl.default.accessToken = MAPBOX_TOKEN;
 
         const map = new mapboxgl.default.Map({

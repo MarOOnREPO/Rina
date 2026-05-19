@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { isAuthenticated, isLoading, currentUser } from '$lib/stores/auth.svelte';
+  import { isAuthenticated, isLoading } from '$lib/stores/auth.svelte';
   import { socketStore, partnerPresence } from '$lib/stores/socket.svelte';
   import { notificationApi, type AppNotification } from '$lib/utils/api';
   import { fade, fly } from 'svelte/transition';
