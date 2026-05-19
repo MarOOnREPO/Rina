@@ -68,13 +68,11 @@ done
 # ─── Database migrations ─────────────────────────────────────────
 LOG "🗄️ Running database migrations..."
 
-docker build --target builder -t rina-backend-builder ./backend
+# Build backend image first so the migration runs in the correct service context
+docker compose build backend
 
-docker run --rm \
-  --network rina-data \
-  -e DATABASE_URL="$DATABASE_URL" \
-  rina-backend-builder \
-  npx prisma migrate deploy
+# Run migrations via docker compose so networking & env vars are handled correctly
+docker compose run --rm --no-deps backend npx prisma migrate deploy
 
 # ─── Build & start all services ──────────────────────────────────
 LOG "🏗️ Building and starting all services..."
