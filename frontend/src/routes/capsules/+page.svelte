@@ -210,7 +210,7 @@
 
     <!-- Create Modal -->
     {#if showAdd}
-      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" transition:fade onclick={() => showAdd = false}>
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" transition:fade role="button" tabindex="0" onclick={() => showAdd = false} onkeydown={(e) => e.key === 'Escape' && (showAdd = false)}>
         <div class="glass-strong rounded-2xl p-6 w-full max-w-sm" transition:scale onclick={(e) => e.stopPropagation()}>
           <h3 class="text-lg font-semibold mb-4">New Time Capsule</h3>
           <div class="space-y-4">
@@ -245,7 +245,7 @@
 
     <!-- Reveal Modal -->
     {#if showReveal && revealCapsule}
-      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" transition:fade onclick={() => showReveal = false}>
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" transition:fade role="button" tabindex="0" onclick={() => showReveal = false} onkeydown={(e) => e.key === 'Escape' && (showReveal = false)}>
         <div class="glass-strong rounded-2xl p-6 w-full max-w-sm" transition:scale onclick={(e) => e.stopPropagation()}>
           <h3 class="text-lg font-semibold mb-1">🔓 {revealCapsule.title}</h3>
           <p class="text-xs text-rina-slate mb-4">Enter the shared passphrase to decrypt</p>
