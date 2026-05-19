@@ -120,29 +120,32 @@
         <p class="text-[10px] text-rina-slate-dark mt-1">Prochain événement →</p>
       </PatchworkTile>
 
+      <!-- Cinema -->
+      <PatchworkTile href="/cinema" icon="🍿" title="Cinema" subtitle="Watch together" color="from-rose-500/15 to-rose-500/5" delay={180} />
+
       <!-- Movies -->
-      <PatchworkTile href="/movies" icon="🎬" title="Movies" subtitle="À voir ensemble" color="from-amber-500/15 to-amber-500/5" delay={200} />
+      <PatchworkTile href="/movies" icon="🎬" title="Movies" subtitle="À voir ensemble" color="from-amber-500/15 to-amber-500/5" delay={220} />
 
       <!-- Music -->
-      <PatchworkTile href="/listen" icon="🎵" title="Music" subtitle="Écoute synchronisée" color="from-pink-500/15 to-pink-500/5" delay={260} />
+      <PatchworkTile href="/jam" icon="🎵" title="Spotify Jam" subtitle="Écoute synchronisée" color="from-pink-500/15 to-pink-500/5" delay={280} />
 
       <!-- Food -->
-      <PatchworkTile href="/roulette" icon="🍽️" title="Food" subtitle="Roulette des repas" color="from-orange-500/15 to-orange-500/5" delay={320} />
+      <PatchworkTile href="/roulette" icon="🍽️" title="Food" subtitle="Roulette des repas" color="from-orange-500/15 to-orange-500/5" delay={340} />
 
       <!-- Video -->
-      <PatchworkTile href="/video" icon="📹" title="Video Call" subtitle="Appel visio" color="from-rina-indigo/15 to-rina-indigo/5" delay={380} />
+      <PatchworkTile href="/video" icon="📹" title="Video Call" subtitle="Appel visio" color="from-rina-indigo/15 to-rina-indigo/5" delay={400} />
 
       <!-- Capsules -->
-      <PatchworkTile href="/capsules" icon="🔐" title="Capsules" subtitle="Messages temporels" color="from-violet-500/15 to-violet-500/5" delay={440} />
+      <PatchworkTile href="/capsules" icon="🔐" title="Capsules" subtitle="Messages temporels" color="from-violet-500/15 to-violet-500/5" delay={460} />
 
       <!-- Goals -->
-      <PatchworkTile href="/goals" icon="🎯" title="Goals" subtitle="Objectifs communs" color="from-cyan-500/15 to-cyan-500/5" delay={500} />
+      <PatchworkTile href="/goals" icon="🎯" title="Goals" subtitle="Objectifs communs" color="from-cyan-500/15 to-cyan-500/5" delay={520} />
 
       <!-- Map -->
-      <PatchworkTile href="/map" icon="🗺️" title="Map" subtitle="Notre monde" color="from-teal-500/15 to-teal-500/5" delay={560} />
+      <PatchworkTile href="/map" icon="🗺️" title="Map" subtitle="Notre monde" color="from-teal-500/15 to-teal-500/5" delay={580} />
 
       <!-- Whiteboard -->
-      <PatchworkTile href="/whiteboard" icon="🎨" title="Whiteboard" subtitle="Dessin collaboratif" color="from-fuchsia-500/15 to-fuchsia-500/5" delay={620} />
+      <PatchworkTile href="/whiteboard" icon="🎨" title="Whiteboard" subtitle="Dessin collaboratif" color="from-fuchsia-500/15 to-fuchsia-500/5" delay={640} />
     </div>
   </div>
 {/if}

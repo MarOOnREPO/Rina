@@ -129,17 +129,21 @@
     });
   }
 
+  let titleRetries = 0;
   function updateTitle() {
     if (!player) return;
+    if (titleRetries > 10) return;
     try {
       const data = player.getVideoData?.();
       if (data?.title) {
         currentVideoTitle = data.title;
+        titleRetries = 0;
       } else {
+        titleRetries++;
         setTimeout(updateTitle, 500);
       }
     } catch {
-      // API may not be ready yet
+      titleRetries++;
       setTimeout(updateTitle, 500);
     }
   }
@@ -176,8 +180,9 @@
       currentVideoId = event.videoId;
       videoInput = event.videoId;
       currentVideoTitle = '';
-      player.loadVideoById(event.videoId);
-      setTimeout(() => applySyncAction(event), 800);
+      // Cue instead of load to avoid unwanted autoplay; sync action handles play/pause
+      (player as unknown as { cueVideoById: (id: string) => void }).cueVideoById(event.videoId);
+      setTimeout(() => applySyncAction(event), 300);
       return;
     }
 
@@ -215,11 +220,11 @@
     if (!id) return;
 
     if (player && playerReady) {
-      (player as unknown as { cueVideoById: (id: string) => void }).cueVideoById(id);
+      player.loadVideoById(id);
       currentVideoId = id;
       currentVideoTitle = '';
       updateTitle();
-      emitSync('seek', 0);
+      // Play state change will emit sync automatically; don't force-seek here
     } else if (apiLoaded || window.YT?.Player) {
       initPlayer(id);
     } else {
@@ -267,6 +272,7 @@
       }
       player = null;
     }
+    ytApiPromise = null;
   });
 </script>
 

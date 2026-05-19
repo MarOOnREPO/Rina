@@ -13,7 +13,8 @@
 
   const featureItems = [
     { path: '/goals', label: 'Goals', icon: '🎯' },
-    { path: '/listen', label: 'Music', icon: '🎵' },
+    { path: '/cinema', label: 'Cinema', icon: '🍿' },
+    { path: '/jam', label: 'Jam', icon: '🎵' },
     { path: '/movies', label: 'Movies', icon: '🎬' },
     { path: '/video', label: 'Video', icon: '📹' },
     { path: '/capsules', label: 'Capsules', icon: '🔐' },

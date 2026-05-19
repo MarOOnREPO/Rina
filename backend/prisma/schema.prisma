@@ -36,6 +36,7 @@ model User {
   notifications      Notification[]
   partnershipsA      Partnership[] @relation("UserAPartnerships")
   partnershipsB      Partnership[] @relation("UserBPartnerships")
+  spotifyToken       SpotifyToken?
 }
 
 // ─── Calendar Events ─────────────────────────────────────────────
@@ -244,6 +245,19 @@ model Notification {
 
   @@index([userId, read])
   @@index([createdAt])
+}
+
+// ─── Spotify OAuth Tokens ────────────────────────────────────────
+model SpotifyToken {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  accessToken  String   @db.VarChar(500)
+  refreshToken String   @db.VarChar(500)
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // ─── Web Push Subscriptions ──────────────────────────────────────

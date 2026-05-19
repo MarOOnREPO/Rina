@@ -7,7 +7,17 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
-    host: true
+    host: true,
+    hmr: {
+      overlay: false
+    },
+    proxy: {
+      '/api': 'http://localhost:3000',
+      '/socket.io': {
+        target: 'http://localhost:3000',
+        ws: true
+      }
+    }
   },
   preview: {
     port: 4173,

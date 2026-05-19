@@ -292,3 +292,28 @@ export const notificationApi = {
   markRead: (ids?: string[]) =>
     api.post<void>('/auth/notifications/read', { ids })
 };
+
+// ─── Cinema API ──────────────────────────────────────────────────
+export const cinemaApi = {
+  start: (body: { type: 'torrent' | 'direct'; uri: string }) =>
+    api.post<{ id: string; status: string; playlistUrl: string; error?: string }>('/cinema/session', body),
+  status: (id: string) =>
+    api.get<{ id: string; status: string; source: any; createdAt: number; error?: string }>(`/cinema/session/${id}`),
+  destroy: (id: string) => api.delete<void>(`/cinema/session/${id}`)
+};
+
+// ─── Spotify API ─────────────────────────────────────────────────
+export const spotifyApi = {
+  connect: (body: { accessToken: string; refreshToken: string; expiresIn: number }) =>
+    api.post<void>('/spotify/connect', body),
+  disconnect: () => api.delete<void>('/spotify/connect'),
+  me: () => api.get<any>('/spotify/me'),
+  devices: () => api.get<any>('/spotify/devices'),
+  search: (q: string) => api.get<any>(`/spotify/search?q=${encodeURIComponent(q)}`),
+  play: (body: any) => api.put<any>('/spotify/play', body),
+  pause: (query?: any) => {
+    const qs = query ? `?${new URLSearchParams(query).toString()}` : '';
+    return api.put<any>(`/spotify/pause${qs}`, {});
+  },
+  seek: (body: any) => api.put<any>('/spotify/seek', body)
+};

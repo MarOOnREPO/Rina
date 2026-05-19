@@ -15,6 +15,7 @@
     "format:check": "prettier --check ."
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@sveltejs/adapter-static": "^3.0.1",
     "@sveltejs/kit": "^2.5.0",
     "@sveltejs/vite-plugin-svelte": "^4.0.0",
@@ -44,6 +45,7 @@
     "@excalidraw/excalidraw": "^0.17.6",
     "bcryptjs": "^3.0.3",
     "gsap": "^3.12.5",
+    "hls.js": "^1.6.16",
     "mapbox-gl": "^3.3.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

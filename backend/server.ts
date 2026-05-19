@@ -28,6 +28,8 @@ import uploadRoutes from './src/routes/uploads.js';
 import rtcRoutes from './src/routes/rtc.js';
 import whiteboardRoutes from './src/routes/whiteboard.js';
 import cycleRoutes from './src/routes/cycle.js';
+import cinemaRoutes from './src/routes/cinema.js';
+import spotifyRoutes from './src/routes/spotify.js';
 
 // ─── Secret Validation ─────────────────────────────────────────
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -401,6 +403,73 @@ io.on('connection', async (socket: Socket) => {
     }
   });
 
+  // ─── Cinema Sync (Watch Together) ──────────────────────────
+  socket.on('cinema:join', async (data: { sessionId: string }) => {
+    socket.join(`cinema:${data.sessionId}`);
+    console.log(`[Cinema] ${user.displayName} joined session ${data.sessionId}`);
+  });
+
+  socket.on('cinema:control', async (data: { sessionId: string; action: 'play' | 'pause' | 'seek'; time: number; clientTime: number }) => {
+    const room = `cinema:${data.sessionId}`;
+    io.to(room).emit('cinema:sync', {
+      ...data,
+      sender: user.username,
+      senderDisplayName: user.displayName,
+      serverTime: Date.now()
+    });
+  });
+
+  socket.on('cinema:leave', async (data: { sessionId: string }) => {
+    socket.leave(`cinema:${data.sessionId}`);
+  });
+
+  // ─── Spotify Jam Sync ──────────────────────────────────────
+  socket.on('spotify:join', async () => {
+    socket.join('spotify-jam');
+    console.log(`[Spotify] ${user.displayName} joined jam`);
+  });
+
+  socket.on('spotify:control', async (data: { action: 'play' | 'pause' | 'seek' | 'track'; uri?: string; position_ms: number; device_id?: string }) => {
+    const partner = await getPartner(user.id);
+    if (!partner) return;
+
+    const tokens = await prisma.spotifyToken.findUnique({ where: { userId: partner.id } });
+    if (!tokens) {
+      socket.emit('spotify:error', { message: 'Partner has not connected Spotify' });
+      return;
+    }
+
+    const { spotifyApiRequest } = await import('./src/services/spotify.js');
+    try {
+      if (data.action === 'play' || data.action === 'track') {
+        const payload: any = { position_ms: data.position_ms };
+        if (data.uri) payload.uris = [data.uri];
+        const endpoint = data.device_id ? `/me/player/play?device_id=${data.device_id}` : '/me/player/play';
+        await spotifyApiRequest(endpoint, { method: 'PUT', body: JSON.stringify(payload) }, partner.id);
+      } else if (data.action === 'pause') {
+        const endpoint = data.device_id ? `/me/player/pause?device_id=${data.device_id}` : '/me/player/pause';
+        await spotifyApiRequest(endpoint, { method: 'PUT' }, partner.id);
+      } else if (data.action === 'seek') {
+        const query = new URLSearchParams({ position_ms: String(data.position_ms) });
+        if (data.device_id) query.set('device_id', data.device_id);
+        await spotifyApiRequest(`/me/player/seek?${query.toString()}`, { method: 'PUT' }, partner.id);
+      }
+
+      io.to('spotify-jam').emit('spotify:state', {
+        ...data,
+        sender: user.username,
+        senderDisplayName: user.displayName,
+        serverTime: Date.now()
+      });
+    } catch (err: any) {
+      socket.emit('spotify:error', { message: err.message || 'Spotify command failed' });
+    }
+  });
+
+  socket.on('spotify:leave', async () => {
+    socket.leave('spotify-jam');
+  });
+
   // ─── Disconnection ─────────────────────────────────────────
   socket.on('disconnect', async (reason: string) => {
     console.log(`[Socket] ${user.displayName} disconnected (${reason})`);
@@ -480,6 +549,8 @@ await app.register(uploadRoutes, { prefix: '/api/upload' });
 await app.register(rtcRoutes, { prefix: '/api/rtc' });
 await app.register(whiteboardRoutes, { prefix: '/api/whiteboard' });
 await app.register(cycleRoutes, { prefix: '/api/cycle' });
+await app.register(cinemaRoutes, { prefix: '/api/cinema' });
+await app.register(spotifyRoutes, { prefix: '/api/spotify' });
 
 // ─── Global Error Handler ──────────────────────────────────────
 app.setErrorHandler((error, _request, reply) => {

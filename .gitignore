@@ -36,3 +36,9 @@ nginx/default.conf
 
 # Local backups
 backups/
+
+# Playwright
+playwright-report/
+test-results/
+playwright/.auth/
+**/playwright/.auth/

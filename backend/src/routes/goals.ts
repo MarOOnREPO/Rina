@@ -9,7 +9,10 @@ const goalSchema = z.object({
   targetAmount: z.number().int().positive(),
   currentAmount: z.number().int().min(0).default(0),
   currency: z.string().max(3).default('EUR'),
-  deadline: z.string().datetime().optional(),
+  deadline: z.preprocess(
+    (val) => (typeof val === 'string' && val.trim() === '' ? undefined : val),
+    z.string().optional()
+  ),
   icon: z.string().max(50).optional()
 });
 
@@ -33,7 +36,11 @@ export default async function goalRoutes(fastify: FastifyInstance, _opts: Fastif
     try {
       const data = goalSchema.parse(request.body);
       const goal = await prisma.goal.create({
-        data: { ...data, createdBy: request.user!.id }
+        data: {
+          ...data,
+          deadline: data.deadline ? new Date(data.deadline + 'T00:00:00.000Z') : undefined,
+          createdBy: request.user!.id
+        }
       });
       await broadcastToPartner(request.user!.id, { type: 'goal', action: 'created', data: goal });
       return reply.status(201).send(goal);
@@ -62,7 +69,10 @@ export default async function goalRoutes(fastify: FastifyInstance, _opts: Fastif
 
       const goal = await prisma.goal.update({
         where: { id: params.id },
-        data
+        data: {
+          ...data,
+          deadline: data.deadline ? new Date(data.deadline + 'T00:00:00.000Z') : undefined
+        }
       });
       await broadcastToPartner(request.user!.id, { type: 'goal', action: 'updated', data: goal });
       return reply.send(goal);

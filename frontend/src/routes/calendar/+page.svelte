@@ -8,7 +8,8 @@
   import GlassCard from '$lib/components/GlassCard.svelte';
   import CountdownTimer from '$lib/components/CountdownTimer.svelte';
   import { countdownApi, type Countdown } from '$lib/utils/api';
-import { globalSync } from '$lib/stores/socket.svelte';
+  import { globalSync } from '$lib/stores/socket.svelte';
+  import CyclePhaseOrb from '$lib/components/CyclePhaseOrb.svelte';
 
   let currentDate = $state(new Date());
   let events: CalendarEvent[] = $state([]);
@@ -197,7 +198,7 @@ import { globalSync } from '$lib/stores/socket.svelte';
   );
 
   // ─── Cycle Tracker ─────────────────────────────────────────────
-  let cycleEntries: CycleEntry[] = [];
+  let cycleEntries = $state<CycleEntry[]>([]);
   let showCycleSettings = $state(false);
   let cycleStartStr = $state('');
   let cycleLength = $state(28);
@@ -318,6 +319,9 @@ import { globalSync } from '$lib/stores/socket.svelte';
     {/if}
 
     {#if viewMode === 'grid'}
+      <!-- Cycle Phase Visualizer -->
+      <CyclePhaseOrb lastPeriodStart={getLastPeriodStart()} {cycleLength} />
+
       <!-- Month Grid -->
       <GlassCard class="mb-4">
         <div class="flex items-center justify-between mb-4">
@@ -337,16 +341,14 @@ import { globalSync } from '$lib/stores/socket.svelte';
             {#if cell}
               {@const { day, dateStr, events: dayEvents } = cell}
               {@const period = isPeriodDay(day)}
-              {@const fertile = isFertileDay(day)}
               <button
                 onclick={() => openCreateModal(dateStr)}
                 class="relative aspect-square rounded-xl p-1 flex flex-col items-start gap-0.5
                   hover:bg-white/5 transition-colors text-left touch-target
                   {isToday(day) ? 'ring-2 ring-rina-rose ring-offset-2 ring-offset-rina-bg' : ''}
-                  {period ? 'bg-red-500/10' : ''}
-                  {fertile && !period ? 'bg-blue-500/10' : ''}"
+                  {period ? 'bg-rose-500/[0.07]' : ''}"
               >
-                <span class="text-xs font-medium {isToday(day) ? 'text-rina-rose' : period ? 'text-red-400' : fertile ? 'text-blue-400' : 'text-white'}">
+                <span class="text-xs font-medium {isToday(day) ? 'text-rina-rose' : period ? 'text-rose-300' : 'text-white'}">
                   {day}
                 </span>
                 {#if dayEvents.length > 0}
@@ -359,14 +361,9 @@ import { globalSync } from '$lib/stores/socket.svelte';
                     {/if}
                   </div>
                 {/if}
-                <div class="absolute top-0.5 right-0.5 flex gap-[2px]">
-                  {#if period}
-                    <span class="w-1 h-1 rounded-full bg-red-500" title="Period"></span>
-                  {/if}
-                  {#if fertile}
-                    <span class="w-1 h-1 rounded-full bg-blue-500" title="Fertile window"></span>
-                  {/if}
-                </div>
+                {#if period}
+                  <div class="absolute top-0.5 right-0.5 w-1 h-1 rounded-full bg-rose-400/70 shadow-[0_0_4px_rgba(251,113,133,0.4)]"></div>
+                {/if}
               </button>
             {:else}
               <div class="aspect-square"></div>
@@ -378,8 +375,7 @@ import { globalSync } from '$lib/stores/socket.svelte';
           <div class="flex items-center gap-2 flex-wrap">
             <div class="flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-full bg-rina-rose"></div>Shared</div>
             <div class="flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-full bg-rina-indigo"></div>Work</div>
-            <div class="flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-full bg-red-500"></div>Period</div>
-            <div class="flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-full bg-blue-500"></div>Fertile</div>
+            <div class="flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-full bg-rose-400"></div>Period</div>
           </div>
           <button onclick={() => showCycleSettings = true} class="hover:text-rina-rose transition-colors">⚙️ Cycle</button>
         </div>
