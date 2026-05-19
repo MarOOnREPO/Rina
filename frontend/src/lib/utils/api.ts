@@ -298,22 +298,49 @@ export const cinemaApi = {
   start: (body: { type: 'torrent' | 'direct'; uri: string }) =>
     api.post<{ id: string; status: string; playlistUrl: string; error?: string }>('/cinema/session', body),
   status: (id: string) =>
-    api.get<{ id: string; status: string; source: any; createdAt: number; error?: string }>(`/cinema/session/${id}`),
+    api.get<{ id: string; status: string; source: { type: string; uri: string }; createdAt: number; error?: string }>(`/cinema/session/${id}`),
   destroy: (id: string) => api.delete<void>(`/cinema/session/${id}`)
 };
 
 // ─── Spotify API ─────────────────────────────────────────────────
+interface SpotifyImage {
+  url: string;
+  height: number;
+  width: number;
+}
+
+interface SpotifyArtist {
+  name: string;
+}
+
+interface SpotifyAlbum {
+  images: SpotifyImage[];
+}
+
+interface SpotifyTrack {
+  uri: string;
+  name: string;
+  artists: SpotifyArtist[];
+  album: SpotifyAlbum;
+}
+
+interface SpotifyDevice {
+  id: string;
+  name: string;
+  is_active: boolean;
+}
+
 export const spotifyApi = {
   connect: (body: { accessToken: string; refreshToken: string; expiresIn: number }) =>
     api.post<void>('/spotify/connect', body),
   disconnect: () => api.delete<void>('/spotify/connect'),
-  me: () => api.get<any>('/spotify/me'),
-  devices: () => api.get<any>('/spotify/devices'),
-  search: (q: string) => api.get<any>(`/spotify/search?q=${encodeURIComponent(q)}`),
-  play: (body: any) => api.put<any>('/spotify/play', body),
-  pause: (query?: any) => {
+  me: () => api.get<{ id: string; display_name?: string; email?: string }>('/spotify/me'),
+  devices: () => api.get<{ devices: SpotifyDevice[] }>('/spotify/devices'),
+  search: (q: string) => api.get<{ tracks?: { items: SpotifyTrack[] } }>(`/spotify/search?q=${encodeURIComponent(q)}`),
+  play: (body: { uris?: string[]; position_ms?: number; device_id?: string }) => api.put<void>('/spotify/play', body),
+  pause: (query?: { device_id?: string }) => {
     const qs = query ? `?${new URLSearchParams(query).toString()}` : '';
-    return api.put<any>(`/spotify/pause${qs}`, {});
+    return api.put<void>(`/spotify/pause${qs}`, {});
   },
-  seek: (body: any) => api.put<any>('/spotify/seek', body)
+  seek: (body: { position_ms: number; device_id?: string }) => api.put<void>('/spotify/seek', body)
 };

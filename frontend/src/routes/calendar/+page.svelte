@@ -220,19 +220,6 @@
     return (entry?.flowIntensity ?? 0) > 0;
   }
 
-  function isFertileDay(day: number): boolean {
-    const lastStart = getLastPeriodStart();
-    if (!lastStart) return false;
-    const start = new Date(lastStart);
-    const check = new Date(year, month, day);
-    const diff = Math.floor((check.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-    if (diff < 0) return false;
-    const fertileStart = 14;
-    const fertileEnd = fertileStart + 5;
-    const dayInCycle = diff % cycleLength;
-    return dayInCycle >= fertileStart && dayInCycle < fertileEnd;
-  }
-
   async function loadCycleData() {
     try {
       const from = `${year}-${String(month + 1).padStart(2, '0')}-01`;

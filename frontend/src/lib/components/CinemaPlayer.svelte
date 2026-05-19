@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount } from 'svelte';
   import Hls from 'hls.js';
-  import { socketStore } from '$lib/stores/socket.svelte';
+  import { socketStore, type CinemaSyncEvent } from '$lib/stores/socket.svelte';
   import { currentUser } from '$lib/stores/auth.svelte';
 
   interface Props {
@@ -93,7 +93,7 @@
   }
 
   function setupSocketListeners() {
-    socketStore.on('cinema:sync', (data: any) => {
+    socketStore.on('cinema:sync', (data: CinemaSyncEvent) => {
       if (data.sender === currentUser()?.username) return;
       applyRemoteSync(data);
     });

@@ -16,8 +16,8 @@
       const res = await cinemaApi.start({ type: sourceType, uri: uri.trim() });
       if (res.status === 'error') throw new Error(res.error || 'Session failed');
       session = { id: res.id, playlistUrl: res.playlistUrl };
-    } catch (err: any) {
-      error = err.message;
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
     } finally {
       loading = false;
     }

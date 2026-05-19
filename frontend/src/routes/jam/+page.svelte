@@ -67,8 +67,8 @@
       if (!storeRes.ok) throw new Error('Failed to save tokens on server');
 
       window.opener?.postMessage({ type: 'SPOTIFY_CONNECTED' }, window.location.origin);
-    } catch (err: any) {
-      popupError = err.message;
+    } catch (err) {
+      popupError = err instanceof Error ? err.message : String(err);
       window.opener?.postMessage({ type: 'SPOTIFY_CONNECTED', error: err.message }, window.location.origin);
     } finally {
       sessionStorage.removeItem('spotify_code_verifier');

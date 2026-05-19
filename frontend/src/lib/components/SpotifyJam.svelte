@@ -1,18 +1,45 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { socketStore } from '$lib/stores/socket.svelte';
+  import { socketStore, type SpotifyJamEvent } from '$lib/stores/socket.svelte';
   import { spotifyApi } from '$lib/utils/api';
   import { currentUser } from '$lib/stores/auth.svelte';
   import { SPOTIFY_CLIENT_ID } from '$lib/config/spotify';
 
+  interface SpotifyImage {
+    url: string;
+    height: number;
+    width: number;
+  }
+
+  interface SpotifyArtist {
+    name: string;
+  }
+
+  interface SpotifyAlbum {
+    images: SpotifyImage[];
+  }
+
+  interface SpotifyTrack {
+    uri: string;
+    name: string;
+    artists: SpotifyArtist[];
+    album: SpotifyAlbum;
+  }
+
+  interface SpotifyDevice {
+    id: string;
+    name: string;
+    is_active: boolean;
+  }
+
   let query = $state('');
-  let results = $state<any[]>([]);
+  let results = $state<SpotifyTrack[]>([]);
   let loading = $state(false);
   let error = $state('');
-  let currentTrack = $state<any>(null);
+  let currentTrack = $state<SpotifyTrack | null>(null);
   let isPlaying = $state(false);
   let isConnected = $state(false);
-  let devices = $state<any[]>([]);
+  let devices = $state<SpotifyDevice[]>([]);
   let selectedDevice = $state('');
   let searchFocused = $state(false);
   let clientIdWarning = $state(SPOTIFY_CLIENT_ID === 'YOUR_SPOTIFY_CLIENT_ID_HERE');
@@ -49,7 +76,7 @@
   }
 
   function setupSocketListeners() {
-    socketStore.on('spotify:state', (data: any) => {
+    socketStore.on('spotify:state', (data: SpotifyJamEvent) => {
       if (data.sender === currentUser()?.username) return;
       if (data.uri) {
         currentTrack = { name: 'Partner selection', uri: data.uri };
@@ -57,7 +84,7 @@
       isPlaying = data.action === 'play' || data.action === 'track';
     });
 
-    socketStore.on('spotify:error', (data: any) => {
+    socketStore.on('spotify:error', (data: { message: string }) => {
       error = data.message;
       setTimeout(() => (error = ''), 5000);
     });
@@ -135,8 +162,8 @@
     try {
       const res = await spotifyApi.search(query);
       results = res.data?.tracks?.items || [];
-    } catch (err: any) {
-      error = err.message;
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
     } finally {
       loading = false;
     }
@@ -155,8 +182,8 @@
         position_ms,
         device_id: selectedDevice || undefined
       });
-    } catch (err: any) {
-      error = err.message;
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
     }
   }
 
@@ -181,7 +208,7 @@
     }
   }
 
-  function getSmallestImage(images: any[]) {
+  function getSmallestImage(images: SpotifyImage[]) {
     if (!images?.length) return null;
     return images[images.length - 1]?.url;
   }
@@ -263,7 +290,7 @@
           {#each results as track}
             <button
               onclick={() => {
-                playTrack(track.uri, track.name, track.artists.map((a: any) => a.name).join(', '), getSmallestImage(track.album.images));
+                playTrack(track.uri, track.name, track.artists.map((a: SpotifyArtist) => a.name).join(', '), getSmallestImage(track.album.images));
                 searchFocused = false;
               }}
               class="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 transition text-left group"
@@ -275,7 +302,7 @@
               />
               <div class="flex-1 min-w-0">
                 <p class="text-sm text-white truncate">{track.name}</p>
-                <p class="text-[11px] text-rina-slate-dark truncate">{track.artists.map((a: any) => a.name).join(', ')}</p>
+                <p class="text-[11px] text-rina-slate-dark truncate">{track.artists.map((a: SpotifyArtist) => a.name).join(', ')}</p>
               </div>
               <span class="text-rina-rose opacity-0 group-hover:opacity-100 text-xs transition">▶</span>
             </button>
