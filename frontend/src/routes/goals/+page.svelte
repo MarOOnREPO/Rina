@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { isAuthenticated, isLoading, currentUser } from '$lib/stores/auth.svelte';
+  import { isAuthenticated, isLoading } from '$lib/stores/auth.svelte';
   import { fade, scale, fly } from 'svelte/transition';
   import { goalApi, type Goal } from '$lib/utils/api';
   import GlassCard from '$lib/components/GlassCard.svelte';

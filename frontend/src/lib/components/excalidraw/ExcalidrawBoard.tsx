@@ -3,7 +3,6 @@ import { Excalidraw, type ExcalidrawImperativeAPI } from '@excalidraw/excalidraw
 import { ExcalidrawBinding } from 'y-excalidraw';
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
-import type { BinaryFileData } from '@excalidraw/excalidraw/types/types';
 
 interface Props {
   wsUrl: string;
@@ -18,8 +17,6 @@ export default function ExcalidrawBoard({ wsUrl, roomName, onConnectionChange }:
 
   useEffect(() => {
     const ydoc = new Y.Doc();
-    const yElements = ydoc.getArray<Y.Map<any>>('elements');
-    const yAssets = ydoc.getMap('assets');
 
     const provider = new WebsocketProvider(wsUrl, roomName, ydoc, {
       connect: true,
@@ -42,7 +39,7 @@ export default function ExcalidrawBoard({ wsUrl, roomName, onConnectionChange }:
     if (!api || !providerRef.current) return;
 
     const ydoc = providerRef.current.doc;
-    const yElements = ydoc.getArray<Y.Map<any>>('elements');
+    const yElements = ydoc.getArray<Y.Map<unknown>>('elements');
     const yAssets = ydoc.getMap('assets');
 
     const binding = new ExcalidrawBinding(

@@ -101,12 +101,6 @@ export function datetimeLocalToIso(value: string): string {
   if (!match) return new Date(withSeconds).toISOString();
 
   const [, y, mo, d, h, mi, s] = match.map(Number);
-  // Create a date string that Intl can parse in the target timezone
-  const temp = new Date(Date.UTC(y, mo - 1, d, h, mi, s));
-  // Get timezone offset in minutes
-  const tzDateStr = temp.toLocaleString('en-US', { timeZone: tz, timeZoneName: 'short' });
-  // Parse the offset from the timezone name (not reliable across browsers)
-  // Better: use a two-step comparison
   const utcTime = Date.UTC(y, mo - 1, d, h, mi, s);
   const tzTime = new Date(utcTime).toLocaleString('en-US', { timeZone: tz, hour12: false });
   const tzMatch = tzTime.match(/(\d+)\/(\d+)\/(\d+), (\d+):(\d+):(\d+)/);

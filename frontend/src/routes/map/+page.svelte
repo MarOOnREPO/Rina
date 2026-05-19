@@ -75,7 +75,7 @@
               </div>`
             : `<div style="color:#0f0f1a;font-family:sans-serif;">
                 <p style="font-weight:600;margin:0">${photo.caption || 'Untitled'}</p>
-                <p style="font-size:12px;color:#666;margin:4px 0 0">${(photo as any).year || ''}</p>
+                <p style="font-size:12px;color:#666;margin:4px 0 0">${'year' in photo ? String((photo as Record<string, unknown>).year || '') : ''}</p>
               </div>`;
 
           new mapboxgl.default.Marker(el)
