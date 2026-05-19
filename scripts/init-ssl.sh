@@ -31,7 +31,7 @@ docker network inspect rina-network >/dev/null 2>&1 || docker network create rin
 docker network inspect rina-data >/dev/null 2>&1 || docker network create rina-data --internal 2>/dev/null || true
 
 # Backup current template and use HTTP-only bootstrap
-if [ -f "nginx/default.conf.template" ]; then
+if [ -f "nginx/default.conf.template" ] && [ ! -f "nginx/default.conf.template.bak" ]; then
   cp nginx/default.conf.template nginx/default.conf.template.bak
 fi
 cp nginx/default.http.conf nginx/default.conf.template
