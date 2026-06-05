@@ -11,30 +11,231 @@ LOG() {
 LOG "🚀 Starting Rina deployment..."
 
 # ─── Pre-flight checks ───────────────────────────────────────────
-if [ ! -f ".env" ]; then
-  LOG "❌ .env file not found. Run: cp .env.example .env and configure it."
-  exit 1
-fi
-
 if ! docker info > /dev/null 2>&1; then
   LOG "❌ Docker is not running or your user lacks permissions."
   exit 1
 fi
 
-# Ensure .env is restricted
-chmod 600 .env 2>/dev/null || true
+# ─── Wizard: Create .env if missing ──────────────────────────────
+if [ ! -f ".env" ]; then
+  LOG "📝 No .env found. Creating from template..."
+  cp .env.example .env
+  chmod 600 .env
+fi
 
 # Safely read specific values from .env without bash variable expansion
 _env_get() {
   grep "^$1=" .env 2>/dev/null | cut -d '=' -f2- | sed "s/^['\"]//;s/['\"]$//"
 }
 
-POSTGRES_PASSWORD=$(_env_get POSTGRES_PASSWORD)
+_env_set() {
+  local key="$1"
+  local value="$2"
+  if grep -q "^$key=" .env; then
+    sed -i "s|^$key=.*|$key=$value|" .env
+  else
+    echo "$key=$value" >> .env
+  fi
+}
+
 DOMAIN=$(_env_get DOMAIN)
+FRONTEND_URL=$(_env_get FRONTEND_URL)
+CORS_ORIGIN=$(_env_get CORS_ORIGIN)
+POSTGRES_PASSWORD=$(_env_get POSTGRES_PASSWORD)
 JWT_SECRET=$(_env_get JWT_SECRET)
 COOKIE_SECRET=$(_env_get COOKIE_SECRET)
+MAROON_PASSWORD_HASH=$(_env_get MAROON_PASSWORD_HASH)
+RINA_PASSWORD_HASH=$(_env_get RINA_PASSWORD_HASH)
 SPOTIFY_TOKEN_ENCRYPTION_KEY=$(_env_get SPOTIFY_TOKEN_ENCRYPTION_KEY)
 BACKUP_ENCRYPTION_KEY=$(_env_get BACKUP_ENCRYPTION_KEY)
+AWS_REGION=$(_env_get AWS_REGION)
+AWS_ACCESS_KEY_ID=$(_env_get AWS_ACCESS_KEY_ID)
+AWS_SECRET_ACCESS_KEY=$(_env_get AWS_SECRET_ACCESS_KEY)
+S3_BUCKET_NAME=$(_env_get S3_BUCKET_NAME)
+TMDB_API_KEY=$(_env_get TMDB_API_KEY)
+VAPID_PUBLIC_KEY=$(_env_get VAPID_PUBLIC_KEY)
+VAPID_PRIVATE_KEY=$(_env_get VAPID_PRIVATE_KEY)
+COTURN_REALM=$(_env_get COTURN_REALM)
+COTURN_SECRET=$(_env_get COTURN_SECRET)
+
+# ─── Interactive Wizard ──────────────────────────────────────────
+WIZARD_NEEDED=false
+if [ -z "$DOMAIN" ] || [ -z "$POSTGRES_PASSWORD" ] || [ -z "$JWT_SECRET" ] || [ -z "$COOKIE_SECRET" ] || [ -z "$MAROON_PASSWORD_HASH" ] || [ -z "$RINA_PASSWORD_HASH" ]; then
+  WIZARD_NEEDED=true
+fi
+
+if [ "$WIZARD_NEEDED" = true ]; then
+  echo ""
+  echo "════════════════════════════════════════════════════════════════"
+  echo "  🔮 Rina Deployment Wizard"
+  echo "════════════════════════════════════════════════════════════════"
+  echo ""
+  echo "  Some required environment variables are missing."
+  echo "  I'll ask you for each one. Press Enter to accept defaults."
+  echo ""
+
+  prompt() {
+    local var_name="$1"
+    local description="$2"
+    local default_value="${3:-}"
+    local current_value
+    current_value=$(_env_get "$var_name")
+    if [ -n "$current_value" ]; then
+      default_value="$current_value"
+    fi
+    echo ""
+    echo "  $description"
+    if [ -n "$default_value" ]; then
+      read -rp "  $var_name [$default_value]: " input
+      input="${input:-$default_value}"
+    else
+      read -rp "  $var_name: " input
+    fi
+    _env_set "$var_name" "$input"
+    echo "$input"
+  }
+
+  prompt_secret() {
+    local var_name="$1"
+    local description="$2"
+    local auto_gen="${3:-false}"
+    local current_value
+    current_value=$(_env_get "$var_name")
+    if [ -n "$current_value" ]; then
+      echo "  ✅ $var_name already set (hidden)."
+      return
+    fi
+    echo ""
+    echo "  $description"
+    if [ "$auto_gen" = true ]; then
+      read -rp "  Auto-generate $var_name? [Y/n]: " gen
+      if [ "${gen:-Y}" = "Y" ] || [ "${gen:-Y}" = "y" ]; then
+        local secret
+        secret=$(openssl rand -base64 32 | tr -d '\n')
+        _env_set "$var_name" "$secret"
+        echo "  ✅ Generated and saved."
+        return
+      fi
+    fi
+    read -rsp "  $var_name: " input
+    echo ""
+    _env_set "$var_name" "$input"
+  }
+
+  prompt_bcrypt() {
+    local var_name="$1"
+    local user_label="$2"
+    local current_value
+    current_value=$(_env_get "$var_name")
+    if [ -n "$current_value" ]; then
+      echo "  ✅ $var_name already set (hidden)."
+      return
+    fi
+    echo ""
+    echo "  $user_label login password"
+    read -rsp "  Enter plaintext password: " plain_pass
+    echo ""
+    local hash
+    if command -v node >/dev/null 2>&1; then
+      hash=$(node -e "require('bcryptjs').hash('$plain_pass', 12).then(h => { console.log(h); process.exit(0); })")
+    else
+      hash=$(docker run --rm node:20-alpine sh -c "node -e \"require('bcryptjs').hash('$plain_pass', 12).then(h => { console.log(h); process.exit(0); })\"" 2>/dev/null)
+    fi
+    if [ -z "$hash" ]; then
+      echo "  ⚠️  Could not auto-generate hash. Please provide the bcrypt hash manually:"
+      read -rp "  $var_name: " hash
+    fi
+    _env_set "$var_name" "$hash"
+    echo "  ✅ Hash saved."
+  }
+
+  prompt_vapid() {
+    local current_pk
+    local current_sk
+    current_pk=$(_env_get VAPID_PUBLIC_KEY)
+    current_sk=$(_env_get VAPID_PRIVATE_KEY)
+    if [ -n "$current_pk" ] && [ -n "$current_sk" ]; then
+      echo "  ✅ VAPID keys already set."
+      return
+    fi
+    echo ""
+    echo "  Web Push VAPID Keys"
+    read -rp "  Auto-generate VAPID keys? [Y/n]: " gen
+    if [ "${gen:-Y}" = "Y" ] || [ "${gen:-Y}" = "y" ]; then
+      local keys
+      if command -v npx >/dev/null 2>&1; then
+        keys=$(npx -y web-push generate-vapid-keys --json 2>/dev/null)
+      else
+        keys=$(docker run --rm node:20-alpine sh -c "npm install -g web-push 2>/dev/null && npx web-push generate-vapid-keys --json" 2>/dev/null)
+      fi
+      if [ -n "$keys" ]; then
+        local pk sk
+        pk=$(echo "$keys" | grep -o '"publicKey":"[^"]*"' | cut -d'"' -f4)
+        sk=$(echo "$keys" | grep -o '"privateKey":"[^"]*"' | cut -d'"' -f4)
+        _env_set VAPID_PUBLIC_KEY "$pk"
+        _env_set VAPID_PRIVATE_KEY "$sk"
+        echo "  ✅ Generated and saved."
+      else
+        echo "  ⚠️  Could not auto-generate. Please enter manually:"
+        prompt VAPID_PUBLIC_KEY "VAPID Public Key"
+        prompt VAPID_PRIVATE_KEY "VAPID Private Key"
+      fi
+    else
+      prompt VAPID_PUBLIC_KEY "VAPID Public Key"
+      prompt VAPID_PRIVATE_KEY "VAPID Private Key"
+    fi
+  }
+
+  # ─── Run wizard prompts ────────────────────────────────────────
+  prompt DOMAIN "Your public domain" "rina.devopsya.com"
+  _env_set FRONTEND_URL "https://$(_env_get DOMAIN)"
+  _env_set CORS_ORIGIN "https://$(_env_get DOMAIN)"
+  _env_set COTURN_REALM "$(_env_get DOMAIN)"
+
+  prompt_secret POSTGRES_PASSWORD "Database password" true
+  prompt_secret JWT_SECRET "JWT signing secret (min 32 chars)" true
+  prompt_secret COOKIE_SECRET "Cookie encryption secret (min 32 chars)" true
+  prompt_secret SPOTIFY_TOKEN_ENCRYPTION_KEY "Spotify token encryption key" true
+  prompt_secret BACKUP_ENCRYPTION_KEY "Backup GPG encryption key" true
+
+  prompt_bcrypt MAROON_PASSWORD_HASH "MarOOn"
+  prompt_bcrypt RINA_PASSWORD_HASH "Rina"
+
+  prompt AWS_ACCESS_KEY_ID "AWS Access Key ID"
+  prompt AWS_SECRET_ACCESS_KEY "AWS Secret Access Key"
+  prompt S3_BUCKET_NAME "S3 Bucket Name" "rina-maroon"
+  _env_set AWS_REGION "us-east-1"
+
+  prompt TMDB_API_KEY "TMDB API Key (get free at themoviedb.org/settings/api)"
+
+  prompt_vapid
+
+  prompt_secret COTURN_SECRET "Coturn TURN server secret" true
+
+  _env_set NODE_ENV "production"
+  _env_set PORT "3000"
+
+  echo ""
+  echo "════════════════════════════════════════════════════════════════"
+  echo "  ✅ Wizard complete! All values saved to .env"
+  echo "════════════════════════════════════════════════════════════════"
+  echo ""
+
+  # Reload values after wizard
+  DOMAIN=$(_env_get DOMAIN)
+  FRONTEND_URL=$(_env_get FRONTEND_URL)
+  CORS_ORIGIN=$(_env_get CORS_ORIGIN)
+  POSTGRES_PASSWORD=$(_env_get POSTGRES_PASSWORD)
+  JWT_SECRET=$(_env_get JWT_SECRET)
+  COOKIE_SECRET=$(_env_get COOKIE_SECRET)
+  MAROON_PASSWORD_HASH=$(_env_get MAROON_PASSWORD_HASH)
+  RINA_PASSWORD_HASH=$(_env_get RINA_PASSWORD_HASH)
+  SPOTIFY_TOKEN_ENCRYPTION_KEY=$(_env_get SPOTIFY_TOKEN_ENCRYPTION_KEY)
+  BACKUP_ENCRYPTION_KEY=$(_env_get BACKUP_ENCRYPTION_KEY)
+fi
+
+# Ensure .env is restricted
+chmod 600 .env 2>/dev/null || true
 
 if [ -z "${POSTGRES_PASSWORD:-}" ]; then
   LOG "❌ POSTGRES_PASSWORD is not set in .env."
@@ -77,59 +278,35 @@ done
 
 # ─── Build Frontend ──────────────────────────────────────────────
 LOG "🏗️  Building frontend..."
+cd frontend
+npm install
+VITE_MAPBOX_TOKEN="$(_env_get VITE_MAPBOX_TOKEN)" npm run build
+cd "$PROJECT_DIR"
 
-# Robustly load .env for VITE_MAPBOX_TOKEN
-while IFS='=' read -r key value; do
-  [[ "$key" =~ ^#.*$ ]] && continue
-  [[ -z "$key" ]] && continue
-  export "$key=$value"
-done < .env
+# ─── Run DB Migrations ───────────────────────────────────────────
+LOG "🗄️  Running database migrations..."
+docker compose run --rm backend npx prisma migrate deploy
 
-docker run --rm \
-  -v "${PROJECT_DIR}/frontend:/app" \
-  -w /app \
-  -e "VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN:-}" \
-  node:20-alpine \
-  sh -c 'npm ci && npm run build'
+# ─── Deploy all services ─────────────────────────────────────────
+LOG "🐳 Starting all services..."
+docker compose up -d --build --remove-orphans
 
-LOG "✅ Frontend built."
-
-# ─── Database migrations ─────────────────────────────────────────
-LOG "🗄️ Running database migrations..."
-
-# Build backend image first so the migration runs in the correct service context
-docker compose build backend
-
-# Run migrations via docker compose so networking & env vars are handled correctly
-docker compose run --rm --no-deps backend npx prisma migrate deploy
-
-# ─── Build & start all services ──────────────────────────────────
-LOG "🏗️ Building and starting all services..."
-docker compose up -d --build
-
-# Nginx must be recreated (not just restarted) so its bind mount picks up
-# the new frontend/build directory inode (SvelteKit deletes & recreates it).
-LOG "🔄 Recreating nginx to pick up new frontend build..."
-docker compose up -d --force-recreate nginx
+# ─── Cleanup old images ──────────────────────────────────────────
+LOG "🧹 Cleaning up old Docker images..."
+docker image prune -f > /dev/null 2>&1 || true
 
 # ─── Health Check ────────────────────────────────────────────────
+LOG "⏳ Waiting for services to stabilize..."
+sleep 5
+
 if [ -n "${DOMAIN:-}" ]; then
-  LOG "⏳ Waiting for services to stabilize..."
-  sleep 5
   if curl -sf "https://${DOMAIN}/api/health" >/dev/null 2>&1; then
-    LOG "✅ Health check passed: https://${DOMAIN}/api/health"
+    LOG "✅ Health check passed — https://${DOMAIN} is live!"
   else
-    LOG "⚠️  Health check failed. Check logs: docker compose logs -f backend"
+    LOG "⚠️  Health check failed. Check logs: docker compose logs backend"
   fi
+else
+  LOG "⚠️  DOMAIN not set, skipping health check."
 fi
 
-# ─── Cleanup ─────────────────────────────────────────────────────
-LOG "🧹 Cleaning up dangling images..."
-docker image prune -f
-
-LOG "✅ Deployment complete!"
-echo ""
-docker compose ps
-echo ""
-LOG "View backend logs: docker compose logs -f backend"
-LOG "View nginx logs:   docker compose logs -f nginx"
+LOG "🎉 Deployment complete!"
