@@ -24,10 +24,17 @@ fi
 # Ensure .env is restricted
 chmod 600 .env 2>/dev/null || true
 
-# Load .env (trusted file — must be owned by deploy user)
-set -a
-source .env
-set +a
+# Safely read specific values from .env without bash variable expansion
+_env_get() {
+  grep "^$1=" .env 2>/dev/null | cut -d '=' -f2- | sed "s/^['\"]//;s/['\"]$//"
+}
+
+POSTGRES_PASSWORD=$(_env_get POSTGRES_PASSWORD)
+DOMAIN=$(_env_get DOMAIN)
+JWT_SECRET=$(_env_get JWT_SECRET)
+COOKIE_SECRET=$(_env_get COOKIE_SECRET)
+SPOTIFY_TOKEN_ENCRYPTION_KEY=$(_env_get SPOTIFY_TOKEN_ENCRYPTION_KEY)
+BACKUP_ENCRYPTION_KEY=$(_env_get BACKUP_ENCRYPTION_KEY)
 
 if [ -z "${POSTGRES_PASSWORD:-}" ]; then
   LOG "❌ POSTGRES_PASSWORD is not set in .env."
