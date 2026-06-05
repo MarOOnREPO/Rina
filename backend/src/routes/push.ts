@@ -1,21 +1,11 @@
 import { z } from 'zod';
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
-import webPush from 'web-push';
 import { prisma } from '../services/prisma.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { getPartner } from '../services/partnership.js';
 import { sendPushToUser, isPushEnabled } from '../services/push.js';
 
 const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY || '';
-const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || '';
-
-if (VAPID_PUBLIC && VAPID_PRIVATE) {
-  webPush.setVapidDetails(
-    'mailto:admin@rina.app',
-    VAPID_PUBLIC,
-    VAPID_PRIVATE
-  );
-}
 
 const subSchema = z.object({
   endpoint: z.string().url(),

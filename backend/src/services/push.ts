@@ -3,14 +3,19 @@ import { prisma } from './prisma.js';
 
 const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY || '';
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || '';
-export const isPushEnabled = !!(VAPID_PUBLIC && VAPID_PRIVATE);
+export let isPushEnabled = !!(VAPID_PUBLIC && VAPID_PRIVATE);
 
 if (isPushEnabled) {
-  webPush.setVapidDetails(
-    'mailto:admin@rina.app',
-    VAPID_PUBLIC,
-    VAPID_PRIVATE
-  );
+  try {
+    webPush.setVapidDetails(
+      'mailto:admin@rina.app',
+      VAPID_PUBLIC,
+      VAPID_PRIVATE
+    );
+  } catch (err) {
+    console.warn('[Push] Invalid VAPID keys — push notifications disabled:', (err as Error).message);
+    isPushEnabled = false;
+  }
 }
 
 export async function sendPushToUser(
