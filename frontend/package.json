@@ -43,7 +43,6 @@
   },
   "dependencies": {
     "@excalidraw/excalidraw": "^0.17.6",
-    "bcryptjs": "^3.0.3",
     "gsap": "^3.12.5",
     "hls.js": "^1.6.16",
     "mapbox-gl": "^3.3.0",

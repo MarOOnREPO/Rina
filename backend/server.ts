@@ -484,7 +484,7 @@ io.on('connection', async (socket: Socket) => {
   });
 
   // ─── Disconnection ─────────────────────────────────────────
-  socket.on('disconnect', async (reason: string) => {
+  socket.on('disconnect', async (_reason: string) => {
     console.log('[Socket] User disconnected:', user.id);
     try {
       const remaining = await presence.removeUserSocket(user.username, socket.id);

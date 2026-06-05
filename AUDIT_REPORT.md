@@ -7,6 +7,48 @@
 
 ---
 
+## Remediation Report — 2026-06-05
+
+All Critical and Warning findings from the 2026-06-05 security audit have been addressed across 4 phases.
+
+### Phase 1 — Critical Infra & Frontend Security
+- Fixed SSL certbot volume name mismatch
+- Removed dangerous backend `.:/host:rw` mount
+- Fixed Mapbox stored XSS with HTML escaping
+- Moved Spotify Client ID and Playwright secrets to environment variables
+- Added CSP and Referrer-Policy meta tags
+- Added `rel="noopener noreferrer"` to external links
+
+### Phase 2 — Critical Backend Hardening
+- Isolated `webtorrent` into dedicated `cinema-worker` Docker container
+- Added TUS upload guards (500MB max, extension allowlist)
+- Implemented AES-256-GCM encryption for Spotify tokens at rest
+- Added per-user Socket.IO and per-IP Yjs connection limits
+- Redacted PII from production logs
+
+### Phase 3 — Infra & CI/CD Hardening
+- Pinned all Docker images to patch versions
+- Hardened nginx: XFF proxy chain, OCSP stapling, WebSocket rate limits, SSL session cache
+- Added nginx healthcheck in Docker Compose
+- Encrypted DB backups with GPG before S3 upload
+- Secured `install.sh` and `deploy.sh` against secret leaks and unsafe parsing
+- Hardened GitHub Actions with least-privilege permissions, SHA-pinned actions, Playwright tests, and deployment environments
+
+### Phase 4 — Frontend Quality
+- Removed unused `bcryptjs` dependency
+- Fixed SSR API base URL hardcoding
+- Gated `vite host: true` behind non-production env
+- Added service worker logout cache invalidation
+- Added SSR security headers fallback in `hooks.server.ts`
+- Added MIT `LICENSE`
+
+### Remaining Recommendations
+- Run periodic `npm audit` in CI
+- Consider adding Sentry or similar APM for production error tracking
+- Document API contract (OpenAPI) for future maintainers
+
+---
+
 ## 1. EXECUTIVE SUMMARY
 
 The project is a **couple-focused personal application** ("Rina") built with a modern stack: SvelteKit SPA, Fastify/Node.js backend, PostgreSQL, Redis, MinIO, and Nginx. The codebase is generally well-organized and uses current technologies.

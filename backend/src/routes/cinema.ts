@@ -23,7 +23,7 @@ export default async function cinemaRoutes(fastify: FastifyInstance) {
 
     try {
       const sessionId = await createCinemaSession(parse.data);
-      const session = await getSession(sessionId)!;
+      const session = (await getSession(sessionId))!;
       return reply.status(201).send({
         id: sessionId,
         status: session.status,

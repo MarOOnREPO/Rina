@@ -68,6 +68,17 @@ sw.addEventListener('fetch', (event) => {
   );
 });
 
+// Invalidate cache on logout
+sw.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'LOGOUT') {
+    event.waitUntil(
+      caches.delete(CACHE_NAME).then(() => {
+        console.log('[SW] Cache cleared after logout');
+      })
+    );
+  }
+});
+
 // Push Notifications
 sw.addEventListener('push', (event) => {
   const data = event.data?.json() ?? {};

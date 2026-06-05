@@ -1,6 +1,6 @@
 import { browser } from '$app/environment';
 
-const API_BASE = browser ? '' : 'http://localhost:3000';
+const API_BASE = browser ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3000');
 
 export interface ApiError {
   message: string;
