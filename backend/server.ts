@@ -14,6 +14,7 @@ import { authPlugin, verifyToken, type JWTPayload } from './src/middleware/auth.
 import { ensureDefaultPartnership, getPartner } from './src/services/partnership.js';
 import { setBroadcastServer } from './src/services/broadcast.js';
 import { sendPushToUser } from './src/services/push.js';
+import { buildPublicConfig } from './src/services/config.js';
 
 import authRoutes from './src/routes/auth.js';
 import calendarRoutes from './src/routes/calendar.js';
@@ -30,6 +31,7 @@ import whiteboardRoutes from './src/routes/whiteboard.js';
 import cycleRoutes from './src/routes/cycle.js';
 import cinemaRoutes from './src/routes/cinema.js';
 import spotifyRoutes from './src/routes/spotify.js';
+import adminRoutes from './src/routes/admin.js';
 
 // ─── Secret Validation ─────────────────────────────────────────
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -560,20 +562,11 @@ await app.register(cinemaRoutes, { prefix: '/api/cinema' });
 await app.register(spotifyRoutes, { prefix: '/api/spotify' });
 
 app.get('/api/config', async (_request, reply) => {
-  return reply.send({
-    features: {
-      spotify: !!process.env.SPOTIFY_TOKEN_ENCRYPTION_KEY && process.env.SPOTIFY_TOKEN_ENCRYPTION_KEY.length >= 32,
-      push: !!(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY),
-      uploads: !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY),
-      cinema: true,
-      tmdb: !!process.env.TMDB_API_KEY,
-      backup: !!(process.env.BACKUP_ENCRYPTION_KEY && process.env.BACKUP_ENCRYPTION_KEY.length >= 32),
-    },
-    domain: process.env.DOMAIN || '',
-    frontendUrl: process.env.FRONTEND_URL || '',
-    vapidPublicKey: process.env.VAPID_PUBLIC_KEY || null,
-  });
+  const config = await buildPublicConfig();
+  return reply.send(config);
 });
+
+await app.register(adminRoutes, { prefix: '/api/admin' });
 
 // ─── Global Error Handler ──────────────────────────────────────
 app.setErrorHandler((error, _request, reply) => {

@@ -260,6 +260,17 @@ model SpotifyToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+// ─── Site Config (API Keys & Feature Flags) ──────────────────────
+model Config {
+  id        String   @id @default(cuid())
+  key       String   @unique @db.VarChar(100)
+  value     String   @db.VarChar(2000)
+  updatedAt DateTime @updatedAt
+  updatedBy String?  @db.VarChar(50)
+
+  @@index([key])
+}
+
 // ─── Web Push Subscriptions ──────────────────────────────────────
 model PushSubscription {
   id        String   @id @default(cuid())

@@ -21,6 +21,7 @@
     { path: '/map', label: 'Map', icon: '🗺️' },
     { path: '/roulette', label: 'Food', icon: '🍽️' },
     { path: '/whiteboard', label: 'Draw', icon: '🎨' },
+    { path: '/settings', label: 'Settings', icon: '⚙️' },
   ];
 
   let currentPath = $derived($page.url.pathname);
