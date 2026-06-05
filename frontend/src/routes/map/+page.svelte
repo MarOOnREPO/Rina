@@ -8,6 +8,15 @@
   import 'mapbox-gl/dist/mapbox-gl.css';
 import type { Map } from 'mapbox-gl';
 
+  function escapeHtml(str: string): string {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || '';
 
   let mapContainer: HTMLDivElement | undefined = $state();
@@ -45,13 +54,13 @@ import type { Map } from 'mapbox-gl';
 
       const popupHtml = photo.url
         ? `<div style="color:#0f0f1a;font-family:sans-serif;max-width:200px;">
-            <img src="${photo.url}" style="width:100%;border-radius:6px;margin-bottom:4px;" />
-            <p style="font-weight:600;margin:0;font-size:13px;">${photo.caption || 'Untitled'}</p>
-            <p style="font-size:11px;color:#666;margin:2px 0 0;">${photo.takenAt ? new Date(photo.takenAt).toLocaleDateString('en-GB') : ''}</p>
+            <img src="${escapeHtml(photo.url)}" style="width:100%;border-radius:6px;margin-bottom:4px;" />
+            <p style="font-weight:600;margin:0;font-size:13px;">${escapeHtml(photo.caption || 'Untitled')}</p>
+            <p style="font-size:11px;color:#666;margin:2px 0 0;">${photo.takenAt ? escapeHtml(new Date(photo.takenAt).toLocaleDateString('en-GB')) : ''}</p>
           </div>`
         : `<div style="color:#0f0f1a;font-family:sans-serif;">
-            <p style="font-weight:600;margin:0">${photo.caption || 'Untitled'}</p>
-            <p style="font-size:12px;color:#666;margin:4px 0 0">${photo.year || ''}</p>
+            <p style="font-weight:600;margin:0">${escapeHtml(photo.caption || 'Untitled')}</p>
+            <p style="font-size:12px;color:#666;margin:4px 0 0">${photo.year !== undefined ? escapeHtml(String(photo.year)) : ''}</p>
           </div>`;
 
       new mapboxModule!.Marker(el)

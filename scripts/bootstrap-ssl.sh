@@ -17,11 +17,11 @@ LOG() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"; }
 LOG "🔧 Bootstrapping dummy SSL cert for $DOMAIN..."
 
 # Ensure certbot-data volume exists
-docker volume inspect rina_certbot-data >/dev/null 2>&1 || docker volume create rina_certbot-data
+docker volume inspect certbot-data >/dev/null 2>&1 || docker volume create certbot-data
 
 # Generate dummy cert inside the named volume using nginx:alpine (has openssl)
 docker run --rm \
-  -v rina-certbot-data:/etc/letsencrypt \
+  -v certbot-data:/etc/letsencrypt \
   -e "DOMAIN=$DOMAIN" \
   nginx:alpine sh -c '
     apk add --no-cache openssl >/dev/null 2>&1

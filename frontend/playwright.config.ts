@@ -1,10 +1,10 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const JWT_SECRET = 'dev_jwt_secret_for_testing_only_32chars_longer';
-const COOKIE_SECRET = 'dev_cookie_secret_for_testing_32chars';
-const DB_URL = 'postgresql://rina_user:devpass@localhost:5432/rina_db';
-const REDIS_URL = 'redis://localhost:6379';
-const PASS_HASH = '$2a$12$WcB9E2PSsylo40wf6xfLM.nvmI7gRLv2YOJy9X1g1OtRO4Zns4Ejm';
+const JWT_SECRET = process.env.TEST_JWT_SECRET || 'dev_jwt_secret_for_testing_only_32chars_longer';
+const COOKIE_SECRET = process.env.TEST_COOKIE_SECRET || 'dev_cookie_secret_for_testing_32chars';
+const DB_URL = process.env.TEST_DATABASE_URL || 'postgresql://rina_user:devpass@localhost:5432/rina_db';
+const REDIS_URL = process.env.TEST_REDIS_URL || 'redis://localhost:6379';
+const PASS_HASH = process.env.TEST_PASSWORD_HASH || '$2a$12$WcB9E2PSsylo40wf6xfLM.nvmI7gRLv2YOJy9X1g1OtRO4Zns4Ejm';
 
 export default defineConfig({
   testDir: './tests',

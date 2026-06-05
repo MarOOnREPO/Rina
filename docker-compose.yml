@@ -36,8 +36,6 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: rina-backend
-    volumes:
-      - .:/host:rw
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://rina_user:${POSTGRES_PASSWORD}@postgres:5432/rina_db

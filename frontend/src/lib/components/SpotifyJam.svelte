@@ -52,7 +52,7 @@
   let devices = $state<SpotifyDevice[]>([]);
   let selectedDevice = $state('');
   let searchFocused = $state(false);
-  let clientIdWarning = $state((SPOTIFY_CLIENT_ID as string) === 'YOUR_SPOTIFY_CLIENT_ID_HERE');
+  let clientIdWarning = $state((SPOTIFY_CLIENT_ID as string) === '');
 
   onMount(() => {
     socketStore.emit('spotify:join');
@@ -228,7 +228,7 @@
   {#if clientIdWarning}
     <div class="text-xs text-amber-400 bg-amber-400/10 rounded-lg px-3 py-2">
       ⚠️ Add your Spotify Client ID in <code class="font-mono">src/lib/config/spotify.ts</code> to enable Jam.
-      <a href="https://developer.spotify.com/dashboard" target="_blank" class="underline">Get it free here</a>.
+      <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener noreferrer" class="underline">Get it free here</a>.
     </div>
   {/if}
 

@@ -50,7 +50,7 @@ done
 LOG "📜 Requesting certificate from Let's Encrypt..."
 
 # Remove dummy cert so certbot can create a real one
-docker run --rm -v rina-certbot-data:/etc/letsencrypt nginx:alpine sh -c \
+docker run --rm -v certbot-data:/etc/letsencrypt nginx:alpine sh -c \
   "rm -rf /etc/letsencrypt/live/$DOMAIN /etc/letsencrypt/archive/$DOMAIN 2>/dev/null; echo 'Cleaned old cert'"
 
 docker compose run --rm --entrypoint certbot certbot certonly --webroot \
