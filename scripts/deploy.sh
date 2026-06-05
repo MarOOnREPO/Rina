@@ -21,12 +21,13 @@ if ! docker info > /dev/null 2>&1; then
   exit 1
 fi
 
-# Robustly load .env
-while IFS='=' read -r key value; do
-  [[ "$key" =~ ^#.*$ ]] && continue
-  [[ -z "$key" ]] && continue
-  export "$key=$value"
-done < .env
+# Ensure .env is restricted
+chmod 600 .env 2>/dev/null || true
+
+# Load .env (trusted file — must be owned by deploy user)
+set -a
+source .env
+set +a
 
 if [ -z "${POSTGRES_PASSWORD:-}" ]; then
   LOG "❌ POSTGRES_PASSWORD is not set in .env."
