@@ -51,6 +51,12 @@ if (!MAROON_PASSWORD_HASH || !RINA_PASSWORD_HASH) {
   process.exit(1);
 }
 
+const SPOTIFY_TOKEN_ENCRYPTION_KEY = process.env.SPOTIFY_TOKEN_ENCRYPTION_KEY;
+if (!SPOTIFY_TOKEN_ENCRYPTION_KEY || SPOTIFY_TOKEN_ENCRYPTION_KEY.length < 32) {
+  console.error('[Fatal] SPOTIFY_TOKEN_ENCRYPTION_KEY must be set and at least 32 characters long');
+  process.exit(1);
+}
+
 // ─── Configuration ─────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -162,7 +168,7 @@ setupSocketAdapter(io);
 setBroadcastServer(io);
 
 // Socket.io Authentication Middleware
-io.use((socket: Socket, next: (err?: Error) => void) => {
+io.use(async (socket: Socket, next: (err?: Error) => void) => {
   try {
     const cookieHeader = socket.handshake.headers.cookie || '';
     const cookies = parseCookies(cookieHeader);
@@ -174,6 +180,13 @@ io.use((socket: Socket, next: (err?: Error) => void) => {
 
     const payload = verifyToken(token);
     socket.data.user = payload;
+
+    const existingSockets = await io.in(`user:${payload.id}`).fetchSockets();
+    if (existingSockets.length >= 10) {
+      return next(new Error('Connection limit exceeded'));
+    }
+    socket.join(`user:${payload.id}`);
+
     next();
   } catch {
     next(new Error('Authentication error: Invalid token'));
@@ -185,7 +198,7 @@ io.use((socket: Socket, next: (err?: Error) => void) => {
 
 io.on('connection', async (socket: Socket) => {
   const user = socket.data.user as JWTPayload;
-  console.log(`[Socket] ${user.displayName} connected (${socket.id})`);
+  console.log('[Socket] User connected:', user.id);
 
   try {
     await presence.addUserSocket(user.username, socket.id);
@@ -406,7 +419,7 @@ io.on('connection', async (socket: Socket) => {
   // ─── Cinema Sync (Watch Together) ──────────────────────────
   socket.on('cinema:join', async (data: { sessionId: string }) => {
     socket.join(`cinema:${data.sessionId}`);
-    console.log(`[Cinema] ${user.displayName} joined session ${data.sessionId}`);
+    console.log('[Cinema] User joined session:', user.id);
   });
 
   socket.on('cinema:control', async (data: { sessionId: string; action: 'play' | 'pause' | 'seek'; time: number; clientTime: number }) => {
@@ -426,7 +439,7 @@ io.on('connection', async (socket: Socket) => {
   // ─── Spotify Jam Sync ──────────────────────────────────────
   socket.on('spotify:join', async () => {
     socket.join('spotify-jam');
-    console.log(`[Spotify] ${user.displayName} joined jam`);
+    console.log('[Spotify] User joined jam:', user.id);
   });
 
   socket.on('spotify:control', async (data: { action: 'play' | 'pause' | 'seek' | 'track'; uri?: string; position_ms: number; device_id?: string }) => {
@@ -472,7 +485,7 @@ io.on('connection', async (socket: Socket) => {
 
   // ─── Disconnection ─────────────────────────────────────────
   socket.on('disconnect', async (reason: string) => {
-    console.log(`[Socket] ${user.displayName} disconnected (${reason})`);
+    console.log('[Socket] User disconnected:', user.id);
     try {
       const remaining = await presence.removeUserSocket(user.username, socket.id);
 

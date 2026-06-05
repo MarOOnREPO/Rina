@@ -1,5 +1,5 @@
 # ─── Build Stage ───
-FROM node:20-slim AS builder
+FROM node:20.14.0-slim AS builder
 WORKDIR /app
 
 # Prisma needs openssl for engine detection & runtime
@@ -16,7 +16,7 @@ RUN npm run db:generate
 RUN npm run build
 
 # ─── Production Stage ───
-FROM node:20-slim AS runner
+FROM node:20.14.0-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 

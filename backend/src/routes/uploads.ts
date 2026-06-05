@@ -33,14 +33,39 @@ const tusServer = new TusServer({
   namingFunction: () => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
     return id;
-  }
+  },
+  maxSize: 500 * 1024 * 1024
 });
 
 const KEY_REGEX = /^[a-zA-Z0-9!_.*'()-/]+$/;
 
+const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.mov', '.webm', '.mp3', '.wav', '.m4a', '.ogg', '.pdf', '.txt'];
+
+function getFilenameFromMetadata(header: string): string | null {
+  const pairs = header.split(',');
+  for (const pair of pairs) {
+    const [key, value] = pair.trim().split(' ');
+    if (key === 'filename' && value) {
+      return Buffer.from(value, 'base64').toString('utf-8');
+    }
+  }
+  return null;
+}
+
 export default async function uploadRoutes(fastify: FastifyInstance, _opts: FastifyPluginOptions) {
   // Proxy all methods for Tus protocol
   fastify.all('/*', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    const uploadMetadata = request.headers['upload-metadata'] as string | undefined;
+    if (uploadMetadata) {
+      const filename = getFilenameFromMetadata(uploadMetadata);
+      if (filename) {
+        const ext = filename.slice(filename.lastIndexOf('.')).toLowerCase();
+        if (!ALLOWED_EXTENSIONS.includes(ext)) {
+          return reply.status(400).send({ error: 'Invalid file type' });
+        }
+      }
+    }
+
     // Hijack Fastify response so Tus can handle it directly
     reply.hijack();
     try {

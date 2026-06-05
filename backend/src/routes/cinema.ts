@@ -23,7 +23,7 @@ export default async function cinemaRoutes(fastify: FastifyInstance) {
 
     try {
       const sessionId = await createCinemaSession(parse.data);
-      const session = getSession(sessionId)!;
+      const session = await getSession(sessionId)!;
       return reply.status(201).send({
         id: sessionId,
         status: session.status,
@@ -37,7 +37,7 @@ export default async function cinemaRoutes(fastify: FastifyInstance) {
 
   fastify.get('/session/:id', { preValidation: [authenticateJWT] }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const session = getSession(id);
+    const session = await getSession(id);
     if (!session) return reply.status(404).send({ error: 'Session not found' });
     return reply.send({
       id: session.id,

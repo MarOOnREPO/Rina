@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   nginx:
-    image: nginx:alpine
+    image: nginx:1.27-alpine
     container_name: rina-nginx
     ports:
       - "80:80"
@@ -30,6 +30,11 @@ services:
         limits:
           cpus: '0.5'
           memory: 128M
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
 
   backend:
     build:
@@ -84,7 +89,7 @@ services:
           memory: 512M
 
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16.3-alpine
     container_name: rina-postgres
     environment:
       - POSTGRES_USER=rina_user
@@ -112,7 +117,7 @@ services:
           memory: 256M
 
   redis:
-    image: redis:7-alpine
+    image: redis:7.2-alpine
     container_name: rina-redis
     volumes:
       - redis_data:/data
@@ -136,7 +141,7 @@ services:
           memory: 128M
 
   certbot:
-    image: certbot/certbot
+    image: certbot/certbot:v2.11.0
     container_name: rina-certbot
     volumes:
       - certbot-data:/etc/letsencrypt
@@ -150,6 +155,23 @@ services:
       options:
         max-size: "5m"
         max-file: "3"
+
+  cinema-worker:
+    build:
+      context: ./cinema-worker
+      dockerfile: Dockerfile
+    container_name: rina-cinema-worker
+    expose:
+      - "4000"
+    networks:
+      - rina-network
+    restart: unless-stopped
+    init: true
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
 
 volumes:
   postgres_data:

@@ -13,12 +13,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
+    permissions:
+      contents: read
+
+    environment:
+      name: production
+      url: https://${{ secrets.REMOTE_HOST }}
+
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af
         with:
           node-version: '20'
           cache: 'npm'
@@ -45,6 +52,12 @@ jobs:
         env:
           VITE_MAPBOX_TOKEN: ${{ secrets.VITE_MAPBOX_TOKEN }}
         run: npm run build
+
+      - name: Run Playwright E2E Tests
+        working-directory: ./frontend
+        run: |
+          npx playwright install chromium
+          npx playwright test
 
       - name: Check deploy secrets
         id: deploy-check

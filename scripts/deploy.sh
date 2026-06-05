@@ -22,9 +22,11 @@ if ! docker info > /dev/null 2>&1; then
 fi
 
 # Robustly load .env
-set -a
-source .env
-set +a
+while IFS='=' read -r key value; do
+  [[ "$key" =~ ^#.*$ ]] && continue
+  [[ -z "$key" ]] && continue
+  export "$key=$value"
+done < .env
 
 if [ -z "${POSTGRES_PASSWORD:-}" ]; then
   LOG "❌ POSTGRES_PASSWORD is not set in .env."
@@ -69,9 +71,11 @@ done
 LOG "🏗️  Building frontend..."
 
 # Robustly load .env for VITE_MAPBOX_TOKEN
-set -a
-source .env
-set +a
+while IFS='=' read -r key value; do
+  [[ "$key" =~ ^#.*$ ]] && continue
+  [[ -z "$key" ]] && continue
+  export "$key=$value"
+done < .env
 
 docker run --rm \
   -v "${PROJECT_DIR}/frontend:/app" \

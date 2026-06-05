@@ -27,11 +27,12 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 # ─── Host temp directory (mounted into Docker for visibility/debugging) ──────
-HOST_TMP="/home/ubuntu/.rina-install-tmp"
+HOST_TMP="${HOME}/.rina-install-tmp"
 mkdir -p "$HOST_TMP"
 
 # ─── Progress / Resume ──────────────────────────────────────────────────────
 PROGRESS_FILE=".install-progress.env"
+trap 'rm -f "$PROGRESS_FILE"' EXIT INT TERM
 
 save_progress() {
   local var_name="$1"

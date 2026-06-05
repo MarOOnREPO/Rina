@@ -7,6 +7,9 @@ import * as decoding from 'lib0/decoding';
 import type { IncomingMessage } from 'http';
 import { prisma } from './prisma.js';
 
+const ipConnectionCounts = new Map<string, number>();
+const MAX_IP_YJS_CONNECTIONS = 10;
+
 // ─── Message Types (y-websocket protocol) ────────────────────────
 const messageSync = 0;
 const messageAwareness = 1;
@@ -136,6 +139,14 @@ export function createYjsWSS(): WebSocketServer {
   const wss = new WebSocketServer({ noServer: true });
 
   wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
+    const clientIp = req.headers['x-forwarded-for']?.toString().split(',')[0].trim() || req.socket.remoteAddress || 'unknown';
+    const currentCount = ipConnectionCounts.get(clientIp) || 0;
+    if (currentCount >= MAX_IP_YJS_CONNECTIONS) {
+      ws.close(1008, 'Connection limit exceeded');
+      return;
+    }
+    ipConnectionCounts.set(clientIp, currentCount + 1);
+
     const url = new URL(req.url || '/', `http://${req.headers.host}`);
     const room = url.searchParams.get('room') || 'default';
     const userId = (ws as unknown as Record<string, unknown>).userId as string | undefined;
@@ -198,6 +209,10 @@ export function createYjsWSS(): WebSocketServer {
         awarenessProtocol.removeAwarenessStates(awareness, Array.from(clientIds), ws);
       }
       wsClientIds.delete(ws);
+
+      const newCount = (ipConnectionCounts.get(clientIp) || 1) - 1;
+      if (newCount <= 0) ipConnectionCounts.delete(clientIp);
+      else ipConnectionCounts.set(clientIp, newCount);
 
       // Save immediately when the last client leaves, then clean up memory
       if (conns.size === 0) {

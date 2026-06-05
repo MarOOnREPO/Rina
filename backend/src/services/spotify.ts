@@ -1,4 +1,5 @@
 import { prisma } from './prisma.js';
+import { encrypt, decrypt } from './encryption.js';
 
 const SPOTIFY_API = 'https://api.spotify.com/v1';
 
@@ -11,12 +12,14 @@ export interface SpotifyTokens {
 export async function getSpotifyToken(userId: string): Promise<SpotifyTokens | null> {
   const token = await prisma.spotifyToken.findUnique({ where: { userId } });
   if (!token) return null;
+  const accessToken = decrypt(token.accessToken);
+  const refreshToken = decrypt(token.refreshToken);
   if (token.expiresAt < new Date(Date.now() + 60000)) {
-    return refreshSpotifyToken(token.refreshToken, userId);
+    return refreshSpotifyToken(refreshToken, userId);
   }
   return {
-    accessToken: token.accessToken,
-    refreshToken: token.refreshToken,
+    accessToken,
+    refreshToken,
     expiresAt: token.expiresAt
   };
 }
@@ -39,17 +42,19 @@ export async function refreshSpotifyToken(
   const data = (await res.json()) as any;
 
   const expiresAt = new Date(Date.now() + data.expires_in * 1000);
+  const newAccessToken = encrypt(data.access_token);
+  const newRefreshToken = encrypt(data.refresh_token || refreshToken);
   await prisma.spotifyToken.upsert({
     where: { userId },
     update: {
-      accessToken: data.access_token,
-      refreshToken: data.refresh_token || refreshToken,
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
       expiresAt
     },
     create: {
       userId,
-      accessToken: data.access_token,
-      refreshToken: data.refresh_token || refreshToken,
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
       expiresAt
     }
   });

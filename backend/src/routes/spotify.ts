@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { authenticateJWT } from '../middleware/auth.js';
 import { prisma } from '../services/prisma.js';
 import { spotifyApiRequest } from '../services/spotify.js';
+import { encrypt } from '../services/encryption.js';
 
 export default async function spotifyRoutes(fastify: FastifyInstance) {
   // Store tokens sent from frontend after PKCE popup flow
@@ -19,11 +20,13 @@ export default async function spotifyRoutes(fastify: FastifyInstance) {
 
     const { accessToken, refreshToken, expiresIn } = parse.data;
     const expiresAt = new Date(Date.now() + expiresIn * 1000);
+    const encryptedAccessToken = encrypt(accessToken);
+    const encryptedRefreshToken = encrypt(refreshToken);
 
     await prisma.spotifyToken.upsert({
       where: { userId: request.user!.id },
-      update: { accessToken, refreshToken, expiresAt },
-      create: { userId: request.user!.id, accessToken, refreshToken, expiresAt }
+      update: { accessToken: encryptedAccessToken, refreshToken: encryptedRefreshToken, expiresAt },
+      create: { userId: request.user!.id, accessToken: encryptedAccessToken, refreshToken: encryptedRefreshToken, expiresAt }
     });
 
     return reply.send({ connected: true });
