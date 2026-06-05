@@ -4,6 +4,7 @@
   import { browser } from '$app/environment';
   import { auth } from '$lib/stores/auth.svelte';
   import { initializeSockets, socketStore } from '$lib/stores/socket.svelte';
+  import { loadConfig } from '$lib/stores/config.svelte';
   import GlassNav from '$lib/components/GlassNav.svelte';
   import MobileHeader from '$lib/components/MobileHeader.svelte';
   import PingOverlay from '$lib/components/PingOverlay.svelte';
@@ -23,11 +24,12 @@
     }
   });
 
-  // Initialize auth and sockets on client
+  // Initialize auth, sockets, and config on client
   onMount(() => {
     if (browser) {
       auth.init();
       initializeSockets();
+      loadConfig();
     }
 
     return () => {

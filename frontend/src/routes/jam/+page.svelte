@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import SpotifyJam from '$lib/components/SpotifyJam.svelte';
+  import FeatureGate from '$lib/components/FeatureGate.svelte';
   import { SPOTIFY_CLIENT_ID } from '$lib/config/spotify';
 
   let isPopupCallback = $state(false);
@@ -87,11 +88,13 @@
     {/if}
   </div>
 {:else}
-  <div class="px-3 py-4 space-y-4">
-    <div class="px-1">
-      <h1 class="text-xl font-bold text-white">Spotify Jam</h1>
-      <p class="text-xs text-rina-slate-dark mt-0.5">Synchronized listening with dual Premium accounts</p>
+  <FeatureGate feature="spotify">
+    <div class="px-3 py-4 space-y-4">
+      <div class="px-1">
+        <h1 class="text-xl font-bold text-white">Spotify Jam</h1>
+        <p class="text-xs text-rina-slate-dark mt-0.5">Synchronized listening with dual Premium accounts</p>
+      </div>
+      <SpotifyJam />
     </div>
-    <SpotifyJam />
-  </div>
+  </FeatureGate>
 {/if}

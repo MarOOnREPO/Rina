@@ -6,6 +6,7 @@
   import { flip } from 'svelte/animate';
   import { movieApi, type Movie } from '$lib/utils/api';
   import GlassCard from '$lib/components/GlassCard.svelte';
+  import FeatureGate from '$lib/components/FeatureGate.svelte';
 
   let movies: Movie[] = $state([]);
   let searchQuery = $state('');
@@ -92,6 +93,7 @@
 </script>
 
 {#if isAuthenticated()}
+<FeatureGate feature="tmdb">
   <div class="max-w-5xl mx-auto px-4 py-6" in:fade>
     <h2 class="text-2xl font-bold mb-6">🎬 Movie Watchlist</h2>
 
@@ -223,4 +225,5 @@
       </div>
     {/if}
   </div>
+</FeatureGate>
 {/if}

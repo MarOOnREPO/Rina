@@ -4,7 +4,7 @@ import webPush from 'web-push';
 import { prisma } from '../services/prisma.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { getPartner } from '../services/partnership.js';
-import { sendPushToUser } from '../services/push.js';
+import { sendPushToUser, isPushEnabled } from '../services/push.js';
 
 const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY || '';
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || '';
@@ -32,6 +32,9 @@ const notifySchema = z.object({
 
 export default async function pushRoutes(fastify: FastifyInstance, _opts: FastifyPluginOptions) {
   fastify.post('/subscribe', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    if (!isPushEnabled) {
+      return reply.status(503).send({ error: 'Push notifications are not configured' });
+    }
     try {
       const data = subSchema.parse(request.body);
 
@@ -76,7 +79,7 @@ export default async function pushRoutes(fastify: FastifyInstance, _opts: Fastif
 
   fastify.post('/notify', { preValidation: [authenticateJWT] }, async (request, reply) => {
     try {
-      if (!VAPID_PUBLIC || !VAPID_PRIVATE) {
+      if (!isPushEnabled) {
         return reply.status(503).send({ error: 'Push notifications are not configured (VAPID keys missing)' });
       }
 

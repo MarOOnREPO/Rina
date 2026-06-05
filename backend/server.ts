@@ -51,12 +51,6 @@ if (!MAROON_PASSWORD_HASH || !RINA_PASSWORD_HASH) {
   process.exit(1);
 }
 
-const SPOTIFY_TOKEN_ENCRYPTION_KEY = process.env.SPOTIFY_TOKEN_ENCRYPTION_KEY;
-if (!SPOTIFY_TOKEN_ENCRYPTION_KEY || SPOTIFY_TOKEN_ENCRYPTION_KEY.length < 32) {
-  console.error('[Fatal] SPOTIFY_TOKEN_ENCRYPTION_KEY must be set and at least 32 characters long');
-  process.exit(1);
-}
-
 // ─── Configuration ─────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -564,6 +558,22 @@ await app.register(whiteboardRoutes, { prefix: '/api/whiteboard' });
 await app.register(cycleRoutes, { prefix: '/api/cycle' });
 await app.register(cinemaRoutes, { prefix: '/api/cinema' });
 await app.register(spotifyRoutes, { prefix: '/api/spotify' });
+
+app.get('/api/config', async (_request, reply) => {
+  return reply.send({
+    features: {
+      spotify: !!process.env.SPOTIFY_TOKEN_ENCRYPTION_KEY && process.env.SPOTIFY_TOKEN_ENCRYPTION_KEY.length >= 32,
+      push: !!(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY),
+      uploads: !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY),
+      cinema: true,
+      tmdb: !!process.env.TMDB_API_KEY,
+      backup: !!(process.env.BACKUP_ENCRYPTION_KEY && process.env.BACKUP_ENCRYPTION_KEY.length >= 32),
+    },
+    domain: process.env.DOMAIN || '',
+    frontendUrl: process.env.FRONTEND_URL || '',
+    vapidPublicKey: process.env.VAPID_PUBLIC_KEY || null,
+  });
+});
 
 // ─── Global Error Handler ──────────────────────────────────────
 app.setErrorHandler((error, _request, reply) => {

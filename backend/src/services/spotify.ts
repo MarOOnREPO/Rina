@@ -1,5 +1,5 @@
 import { prisma } from './prisma.js';
-import { encrypt, decrypt } from './encryption.js';
+import { encrypt, decrypt, isEncryptionEnabled } from './encryption.js';
 
 const SPOTIFY_API = 'https://api.spotify.com/v1';
 
@@ -12,8 +12,8 @@ export interface SpotifyTokens {
 export async function getSpotifyToken(userId: string): Promise<SpotifyTokens | null> {
   const token = await prisma.spotifyToken.findUnique({ where: { userId } });
   if (!token) return null;
-  const accessToken = decrypt(token.accessToken);
-  const refreshToken = decrypt(token.refreshToken);
+  const accessToken = isEncryptionEnabled ? decrypt(token.accessToken)! : token.accessToken;
+  const refreshToken = isEncryptionEnabled ? decrypt(token.refreshToken)! : token.refreshToken;
   if (token.expiresAt < new Date(Date.now() + 60000)) {
     return refreshSpotifyToken(refreshToken, userId);
   }
@@ -42,8 +42,13 @@ export async function refreshSpotifyToken(
   const data = (await res.json()) as any;
 
   const expiresAt = new Date(Date.now() + data.expires_in * 1000);
-  const newAccessToken = encrypt(data.access_token);
-  const newRefreshToken = encrypt(data.refresh_token || refreshToken);
+  const rawAccessToken = data.access_token;
+  const rawRefreshToken = data.refresh_token || refreshToken;
+  const newAccessToken = isEncryptionEnabled ? encrypt(rawAccessToken)! : rawAccessToken;
+  const newRefreshToken = isEncryptionEnabled ? encrypt(rawRefreshToken)! : rawRefreshToken;
+  if (!isEncryptionEnabled) {
+    console.warn('[Spotify] Storing tokens plaintext because encryption is disabled');
+  }
   await prisma.spotifyToken.upsert({
     where: { userId },
     update: {

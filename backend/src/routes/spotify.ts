@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { authenticateJWT } from '../middleware/auth.js';
 import { prisma } from '../services/prisma.js';
 import { spotifyApiRequest } from '../services/spotify.js';
-import { encrypt } from '../services/encryption.js';
+import { encrypt, isEncryptionEnabled } from '../services/encryption.js';
 
 export default async function spotifyRoutes(fastify: FastifyInstance) {
   // Store tokens sent from frontend after PKCE popup flow
@@ -20,8 +20,11 @@ export default async function spotifyRoutes(fastify: FastifyInstance) {
 
     const { accessToken, refreshToken, expiresIn } = parse.data;
     const expiresAt = new Date(Date.now() + expiresIn * 1000);
-    const encryptedAccessToken = encrypt(accessToken);
-    const encryptedRefreshToken = encrypt(refreshToken);
+    const encryptedAccessToken = isEncryptionEnabled ? encrypt(accessToken)! : accessToken;
+    const encryptedRefreshToken = isEncryptionEnabled ? encrypt(refreshToken)! : refreshToken;
+    if (!isEncryptionEnabled) {
+      console.warn('[Spotify] Storing tokens plaintext because encryption is disabled');
+    }
 
     await prisma.spotifyToken.upsert({
       where: { userId: request.user!.id },

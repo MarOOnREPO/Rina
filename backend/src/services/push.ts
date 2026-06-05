@@ -3,8 +3,9 @@ import { prisma } from './prisma.js';
 
 const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY || '';
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || '';
+export const isPushEnabled = !!(VAPID_PUBLIC && VAPID_PRIVATE);
 
-if (VAPID_PUBLIC && VAPID_PRIVATE) {
+if (isPushEnabled) {
   webPush.setVapidDetails(
     'mailto:admin@rina.app',
     VAPID_PUBLIC,
