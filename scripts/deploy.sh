@@ -111,7 +111,7 @@ if [ "$WIZARD_NEEDED" = true ]; then
       read -rp "  Auto-generate $var_name? [Y/n]: " gen
       if [ "${gen:-Y}" = "Y" ] || [ "${gen:-Y}" = "y" ]; then
         local secret
-        secret=$(openssl rand -base64 32 | tr -d '\n')
+        secret=$(openssl rand -hex 32 | tr -d '\n')
         _env_set "$var_name" "$secret"
         echo "  ✅ Generated and saved."
         return
