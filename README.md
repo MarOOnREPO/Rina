@@ -1,62 +1,124 @@
 <div align="center">
 
-# Rina 💜 Long Distance App
+# 💜 Rina — A Private Sanctuary for Two
 
-**A Bespoke, Zero-Latency Relationship Ecosystem**
+**A secure, real-time long-distance relationship ecosystem.**
+
+*Bridging Kenitra and Perm with end-to-end privacy, 60fps micro-interactions, and peer-to-peer synchronization.*
 
 <br />
 
-[![Svelte 5](https://img.shields.io/badge/Svelte_5-FF3E00?style=for-the-badge&logo=svelte&logoColor=white)](#)
-[![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](#)
-[![Fastify](https://img.shields.io/badge/Fastify-000000?style=for-the-badge&logo=fastify&logoColor=white)](#)
-[![Prisma](https://img.shields.io/badge/Prisma-2D3748?style=for-the-badge&logo=prisma&logoColor=white)](#)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)](#)
-[![Redis](https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white)](#)
-[![WebRTC](https://img.shields.io/badge/WebRTC-333333?style=for-the-badge&logo=webrtc&logoColor=white)](#)
-[![Docker](https://img.shields.io/badge/Docker-0DB7ED?style=for-the-badge&logo=docker&logoColor=white)](#)
-
-*Bridging the distance between Kenitra and Perm with absolute privacy, 60fps micro-interactions, and peer-to-peer synchronization.*
+[![Svelte 5](https://img.shields.io/badge/Svelte_5-FF3E00?style=for-the-badge&logo=svelte&logoColor=white)](https://svelte.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Fastify](https://img.shields.io/badge/Fastify-000000?style=for-the-badge&logo=fastify&logoColor=white)](https://www.fastify.io)
+[![Prisma](https://img.shields.io/badge/Prisma-2D3748?style=for-the-badge&logo=prisma&logoColor=white)](https://www.prisma.io)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org)
+[![Redis](https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white)](https://redis.io)
+[![Docker](https://img.shields.io/badge/Docker-0DB7ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com)
 
 </div>
 
 ---
 
-> **Project Rina** is not a standard web dashboard. It is an enterprise-grade, highly secure, private ecosystem designed to mimic the fluidity of a premium native iOS/Android application. Built from the ground up for two specific users, it leverages cutting-edge web technologies to eliminate distance.
+## ✨ What is Rina?
 
-## 🚀 The Optimized Stack
+Rina is not a generic chat app. It is a **bespoke, security-hardened ecosystem** engineered for two people. Every pixel, every protocol, and every encryption key exists to make long distance feel like zero distance.
 
-### 🎨 Frontend (Fluidity & Motion)
-* **Framework:** `SvelteKit` (Svelte 5) utilizing **Runes** (`$state`, `$derived`) for fine-grained, compiler-level reactivity.
-* **Styling:** `Tailwind CSS` (via PostCSS) leveraging custom utility classes for advanced Glassmorphism.
-* **Animation:** Svelte Native Transitions + `GSAP` for buttery-smooth 60fps micro-interactions.
-
-### 🧠 Backend (Type-Safety & Speed)
-* **API Engine:** `Node.js` + `Fastify` for maximum JSON processing speed and strict schema validation.
-* **Language:** 100% strictly typed `TypeScript`.
-* **Database:** `PostgreSQL` managed by `Prisma ORM` for flawless relational integrity.
-* **In-Memory Cache:** `Redis` for Socket.io session recovery and high-speed API caching.
-* **Authentication:** Stateless JSON Web Tokens (JWT) stored in strict `HttpOnly` cookies.
-
-### ⚡ Real-Time & Communications
-* **Signaling & Sync:** `Socket.io` paired with Redis for instant UI state synchronization (chat, presence, notifications).
-* **Conflict Resolution:** `Yjs` (CRDT Framework) ensuring mathematical precision for asynchronous shared canvas and game states.
-* **P2P Video:** Native `WebRTC` API routing directly between devices.
-* **NAT Traversal:** Self-hosted AWS `Coturn` server (STUN/TURN) configured to bypass strict firewalls and VLESS/Reality VPN tunnels.
-
-### 🛠️ DevOps & Infrastructure
-* **Hosting:** AWS Lightsail (Ubuntu VPS).
-* **Containerization:** `Docker Compose` orchestrating isolated containers for Fastify, Postgres, Redis, and Nginx.
-* **Proxy & Security:** `Nginx` reverse proxy with Let's Encrypt SSL certificates.
-* **Media Pipeline:** `Tus Protocol` for resumable uploads streaming directly into `AWS S3`.
+Built with **Svelte 5**, **Fastify**, and **WebRTC**, it runs as a fully containerized stack on a single VPS — giving you complete data sovereignty. No third-party trackers. No telemetry. Just you, your partner, and a glassmorphic universe that stays in sync across timezones.
 
 ---
 
-## 🖥️ Local Development
+## 🏛️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Nginx (Alpine)                        │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
+│  │  Static SPA │  │  API Proxy  │  │  WebSocket Upgrade  │  │
+│  │   (Port 80/443)  │  (Rate Limited)  │  (Socket.IO / Yjs)  │  │
+│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+                              │
+        ┌─────────────────────┼─────────────────────┐
+        │                     │                     │
+   ┌────▼────┐          ┌─────▼─────┐        ┌────▼────┐
+   │ Backend │          │  Cinema   │        │ Postgres│
+   │ Fastify │◄────────►│  Worker   │        │   16    │
+   │ Node 20 │          │(Isolated) │        │(Internal│
+   └────┬────┘          └───────────┘        │ Network)│
+        │                                     └────┬────┘
+   ┌────▼────┐                                ┌───▼────┐
+   │  Redis  │                                │  S3    │
+   │    7    │                                │(Backups│
+   │(Pub/Sub)│                                │& Media)│
+   └─────────┘                                └────────┘
+```
+
+| Layer | Technology | Purpose |
+|-------|------------|---------|
+| **Frontend** | SvelteKit 2 + Svelte 5 Runes + TailwindCSS | SPA with glassmorphism design system, compiled to static HTML |
+| **Reverse Proxy** | Nginx 1.27 (Alpine) | TLS termination, rate limiting, static asset serving, security headers |
+| **API** | Fastify 4 (Node 20) | REST API, JWT auth, TUS uploads, push notifications |
+| **Realtime** | Socket.IO + Redis Adapter | Chat, presence, typing indicators, Spotify Jam sync |
+| **Collaboration** | Yjs + WebSocket | Shared whiteboard with CRDT conflict resolution |
+| **Cinema** | Isolated Worker (FFmpeg + WebTorrent) | HLS streaming for co-watching; runs in dedicated container with no DB access |
+| **Database** | PostgreSQL 16 + Prisma ORM | Relational data, connection pooling, migrations |
+| **Cache / PubSub** | Redis 7 | Session store, rate-limit backend, Socket.IO adapter |
+| **Storage** | AWS S3 / MinIO | Resumable file uploads via TUS, encrypted DB backups |
+| **CI/CD** | GitHub Actions | Lint, type-check, Playwright E2E tests, rsync deploy |
+
+---
+
+## 🔐 Security Highlights
+
+Rina has been through a full-stack security audit. Key protections include:
+
+- **Cookie-based JWT Auth** — `HttpOnly`, `Secure`, `SameSite=Strict` cookies. Tokens are never exposed to JavaScript.
+- **AES-256-GCM Encryption at Rest** — Spotify OAuth tokens are encrypted before touching the database.
+- **XSS Hardening** — Mapbox popups are HTML-escaped; Svelte's default interpolation protects against injection.
+- **Rate Limiting** — Redis-backed limits on API (100 req / 15 min), login (10 req / 15 min), and nginx-layer burst controls.
+- **WebSocket Limits** — Max 10 concurrent Socket.IO connections per user; max 10 Yjs connections per IP.
+- **Upload Guards** — 500 MB cap, extension allowlist, path-traversal prevention.
+- **Isolated Cinema Worker** — The torrent/FFmpeg pipeline runs in its own container with no access to the internal data network.
+- **Encrypted Backups** — Database dumps are GPG-encrypted with AES256 before leaving the server for S3.
+- **Hardened Infrastructure** — Pinned Docker images, OCSP stapling, CSP headers, X-Frame-Options, HSTS preload.
+
+---
+
+## 🚀 Features
+
+### 💬 Chat & Presence
+- Real-time messaging with Socket.IO
+- Typing indicators and online presence orb
+- "Thinking of You" haptic ping
+- Reply threads and media attachments
+
+### 📅 Shared Life
+- **Dual-Timezone Dashboard** — WET/WEST & YEKT clocks with live weather
+- **Smart Calendar** — Event sync with cycle tracking
+- **Countdowns** — Shared visit timers with location pinning
+- **Financial Goals** — Animated liquid-fill tracker for savings
+
+### 🎮 Play Together
+- **Co-Video** — WebRTC peer-to-peer video calls with PiP theater mode
+- **Cinema** — Synchronized HLS streaming (direct links or torrent-isolated worker)
+- **Spotify Jam** — Shared playback control via Spotify Connect
+- **Whiteboard** — Full-screen glass canvas with Yjs real-time collaboration
+- **Roulette** — Synchronized spin wheel for dinner decisions
+
+### 🔒 Private Vault
+- **Time Capsules** — AES-256-GCM encrypted audio/video messages that unlock on a future date
+- **Digital Scrapbook** — EXIF-aware photo map on a 3D Mapbox globe
+- **Movie Watchlist** — TMDB-integrated shared queue with ratings
+
+---
+
+## 🛠️ Local Development
 
 ### Prerequisites
-- Node.js 20+
-- Docker & Docker Compose
-- npm
+- **Node.js** `>=20.0.0`
+- **Docker** & **Docker Compose**
+- **npm**
 
 ### Quick Start
 
@@ -64,87 +126,156 @@
 # 1. Clone and enter the repo
 git clone https://github.com/MarOOnREPO/Rina.git && cd Rina
 
-# 2. Install frontend dependencies
+# 2. Install dependencies
 cd frontend && npm install && cd ..
+cd backend && npm install && cd ..
 
-# 3. Install backend dependencies
-cd backend && sudo apt install npm && cd ..
-
-# 4. Copy environment template and fill in values
+# 3. Configure environment
 cp .env.example .env
-# Edit .env — at minimum set POSTGRES_PASSWORD, JWT_SECRET, COOKIE_SECRET
+# Edit .env — at minimum set:
+#   POSTGRES_PASSWORD, JWT_SECRET, COOKIE_SECRET,
+#   MAROON_PASSWORD_HASH, RINA_PASSWORD_HASH,
+#   SPOTIFY_TOKEN_ENCRYPTION_KEY, BACKUP_ENCRYPTION_KEY
 
-# 5. Start infrastructure (Postgres, Redis) with exposed ports
-#    so the backend dev server on the host can reach them.
+# 4. Start infrastructure (Postgres, Redis)
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres redis
 
-# 6. Run Prisma migrations (in backend directory)
-cd backend
-npx prisma migrate dev
+# 5. Run migrations
+cd backend && npx prisma migrate dev && cd ..
 
-# 7. Start the backend dev server
-cd backend
-npm run dev
+# 6. Start backend dev server (Terminal 1)
+cd backend && npm run dev
 
-# 8. In a new terminal, start the frontend dev server
-cd frontend
-npm run dev
+# 7. Start frontend dev server (Terminal 2)
+cd frontend && npm run dev
 ```
 
-The frontend will be available at `http://localhost:5173` and the backend API at `http://localhost:3000`.
+- **Frontend:** http://localhost:5173
+- **Backend API:** http://localhost:3000
+- **Prisma Studio:** `cd backend && npx prisma studio`
 
-### Useful Commands
+---
+
+## ☁️ Production Deployment
+
+### One-Command Install (Fresh VPS)
+
+Requires Ubuntu 22.04+, Docker, Docker Compose, Git, and OpenSSL.
 
 ```bash
-# Frontend
-cd frontend
-npm run dev        # Start dev server
-npm run build      # Production build
-npm run check      # Type-check with svelte-check
-npm run lint       # Run ESLint
-npm run format     # Format with Prettier
+git clone https://github.com/MarOOnREPO/Rina.git && cd Rina
+cp .env.example .env
+# Fill in all production values
+./scripts/install.sh
+```
 
-# Backend
-cd backend
-npm run dev        # Start dev server with hot reload
-npm run build      # Compile TypeScript
-npm run db:studio  # Open Prisma Studio
+This script will:
+1. Validate prerequisites
+2. Build the frontend
+3. Bootstrap dummy SSL certs
+4. Obtain real Let's Encrypt certificates
+5. Run the first deploy
+
+### Update an Existing VPS
+
+```bash
+cd ~/rina
+git pull origin main
+./scripts/deploy.sh
+```
+
+### Manual SSL Initialization
+
+If installing on a new domain:
+```bash
+./scripts/bootstrap-ssl.sh your-domain.com
+./scripts/init-ssl.sh your-domain.com your-email@example.com
 ```
 
 ---
 
-## ✨ Core Ecosystem Features
+## ⚙️ Required Environment Variables
 
-### 🔒 Absolute Privacy & Security
-- **Environment-Locked Auth:** Application access is cryptographically locked to two exact identities via bcrypt hashes stored in environment variables.
-- **Time Capsules:** Web Audio/Video recordings encrypted client-side using **AES-256-GCM (Web Crypto API)**, physically unlockable only upon server-validated timestamps.
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `DOMAIN` | Your public domain | `rina.example.com` |
+| `FRONTEND_URL` | Public HTTPS URL | `https://rina.example.com` |
+| `POSTGRES_PASSWORD` | Database password | *(strong random)* |
+| `JWT_SECRET` | Signing key for tokens | `min 32 chars` |
+| `COOKIE_SECRET` | Cookie encryption key | `min 32 chars` |
+| `MAROON_PASSWORD_HASH` | Bcrypt hash for user "maroon" | `$2a$12$...` |
+| `RINA_PASSWORD_HASH` | Bcrypt hash for user "rina" | `$2a$12$...` |
+| `SPOTIFY_TOKEN_ENCRYPTION_KEY` | AES key for Spotify tokens | `min 32 chars` |
+| `BACKUP_ENCRYPTION_KEY` | GPG passphrase for DB backups | `min 32 chars` |
+| `AWS_ACCESS_KEY_ID` | S3 credentials | `AKIA...` |
+| `AWS_SECRET_ACCESS_KEY` | S3 credentials | `...` |
+| `S3_BUCKET_NAME` | S3 bucket for uploads/backups | `rina-uploads` |
+| `VAPID_PUBLIC_KEY` | Web Push public key | `BPY...` |
+| `VAPID_PRIVATE_KEY` | Web Push private key | `...` |
+| `CORS_ORIGIN` | Allowed origin | `https://rina.example.com` |
 
-### 🌐 Zero-Latency Connection
-- **WebRTC Video & PIP:** Direct peer-to-peer video streaming featuring a Picture-in-Picture "Theater Mode" for watching live sports together.
-- **The "Presence" Engine:** A Page Visibility API and Socket.io integration that renders a softly glowing orb, pulsing dynamically based on the partner's typing and screen activity.
-- **Haptic Pings:** A glassmorphic interface that leverages the HTML5 Vibration API to send instant "Thinking of You" haptic feedback across the globe.
+Generate hashes and keys:
+```bash
+# Bcrypt hash (run in Node)
+node -e "require('bcryptjs').hash('your_password', 12).then(console.log)"
 
-### 📅 Shared Daily Utilities
-- **Dual-Timezone Dashboard:** Synchronized WET/WEST and YEKT clocks with animating Open-Meteo SVGs.
-- **Smart Unified Calendar:** Real-time event synchronization featuring a specialized algorithmic cycle tracker.
-- **Digital Scrapbook:** High-resolution media vault pinning EXIF photo data to an interactive 3D Mapbox globe.
-- **Liquid Goal Tracker:** An animating SVG container that visually fills to track shared financial goals.
+# Random secrets
+openssl rand -base64 32
+```
 
-### 🎮 Interactive Multiplayer
-- **Fightcade via Data Channels:** Retro arcade emulator utilizing WebRTC UDP Data Channels for frame-perfect, low-latency fighting game inputs.
-- **Shared Glass Whiteboard:** Full-screen translucent `<canvas>` powered by Yjs to prevent stroke conflicts during simultaneous drawing.
-- **Synchronized Media:** YouTube IFrame API integration ensuring play, pause, and seek commands fire at the exact same millisecond.
-- **Dinner Date Roulette:** A synchronized spinning wheel to effortlessly decide on shared meal themes.
+---
+
+## 🧪 Testing
+
+```bash
+# Backend build check
+cd backend && npm run build
+
+# Frontend type-check & lint
+cd frontend && npm run check && npm run lint
+
+# E2E tests (requires dev servers running)
+cd frontend && npx playwright test
+```
+
+---
+
+## 📁 Project Structure
+
+```
+Rina/
+├── frontend/           # SvelteKit SPA
+│   ├── src/routes/     # Page components
+│   ├── src/lib/        # Utils, stores, API client
+│   └── static/         # Assets, manifest
+├── backend/            # Fastify API
+│   ├── src/routes/     # Route handlers
+│   ├── src/services/   # Business logic, Prisma, Redis
+│   ├── src/middleware/ # Auth, validation
+│   └── prisma/         # Schema & migrations
+├── cinema-worker/      # Isolated torrent/FFmpeg worker
+├── nginx/              # Reverse proxy templates
+├── scripts/            # Deploy, backup, SSL helpers
+├── docker-compose.yml  # Production stack
+└── docker-compose.dev.yml  # Local dev overrides
+```
 
 ---
 
 ## 🎨 Design Philosophy
 
-* **Materials:** Extensive use of translucency, frosted glass effects, and background blur against deep slate palettes with rose and indigo accents.
-* **Motion:** Elements scale, bounce, and slide naturally. Nothing simply "appears" or "snaps" into the DOM.
+- **Glassmorphism** — Translucency, frosted blur, and deep slate palettes with rose & indigo accents.
+- **Motion** — Every element enters with intent. Scale, bounce, and slide instead of abrupt snaps.
+- **Privacy by Design** — No analytics, no trackers, no third-party cookies. Your data stays on your server.
+
+---
+
+## 📜 License
+
+This project is licensed under the [MIT License](LICENSE).
 
 ---
 
 <div align="center">
-  <i>Architected and maintained by MarOOn</i>
+  <i>Architected with care by <b>MarOOn</b> 💜</i>
 </div>
