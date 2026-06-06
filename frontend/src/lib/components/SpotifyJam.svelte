@@ -91,6 +91,11 @@
       if (res.success && res.data) {
         devices = res.data.devices || [];
         error = '';
+        // Auto-select active device, or first available
+        if (!selectedDevice && devices.length > 0) {
+          const active = devices.find(d => d.is_active);
+          selectedDevice = active?.id || devices[0].id;
+        }
       } else if (res.error) {
         setError(res.error);
       }
@@ -205,16 +210,20 @@
 
   async function playTrack(uri: string, name: string, artists: string, image: string) {
     error = '';
+    if (!selectedDevice) {
+      setError('Please select a device from the dropdown above, or click Refresh to find devices.');
+      return;
+    }
     const position_ms = 0;
     try {
-      await spotifyApi.play({ uris: [uri], position_ms, device_id: selectedDevice || undefined });
+      await spotifyApi.play({ uris: [uri], position_ms, device_id: selectedDevice });
       currentTrack = { uri, name, artists, image };
       isPlaying = true;
       socketStore.emit('spotify:control', {
         action: 'track',
         uri,
         position_ms,
-        device_id: selectedDevice || undefined
+        device_id: selectedDevice
       });
     } catch (err) {
       console.error('playTrack failed', err);
@@ -228,22 +237,26 @@
 
   async function togglePlay() {
     error = '';
+    if (!selectedDevice) {
+      setError('Please select a device from the dropdown above, or click Refresh to find devices.');
+      return;
+    }
     try {
       if (isPlaying) {
-        await spotifyApi.pause({ device_id: selectedDevice || undefined });
+        await spotifyApi.pause({ device_id: selectedDevice });
         isPlaying = false;
         socketStore.emit('spotify:control', {
           action: 'pause',
           position_ms: 0,
-          device_id: selectedDevice || undefined
+          device_id: selectedDevice
         });
       } else if (currentTrack?.uri) {
-        await spotifyApi.play({ uris: [currentTrack.uri], position_ms: 0, device_id: selectedDevice || undefined });
+        await spotifyApi.play({ uris: [currentTrack.uri], position_ms: 0, device_id: selectedDevice });
         isPlaying = true;
         socketStore.emit('spotify:control', {
           action: 'play',
           position_ms: 0,
-          device_id: selectedDevice || undefined
+          device_id: selectedDevice
         });
       }
     } catch (err) {
@@ -313,6 +326,11 @@
       <div class="text-[11px] text-amber-400 bg-amber-400/10 rounded-lg px-3 py-2 flex items-start gap-2">
         <span>💡</span>
         <span>No devices found. Open the Spotify app on your phone or computer, play any song for a few seconds, then click <strong>Refresh</strong>.</span>
+      </div>
+    {:else if !selectedDevice}
+      <div class="text-[11px] text-amber-400 bg-amber-400/10 rounded-lg px-3 py-2 flex items-start gap-2">
+        <span>💡</span>
+        <span>Please select a device from the dropdown above.</span>
       </div>
     {/if}
 
