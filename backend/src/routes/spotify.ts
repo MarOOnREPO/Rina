@@ -62,6 +62,7 @@ export default async function spotifyRoutes(fastify: FastifyInstance) {
       update: { accessToken: encryptedAccessToken, refreshToken: encryptedRefreshToken, expiresAt },
       create: { userId: request.user!.id, accessToken: encryptedAccessToken, refreshToken: encryptedRefreshToken, expiresAt }
     });
+    console.log('[Spotify] Tokens saved for user', request.user!.id);
 
     return reply.send({ connected: true });
   });

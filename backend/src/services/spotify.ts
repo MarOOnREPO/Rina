@@ -4,6 +4,14 @@ import { getConfig } from './config.js';
 
 const SPOTIFY_API = 'https://api.spotify.com/v1';
 
+function safeJsonParse<T = any>(text: string): T | null {
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return null;
+  }
+}
+
 export interface SpotifyTokens {
   accessToken: string;
   refreshToken: string;
@@ -103,20 +111,24 @@ export async function spotifyApiRequest(
         ...(options.headers || {})
       }
     });
-    const retryData = retry.status !== 204 ? await retry.json().catch(() => null) as any : null;
+    const retryText = retry.status !== 204 ? await retry.text() : '';
+    const retryData = retryText ? safeJsonParse(retryText) : null;
     return {
       success: retry.ok,
       status: retry.status,
-      data: retryData,
-      error: retry.ok ? undefined : retryData?.error?.message || 'Spotify request failed'
+      data: retry.ok ? retryData : undefined,
+      error: retry.ok
+        ? undefined
+        : retryData?.error?.message || retryText || `Spotify request failed (${retry.status})`
     };
   }
 
-  const data = res.status !== 204 ? (await res.json().catch(() => null)) as any : null;
+  const text = res.status !== 204 ? await res.text() : '';
+  const data = text ? safeJsonParse(text) : null;
   return {
     success: res.ok,
     status: res.status,
-    data,
-    error: res.ok ? undefined : data?.error?.message || 'Spotify request failed'
+    data: res.ok ? data : undefined,
+    error: res.ok ? undefined : data?.error?.message || text || `Spotify request failed (${res.status})`
   };
 }

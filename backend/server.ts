@@ -450,18 +450,24 @@ io.on('connection', async (socket: Socket) => {
 
     const { spotifyApiRequest } = await import('./src/services/spotify.js');
     try {
+      let result;
       if (data.action === 'play' || data.action === 'track') {
         const payload: any = { position_ms: data.position_ms };
         if (data.uri) payload.uris = [data.uri];
         const endpoint = data.device_id ? `/me/player/play?device_id=${data.device_id}` : '/me/player/play';
-        await spotifyApiRequest(endpoint, { method: 'PUT', body: JSON.stringify(payload) }, partner.id);
+        result = await spotifyApiRequest(endpoint, { method: 'PUT', body: JSON.stringify(payload) }, partner.id);
       } else if (data.action === 'pause') {
         const endpoint = data.device_id ? `/me/player/pause?device_id=${data.device_id}` : '/me/player/pause';
-        await spotifyApiRequest(endpoint, { method: 'PUT' }, partner.id);
+        result = await spotifyApiRequest(endpoint, { method: 'PUT' }, partner.id);
       } else if (data.action === 'seek') {
         const query = new URLSearchParams({ position_ms: String(data.position_ms) });
         if (data.device_id) query.set('device_id', data.device_id);
-        await spotifyApiRequest(`/me/player/seek?${query.toString()}`, { method: 'PUT' }, partner.id);
+        result = await spotifyApiRequest(`/me/player/seek?${query.toString()}`, { method: 'PUT' }, partner.id);
+      }
+
+      if (result && !result.success) {
+        socket.emit('spotify:error', { message: result.error || 'Spotify command failed' });
+        return;
       }
 
       io.to('spotify-jam').emit('spotify:state', {

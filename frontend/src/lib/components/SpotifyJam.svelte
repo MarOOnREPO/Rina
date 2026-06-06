@@ -74,11 +74,13 @@
     try {
       const res = await spotifyApi.me();
       isConnected = res.success;
+      if (isConnected) error = '';
       if (res.data?.item) {
         currentTrack = res.data.item;
         isPlaying = res.data.is_playing ?? false;
       }
-    } catch {
+    } catch (err) {
+      console.error('checkConnection failed', err);
       isConnected = false;
     }
   }
@@ -86,9 +88,15 @@
   async function loadDevices() {
     try {
       const res = await spotifyApi.devices();
-      if (res.success && res.data) devices = res.data.devices || [];
-    } catch {
-      /* ignore */
+      if (res.success && res.data) {
+        devices = res.data.devices || [];
+        error = '';
+      } else if (res.error) {
+        setError(res.error);
+      }
+    } catch (err) {
+      console.error('loadDevices failed', err);
+      setError(err);
     }
   }
 
@@ -115,6 +123,7 @@
           setError(event.data.error);
         } else {
           isConnected = true;
+          error = '';
           loadDevices();
         }
       }
@@ -167,8 +176,10 @@
       await spotifyApi.disconnect();
       isConnected = false;
       currentTrack = null;
-    } catch {
-      /* ignore */
+      error = '';
+    } catch (err) {
+      console.error('disconnectSpotify failed', err);
+      setError(err);
     }
   }
 
@@ -180,6 +191,7 @@
       const res = await spotifyApi.search(query);
       results = res.data?.tracks?.items || [];
     } catch (err) {
+      console.error('search failed', err);
       setError(err);
     } finally {
       loading = false;
@@ -200,28 +212,34 @@
         device_id: selectedDevice || undefined
       });
     } catch (err) {
+      console.error('playTrack failed', err);
       setError(err);
     }
   }
 
   async function togglePlay() {
     error = '';
-    if (isPlaying) {
-      await spotifyApi.pause({ device_id: selectedDevice || undefined });
-      isPlaying = false;
-      socketStore.emit('spotify:control', {
-        action: 'pause',
-        position_ms: 0,
-        device_id: selectedDevice || undefined
-      });
-    } else if (currentTrack?.uri) {
-      await spotifyApi.play({ uris: [currentTrack.uri], position_ms: 0, device_id: selectedDevice || undefined });
-      isPlaying = true;
-      socketStore.emit('spotify:control', {
-        action: 'play',
-        position_ms: 0,
-        device_id: selectedDevice || undefined
-      });
+    try {
+      if (isPlaying) {
+        await spotifyApi.pause({ device_id: selectedDevice || undefined });
+        isPlaying = false;
+        socketStore.emit('spotify:control', {
+          action: 'pause',
+          position_ms: 0,
+          device_id: selectedDevice || undefined
+        });
+      } else if (currentTrack?.uri) {
+        await spotifyApi.play({ uris: [currentTrack.uri], position_ms: 0, device_id: selectedDevice || undefined });
+        isPlaying = true;
+        socketStore.emit('spotify:control', {
+          action: 'play',
+          position_ms: 0,
+          device_id: selectedDevice || undefined
+        });
+      }
+    } catch (err) {
+      console.error('togglePlay failed', err);
+      setError(err);
     }
   }
 
