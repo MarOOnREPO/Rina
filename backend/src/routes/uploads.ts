@@ -84,6 +84,11 @@ async function tusProxyHandler(request: FastifyRequest, reply: FastifyReply) {
 }
 
 export default async function uploadRoutes(fastify: FastifyInstance, _opts: FastifyPluginOptions) {
+  // Allow TUS PATCH content type through Fastify's parser
+  fastify.addContentTypeParser('application/offset+octet-stream', (_request, payload, done) => {
+    done(null, payload);
+  });
+
   // TUS creation endpoint: POST /api/upload
   fastify.all('/', { preValidation: [authenticateJWT] }, tusProxyHandler);
   // TUS continuation endpoints: HEAD/PATCH/DELETE /api/upload/:id
