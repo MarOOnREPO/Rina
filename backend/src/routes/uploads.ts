@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
+import type { FastifyInstance, FastifyPluginOptions, FastifyRequest, FastifyReply } from 'fastify';
 import { Server as TusServer } from '@tus/server';
 import { S3Store } from '@tus/s3-store';
 import { authenticateJWT } from '../middleware/auth.js';
@@ -40,7 +40,7 @@ if (isUploadsEnabled) {
 
 const KEY_REGEX = /^[a-zA-Z0-9!_.*'()-/]+$/;
 
-const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.mov', '.webm', '.mp3', '.wav', '.m4a', '.ogg', '.pdf', '.txt'];
+const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.mov', '.webm', '.mp3', '.wav', '.m4a', '.ogg', '.pdf', '.txt', '.mkv', '.avi', '.mpeg', '.mpg'];
 
 function getFilenameFromMetadata(header: string): string | null {
   const pairs = header.split(',');
@@ -53,35 +53,39 @@ function getFilenameFromMetadata(header: string): string | null {
   return null;
 }
 
-export default async function uploadRoutes(fastify: FastifyInstance, _opts: FastifyPluginOptions) {
-  // Proxy all methods for Tus protocol
-  fastify.all('/*', { preValidation: [authenticateJWT] }, async (request, reply) => {
-    if (!isUploadsEnabled || !tusServer) {
-      return reply.status(503).send({ error: 'Uploads not configured' });
-    }
-    const uploadMetadata = request.headers['upload-metadata'] as string | undefined;
-    if (uploadMetadata) {
-      const filename = getFilenameFromMetadata(uploadMetadata);
-      if (filename) {
-        const ext = filename.slice(filename.lastIndexOf('.')).toLowerCase();
-        if (!ALLOWED_EXTENSIONS.includes(ext)) {
-          return reply.status(400).send({ error: 'Invalid file type' });
-        }
+async function tusProxyHandler(request: FastifyRequest, reply: FastifyReply) {
+  if (!isUploadsEnabled || !tusServer) {
+    return reply.status(503).send({ error: 'Uploads not configured' });
+  }
+  const uploadMetadata = request.headers['upload-metadata'] as string | undefined;
+  if (uploadMetadata) {
+    const filename = getFilenameFromMetadata(uploadMetadata);
+    if (filename) {
+      const ext = filename.slice(filename.lastIndexOf('.')).toLowerCase();
+      if (!ALLOWED_EXTENSIONS.includes(ext)) {
+        return reply.status(400).send({ error: 'Invalid file type' });
       }
     }
+  }
 
-    // Hijack Fastify response so Tus can handle it directly
-    reply.hijack();
-    try {
-      await tusServer.handle(request.raw, reply.raw);
-    } catch (err) {
-      console.error('[Tus Error]', err);
-      if (!reply.raw.writableEnded) {
-        reply.raw.writeHead(500, { 'Content-Type': 'application/json' });
-        reply.raw.end(JSON.stringify({ error: 'Upload processing failed' }));
-      }
+  // Hijack Fastify response so Tus can handle it directly
+  reply.hijack();
+  try {
+    await tusServer.handle(request.raw, reply.raw);
+  } catch (err) {
+    console.error('[Tus Error]', err);
+    if (!reply.raw.writableEnded) {
+      reply.raw.writeHead(500, { 'Content-Type': 'application/json' });
+      reply.raw.end(JSON.stringify({ error: 'Upload processing failed' }));
     }
-  });
+  }
+}
+
+export default async function uploadRoutes(fastify: FastifyInstance, _opts: FastifyPluginOptions) {
+  // TUS creation endpoint: POST /api/upload
+  fastify.all('/', { preValidation: [authenticateJWT] }, tusProxyHandler);
+  // TUS continuation endpoints: HEAD/PATCH/DELETE /api/upload/:id
+  fastify.all('/*', { preValidation: [authenticateJWT] }, tusProxyHandler);
 
   // Presigned download URL helper
   fastify.get('/url/:key', { preValidation: [authenticateJWT] }, async (request, reply) => {
