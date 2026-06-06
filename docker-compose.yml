@@ -9,6 +9,7 @@ services:
       - "443:443"
     environment:
       - DOMAIN=${DOMAIN}
+      - NGINX_ENVSUBST_FILTER=^DOMAIN$
     volumes:
       - ./nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
       - ./frontend/build:/usr/share/nginx/html:ro
@@ -31,7 +32,7 @@ services:
           cpus: '0.5'
           memory: 128M
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://backend:3000/api/health"]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -71,6 +72,8 @@ services:
       - rina-data
     restart: unless-stopped
     init: true
+    tmpfs:
+      - /tmp
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:3000/api/health || exit 1"]
       interval: 15s
