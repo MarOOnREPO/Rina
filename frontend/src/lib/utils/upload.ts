@@ -11,6 +11,7 @@ export interface UploadOptions {
 export function createUpload(options: UploadOptions): tus.Upload {
   const upload = new tus.Upload(options.file, {
     endpoint: '/api/upload',
+    chunkSize: 5 * 1024 * 1024, // 5MB chunks
     retryDelays: [0, 3000, 5000, 10000, 20000],
     metadata: {
       filename: options.file.name,
