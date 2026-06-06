@@ -133,8 +133,8 @@
       <!-- Movies -->
       <PatchworkTile href="/movies" icon="🎬" title="Movies" subtitle="À voir ensemble" color="from-amber-500/15 to-amber-500/5" delay={220} />
 
-      <!-- Music -->
-      <PatchworkTile href="/jam" icon="🎵" title="Spotify Jam" subtitle="Écoute synchronisée" color="from-pink-500/15 to-pink-500/5" delay={280} />
+      <!-- YouTube Sync -->
+      <PatchworkTile href="/jam" icon="📺" title="YouTube Sync" subtitle="Watch together" color="from-pink-500/15 to-pink-500/5" delay={280} />
 
       <!-- Food -->
       <PatchworkTile href="/roulette" icon="🍽️" title="Food" subtitle="Roulette des repas" color="from-orange-500/15 to-orange-500/5" delay={340} />

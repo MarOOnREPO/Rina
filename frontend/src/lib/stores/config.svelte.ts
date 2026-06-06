@@ -2,7 +2,7 @@ import { browser } from '$app/environment';
 
 export interface AppConfig {
   features: {
-    spotify: boolean;
+    youtube: boolean;
     push: boolean;
     uploads: boolean;
     cinema: boolean;
@@ -13,7 +13,7 @@ export interface AppConfig {
   domain: string;
   frontendUrl: string;
   vapidPublicKey: string | null;
-  spotifyClientId: string | null;
+
   mapboxToken: string | null;
 }
 

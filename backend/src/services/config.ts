@@ -7,8 +7,7 @@ const ENV_DEFAULTS: Record<string, string> = {
   DOMAIN: process.env.DOMAIN || '',
   FRONTEND_URL: process.env.FRONTEND_URL || '',
   CORS_ORIGIN: process.env.CORS_ORIGIN || '',
-  SPOTIFY_TOKEN_ENCRYPTION_KEY: process.env.SPOTIFY_TOKEN_ENCRYPTION_KEY || '',
-  VITE_SPOTIFY_CLIENT_ID: process.env.VITE_SPOTIFY_CLIENT_ID || '',
+  YOUTUBE_INVIOUS_INSTANCE: process.env.YOUTUBE_INVIOUS_INSTANCE || 'vid.puffyan.us',
   VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY || '',
   VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY || '',
   TMDB_API_KEY: process.env.TMDB_API_KEY || '',
@@ -25,6 +24,7 @@ export const CONFIG_KEYS = [
   'DOMAIN',
   'FRONTEND_URL',
   'CORS_ORIGIN',
+  'YOUTUBE_INVIOUS_INSTANCE',
   'SPOTIFY_TOKEN_ENCRYPTION_KEY',
   'VITE_SPOTIFY_CLIENT_ID',
   'VAPID_PUBLIC_KEY',
@@ -85,14 +85,14 @@ export async function deleteConfig(key: ConfigKey): Promise<void> {
 
 export function isFeatureEnabled(key: ConfigKey): boolean {
   const val = CONFIG_CACHE.get(key) ?? ENV_DEFAULTS[key] ?? '';
-  if (key === 'SPOTIFY_TOKEN_ENCRYPTION_KEY') return val.length >= 32;
+  if (key === 'YOUTUBE_INVIOUS_INSTANCE') return val.length > 0;
   if (key === 'BACKUP_ENCRYPTION_KEY') return val.length >= 32;
   return val.length > 0 && !val.startsWith('your_') && val !== '<GENERATE_WITH_OPENSSL_RAND_HEX_32>';
 }
 
 export async function buildPublicConfig(): Promise<{
   features: {
-    spotify: boolean;
+    youtube: boolean;
     push: boolean;
     uploads: boolean;
     cinema: boolean;
@@ -103,23 +103,21 @@ export async function buildPublicConfig(): Promise<{
   domain: string;
   frontendUrl: string;
   vapidPublicKey: string | null;
-  spotifyClientId: string | null;
   mapboxToken: string | null;
 }> {
   await loadCache();
-  const spotifyKey = await getConfig('SPOTIFY_TOKEN_ENCRYPTION_KEY');
+  const youtubeInstance = await getConfig('YOUTUBE_INVIOUS_INSTANCE');
   const vapidPub = await getConfig('VAPID_PUBLIC_KEY');
   const vapidPriv = await getConfig('VAPID_PRIVATE_KEY');
   const awsId = await getConfig('AWS_ACCESS_KEY_ID');
   const awsSecret = await getConfig('AWS_SECRET_ACCESS_KEY');
   const tmdb = await getConfig('TMDB_API_KEY');
   const backup = await getConfig('BACKUP_ENCRYPTION_KEY');
-  const spotifyClientId = await getConfig('VITE_SPOTIFY_CLIENT_ID');
   const mapboxToken = await getConfig('VITE_MAPBOX_TOKEN');
 
   return {
     features: {
-      spotify: spotifyKey.length >= 32,
+      youtube: !!(youtubeInstance && !youtubeInstance.startsWith('your_')),
       push: !!(vapidPub && vapidPriv && !vapidPub.startsWith('your_')),
       uploads: !!(awsId && awsSecret && !awsId.startsWith('your_')),
       cinema: true,
@@ -130,7 +128,6 @@ export async function buildPublicConfig(): Promise<{
     domain: await getConfig('DOMAIN'),
     frontendUrl: await getConfig('FRONTEND_URL'),
     vapidPublicKey: vapidPub && !vapidPub.startsWith('your_') ? vapidPub : null,
-    spotifyClientId: spotifyClientId || null,
     mapboxToken: mapboxToken && !mapboxToken.startsWith('your_') ? mapboxToken : null,
   };
 }
