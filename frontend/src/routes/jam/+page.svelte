@@ -37,21 +37,20 @@
     try {
       const redirectUri = `${window.location.origin}/jam`;
 
-      const tokenRes = await fetch('https://accounts.spotify.com/api/token', {
+      const tokenRes = await fetch('/api/spotify/token', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          grant_type: 'authorization_code',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
           code,
-          redirect_uri: redirectUri,
-          client_id: getEffectiveClientId(),
-          code_verifier: verifier
+          redirectUri,
+          codeVerifier: verifier
         })
       });
 
       if (!tokenRes.ok) {
-        const errText = await tokenRes.text();
-        throw new Error(`Token exchange failed: ${errText}`);
+        const errData = await tokenRes.json().catch(() => ({}));
+        throw new Error(errData.error || `Token exchange failed: ${tokenRes.status}`);
       }
 
       const data = await tokenRes.json();
@@ -61,9 +60,9 @@
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          accessToken: data.access_token,
-          refreshToken: data.refresh_token,
-          expiresIn: data.expires_in
+          accessToken: data.accessToken,
+          refreshToken: data.refreshToken,
+          expiresIn: data.expiresIn
         })
       });
 

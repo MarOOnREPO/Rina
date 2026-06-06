@@ -4,8 +4,58 @@ import { authenticateJWT } from '../middleware/auth.js';
 import { prisma } from '../services/prisma.js';
 import { spotifyApiRequest } from '../services/spotify.js';
 import { encrypt, isEncryptionEnabled } from '../services/encryption.js';
+import { getConfig } from '../services/config.js';
 
 export default async function spotifyRoutes(fastify: FastifyInstance) {
+  // Exchange PKCE code for tokens (server-side proxy — avoids CORS)
+  fastify.post('/token', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    const bodySchema = z.object({
+      code: z.string().min(1),
+      redirectUri: z.string().min(1),
+      codeVerifier: z.string().min(1)
+    });
+    const parse = bodySchema.safeParse(request.body);
+    if (!parse.success) {
+      return reply.status(400).send({ error: parse.error.flatten() });
+    }
+
+    const { code, redirectUri, codeVerifier } = parse.data;
+    const clientId = await getConfig('VITE_SPOTIFY_CLIENT_ID');
+    if (!clientId) {
+      return reply.status(500).send({ error: 'Spotify Client ID not configured' });
+    }
+
+    const tokenRes = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: redirectUri,
+        client_id: clientId,
+        code_verifier: codeVerifier
+      })
+    });
+
+    if (!tokenRes.ok) {
+      const errText = await tokenRes.text();
+      console.error('[Spotify Token Exchange]', errText);
+      return reply.status(502).send({ error: 'Spotify token exchange failed', details: errText });
+    }
+
+    const data = await tokenRes.json() as {
+      access_token: string;
+      refresh_token: string;
+      expires_in: number;
+    };
+
+    return reply.send({
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token,
+      expiresIn: data.expires_in
+    });
+  });
+
   // Store tokens sent from frontend after PKCE popup flow
   fastify.post('/connect', { preValidation: [authenticateJWT] }, async (request, reply) => {
     const bodySchema = z.object({
