@@ -3,17 +3,19 @@
   import SpotifyJam from '$lib/components/SpotifyJam.svelte';
   import FeatureGate from '$lib/components/FeatureGate.svelte';
   import { getEffectiveClientId } from '$lib/config/spotify';
+  import { loadConfig } from '$lib/stores/config.svelte';
 
   let isPopupCallback = $state(false);
   let popupError = $state('');
 
-  onMount(() => {
+  onMount(async () => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
     const spotifyError = params.get('error');
 
     if ((code || spotifyError) && window.opener) {
       isPopupCallback = true;
+      await loadConfig();
       handlePopupCallback(code, spotifyError);
     }
   });
@@ -25,7 +27,7 @@
       return;
     }
 
-    const verifier = sessionStorage.getItem('spotify_code_verifier');
+    const verifier = localStorage.getItem('spotify_code_verifier');
     if (!code || !verifier) {
       window.opener?.postMessage({ type: 'SPOTIFY_CONNECTED', error: 'Missing code or verifier' }, window.location.origin);
       setTimeout(() => window.close(), 500);
@@ -73,7 +75,7 @@
       popupError = errorMsg;
       window.opener?.postMessage({ type: 'SPOTIFY_CONNECTED', error: errorMsg }, window.location.origin);
     } finally {
-      sessionStorage.removeItem('spotify_code_verifier');
+      localStorage.removeItem('spotify_code_verifier');
       setTimeout(() => window.close(), 800);
     }
   }

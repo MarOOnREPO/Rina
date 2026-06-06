@@ -138,7 +138,7 @@
     }
 
     const verifier = generateCodeVerifier();
-    sessionStorage.setItem('spotify_code_verifier', verifier);
+    localStorage.setItem('spotify_code_verifier', verifier);
     const challenge = await generateCodeChallenge(verifier);
 
     const redirectUri = `${window.location.origin}/jam`;
