@@ -45,6 +45,15 @@ export interface SpotifyJamEvent {
   serverTime: number;
 }
 
+export interface YouTubeSyncEvent {
+  action: 'play' | 'pause' | 'seek' | 'load';
+  time: number;
+  videoId: string;
+  sender: string;
+  senderDisplayName: string;
+  serverTime: number;
+}
+
 export interface WebRTCOfferEvent {
   sender: string;
   senderDisplayName: string;
@@ -330,6 +339,30 @@ export const spotifyJam = {
   }
 };
 
+// ─── YouTube Sync State ───────────────────────────────────────────
+let youtubeSyncState = $state<YouTubeSyncEvent | null>(null);
+let youtubeTimeout: ReturnType<typeof setTimeout> | null = null;
+
+export const youtubeSync = {
+  get value() { return youtubeSyncState; },
+
+  receive(data: YouTubeSyncEvent) {
+    youtubeSyncState = data;
+    if (youtubeTimeout) clearTimeout(youtubeTimeout);
+    youtubeTimeout = setTimeout(() => { youtubeSyncState = null; }, 100);
+  },
+
+  emit(data: Omit<YouTubeSyncEvent, 'sender' | 'senderDisplayName' | 'serverTime'>) {
+    socketStore.emit('youtube:sync', data);
+  },
+
+  init(socket: Socket) {
+    socket.on('youtube:sync', (data: YouTubeSyncEvent) => {
+      this.receive(data);
+    });
+  }
+};
+
 // ─── Typing State ─────────────────────────────────────────────────
 let typingState = $state<{ username: string; displayName: string } | null>(null);
 let typingTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -384,6 +417,7 @@ function attachGlobalListeners() {
   mediaSync.init(s);
   cinemaSync.init(s);
   spotifyJam.init(s);
+  youtubeSync.init(s);
   typing.init(s);
   globalSync.init(s);
 }
