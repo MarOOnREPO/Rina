@@ -104,6 +104,7 @@ export async function buildPublicConfig(): Promise<{
   frontendUrl: string;
   vapidPublicKey: string | null;
   mapboxToken: string | null;
+  youtubeInstance: string;
 }> {
   await loadCache();
   const youtubeInstance = await getConfig('YOUTUBE_INVIOUS_INSTANCE');
@@ -129,5 +130,6 @@ export async function buildPublicConfig(): Promise<{
     frontendUrl: await getConfig('FRONTEND_URL'),
     vapidPublicKey: vapidPub && !vapidPub.startsWith('your_') ? vapidPub : null,
     mapboxToken: mapboxToken && !mapboxToken.startsWith('your_') ? mapboxToken : null,
+    youtubeInstance: youtubeInstance || 'vid.puffyan.us',
   };
 }

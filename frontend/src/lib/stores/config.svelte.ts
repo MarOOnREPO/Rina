@@ -15,6 +15,7 @@ export interface AppConfig {
   vapidPublicKey: string | null;
 
   mapboxToken: string | null;
+  youtubeInstance: string;
 }
 
 let config = $state<AppConfig | null>(null);

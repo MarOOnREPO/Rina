@@ -30,6 +30,7 @@ import rtcRoutes from './src/routes/rtc.js';
 import whiteboardRoutes from './src/routes/whiteboard.js';
 import cycleRoutes from './src/routes/cycle.js';
 import cinemaRoutes from './src/routes/cinema.js';
+import youtubeRoutes from './src/routes/youtube.js';
 import spotifyRoutes from './src/routes/spotify.js';
 import adminRoutes from './src/routes/admin.js';
 
@@ -114,7 +115,7 @@ await app.register(helmet, {
       scriptSrc: ["'self'", "'unsafe-inline'", 'https://www.youtube.com', 'https://s.ytimg.com'],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
-      connectSrc: ["'self'", 'wss:', 'ws:', 'https://api.open-meteo.com', 'https://api.mapbox.com', 'https://events.mapbox.com'],
+      connectSrc: ["'self'", 'wss:', 'ws:', 'https://api.open-meteo.com', 'https://api.mapbox.com', 'https://events.mapbox.com', 'https://www.youtube.com', 'https://vid.puffyan.us', 'https://*.invidious.io', 'https://y.com.sb', 'https://iv.datura.network'],
       fontSrc: ["'self'"],
       frameSrc: ["'self'", 'https://www.youtube.com', 'https://www.youtube-nocookie.com'],
       objectSrc: ["'none'"],
@@ -584,6 +585,7 @@ await app.register(rtcRoutes, { prefix: '/api/rtc' });
 await app.register(whiteboardRoutes, { prefix: '/api/whiteboard' });
 await app.register(cycleRoutes, { prefix: '/api/cycle' });
 await app.register(cinemaRoutes, { prefix: '/api/cinema' });
+await app.register(youtubeRoutes, { prefix: '/api/youtube' });
 await app.register(spotifyRoutes, { prefix: '/api/spotify' });
 
 app.get('/api/config', async (_request, reply) => {

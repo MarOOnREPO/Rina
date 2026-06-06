@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { isAuthenticated, isLoading, currentUser } from '$lib/stores/auth.svelte';
   import { socketStore, youtubeSync, presence } from '$lib/stores/socket.svelte';
+  import { getConfig } from '$lib/stores/config.svelte';
   import { fade, scale } from 'svelte/transition';
   import GlassCard from '$lib/components/GlassCard.svelte';
 
@@ -32,63 +33,76 @@
 
   function loadYouTubeAPI(): Promise<void> {
     if (typeof window === 'undefined') return Promise.reject(new Error('Not in browser'));
-    if (window.YT && window.YT.Player) {
+    if (window.YT?.Player) {
       apiLoaded = true;
+      apiError = false;
       return Promise.resolve();
-    }
-    if (apiError) {
-      return Promise.reject(new Error('YouTube API previously failed'));
     }
     if (ytApiPromise) {
       return ytApiPromise;
     }
 
     ytApiPromise = new Promise<void>((resolve, reject) => {
-      const existing = document.querySelector('script[src="https://www.youtube.com/iframe_api"]');
-      if (existing) {
-        const check = setInterval(() => {
-          if (window.YT?.Player) {
-            clearInterval(check);
-            apiLoaded = true;
-            resolve();
-          }
-        }, 200);
-        setTimeout(() => {
-          clearInterval(check);
-          if (!window.YT?.Player) {
-            apiError = true;
-            reject(new Error('YouTube API load timeout (script existed)'));
-          }
-        }, 15000);
+      let resolved = false;
+      const done = () => { resolved = true; apiError = false; };
+
+      // If API already loaded by the time we run
+      if (window.YT?.Player) {
+        apiLoaded = true;
+        done();
+        resolve();
         return;
       }
 
-      const tag = document.createElement('script');
-      tag.src = 'https://www.youtube.com/iframe_api';
-      tag.async = true;
-      tag.onerror = () => {
-        apiError = true;
-        ytApiPromise = null;
-        reject(new Error('Failed to load YouTube IFrame API script'));
-      };
+      // Poll for API readiness (catches cases where script was injected earlier)
+      const poll = setInterval(() => {
+        if (window.YT?.Player) {
+          clearInterval(poll);
+          clearTimeout(timeout);
+          apiLoaded = true;
+          done();
+          resolve();
+        }
+      }, 100);
 
-      const firstScript = document.getElementsByTagName('script')[0];
-      firstScript.parentNode?.insertBefore(tag, firstScript);
+      const timeout = setTimeout(() => {
+        clearInterval(poll);
+        if (!resolved) {
+          apiError = true;
+          ytApiPromise = null;
+          reject(new Error('YouTube API load timeout'));
+        }
+      }, 15000);
 
+      // Set callback BEFORE injecting script to avoid race condition
       const originalCallback = window.onYouTubeIframeAPIReady;
       window.onYouTubeIframeAPIReady = () => {
+        if (resolved) return;
         apiLoaded = true;
+        done();
+        clearInterval(poll);
+        clearTimeout(timeout);
         if (originalCallback) originalCallback();
         resolve();
       };
 
-      setTimeout(() => {
-        if (!window.YT?.Player) {
+      // Only inject if script isn't already in DOM
+      const existing = document.querySelector('script[src="https://www.youtube.com/iframe_api"]');
+      if (!existing) {
+        const tag = document.createElement('script');
+        tag.src = 'https://www.youtube.com/iframe_api';
+        tag.async = true;
+        tag.onerror = () => {
+          if (resolved) return;
+          clearInterval(poll);
+          clearTimeout(timeout);
           apiError = true;
           ytApiPromise = null;
-          reject(new Error('YouTube API load timeout (15s)'));
-        }
-      }, 15000);
+          reject(new Error('Failed to load YouTube IFrame API script'));
+        };
+        const firstScript = document.getElementsByTagName('script')[0];
+        firstScript.parentNode?.insertBefore(tag, firstScript);
+      }
     });
 
     return ytApiPromise;
@@ -284,7 +298,7 @@
     searchResults = [];
 
     try {
-      const res = await fetch(`https://vid.puffyan.us/api/v1/search?q=${encodeURIComponent(query)}`);
+      const res = await fetch(`/api/youtube/search?q=${encodeURIComponent(query)}`);
       if (!res.ok) throw new Error(`Search failed: ${res.status}`);
       const data = await res.json();
       searchResults = data
@@ -380,7 +394,7 @@
         <p class="font-semibold mb-1">Failed to load YouTube API</p>
         <p class="text-xs text-rina-slate">Please check your connection or try again.</p>
         <button
-          onclick={() => { apiError = false; loadYouTubeAPI().then(() => { if (videoInput) loadVideo(); }); }}
+          onclick={() => { apiError = false; ytApiPromise = null; loadYouTubeAPI().then(() => { if (videoInput) loadVideo(); }); }}
           class="mt-2 px-4 py-1.5 rounded-lg bg-white/5 text-xs hover:bg-white/10 transition-colors"
         >
           Retry
