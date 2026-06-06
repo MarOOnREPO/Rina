@@ -100,6 +100,11 @@
     }
   }
 
+  function isNoDeviceError(err: unknown): boolean {
+    const msg = err instanceof Error ? err.message : String(err);
+    return msg.toLowerCase().includes('no active device');
+  }
+
   function setupSocketListeners() {
     socketStore.on('spotify:state', (data: SpotifyJamEvent) => {
       if (data.sender === currentUser()?.username) return;
@@ -213,7 +218,11 @@
       });
     } catch (err) {
       console.error('playTrack failed', err);
-      setError(err);
+      if (isNoDeviceError(err)) {
+        setError('No active Spotify device. Open Spotify on your phone/computer, play a song, then click Refresh.');
+      } else {
+        setError(err);
+      }
     }
   }
 
@@ -239,7 +248,11 @@
       }
     } catch (err) {
       console.error('togglePlay failed', err);
-      setError(err);
+      if (isNoDeviceError(err)) {
+        setError('No active Spotify device. Open Spotify on your phone/computer, play a song, then click Refresh.');
+      } else {
+        setError(err);
+      }
     }
   }
 
@@ -295,6 +308,13 @@
       <button onclick={loadDevices} class="text-[11px] text-rina-rose hover:underline px-2 py-2">Refresh</button>
       <button onclick={disconnectSpotify} class="text-[11px] text-rina-slate-dark hover:text-red-400 transition px-2 py-2">Disconnect</button>
     </div>
+
+    {#if devices.length === 0}
+      <div class="text-[11px] text-amber-400 bg-amber-400/10 rounded-lg px-3 py-2 flex items-start gap-2">
+        <span>💡</span>
+        <span>No devices found. Open the Spotify app on your phone or computer, play any song for a few seconds, then click <strong>Refresh</strong>.</span>
+      </div>
+    {/if}
 
     <!-- Search -->
     <div class="relative">
