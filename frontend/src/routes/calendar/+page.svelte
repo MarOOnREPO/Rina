@@ -259,6 +259,84 @@
     }
   }
 
+  // ─── Cycle Phase Helpers ───────────────────────────────────────
+  function getPhaseInfo(dateStr: string): { phase: string; day: number } | null {
+    const last = getLastPeriodStart();
+    if (!last) return null;
+    const lastDate = new Date(last);
+    const target = new Date(dateStr);
+    lastDate.setHours(0, 0, 0, 0);
+    target.setHours(0, 0, 0, 0);
+    const diff = Math.round((target.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+    let dayInCycle: number;
+    if (diff >= 0) {
+      dayInCycle = (diff % cycleLength) + 1;
+    } else {
+      const n = Math.ceil(Math.abs(diff) / cycleLength);
+      const adjustedStart = new Date(lastDate.getTime() - n * cycleLength * (1000 * 60 * 60 * 24));
+      const adjustedDiff = Math.round((target.getTime() - adjustedStart.getTime()) / (1000 * 60 * 60 * 24));
+      dayInCycle = adjustedDiff + 1;
+    }
+    if (dayInCycle <= 5) return { phase: 'menstrual', day: dayInCycle };
+    if (dayInCycle <= 14) return { phase: 'follicular', day: dayInCycle };
+    if (dayInCycle <= 17) return { phase: 'ovulation', day: dayInCycle };
+    return { phase: 'luteal', day: dayInCycle };
+  }
+
+  function getPhaseBg(info: { phase: string } | null): string {
+    if (!info) return '';
+    switch (info.phase) {
+      case 'menstrual': return 'bg-rose-500/15';
+      case 'follicular': return 'bg-rose-300/10';
+      case 'ovulation': return 'bg-purple-500/15 shadow-[0_0_6px_rgba(168,85,247,0.25)]';
+      case 'luteal': return 'bg-sky-300/10';
+      default: return '';
+    }
+  }
+
+  // ─── Up Next Derived State ─────────────────────────────────────
+  let nextUpcomingEvent = $derived(
+    (() => {
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+      return [...events]
+        .filter((e) => new Date(e.startTime).getTime() >= startOfToday.getTime())
+        .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0] ?? null;
+    })()
+  );
+
+  let daysUntilNextPeriod = $derived(
+    (() => {
+      const last = getLastPeriodStart();
+      if (!last) return null;
+      const lastDate = new Date(last);
+      lastDate.setHours(0, 0, 0, 0);
+      const todayDate = new Date();
+      todayDate.setHours(0, 0, 0, 0);
+      const diff = Math.floor((todayDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+      if (diff < 0) {
+        return Math.ceil((lastDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24));
+      }
+      const cycles = Math.floor(diff / cycleLength);
+      const nextPeriod = new Date(lastDate.getTime() + (cycles + 1) * cycleLength * (1000 * 60 * 60 * 24));
+      return Math.ceil((nextPeriod.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24));
+    })()
+  );
+
+  let nextCountdown = $derived(
+    [...countdowns]
+      .filter((cd) => new Date(cd.targetDate).getTime() > new Date().getTime())
+      .sort((a, b) => new Date(a.targetDate).getTime() - new Date(b.targetDate).getTime())[0] ?? null
+  );
+
+  let currentCycleInfo = $derived(
+    (() => {
+      const today = new Date();
+      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      return getPhaseInfo(todayStr);
+    })()
+  );
+
   $effect(() => {
     if (typeof window !== 'undefined') {
       year + month;
@@ -304,6 +382,46 @@
       </div>
     {/if}
 
+    <!-- Up Next -->
+    {#if nextUpcomingEvent || daysUntilNextPeriod !== null || nextCountdown}
+      <GlassCard class="mb-2">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-sm font-semibold text-white">⏭️ Up Next</span>
+        </div>
+        <div class="space-y-1.5 text-xs">
+          {#if nextUpcomingEvent}
+            <div class="flex items-center gap-2">
+              <span class="shrink-0">📅</span>
+              <span class="truncate font-medium">{nextUpcomingEvent.title}</span>
+              <span class="text-rina-slate shrink-0 ml-auto">
+                {formatEventDate(nextUpcomingEvent)}
+                {nextUpcomingEvent.allDay ? '' : formatEventTime(nextUpcomingEvent)}
+              </span>
+            </div>
+          {/if}
+          {#if daysUntilNextPeriod !== null}
+            <div class="flex items-center gap-2">
+              <span class="shrink-0">🩸</span>
+              <span class="text-rina-slate">
+                {#if daysUntilNextPeriod === 0}
+                  Period expected today
+                {:else}
+                  Period in {daysUntilNextPeriod} day{daysUntilNextPeriod === 1 ? '' : 's'}
+                {/if}
+              </span>
+            </div>
+          {/if}
+          {#if nextCountdown}
+            <div class="flex items-center gap-2">
+              <span class="shrink-0">⏳</span>
+              <span class="truncate font-medium">{nextCountdown.title}</span>
+              <span class="text-rina-slate shrink-0 ml-auto">{formatDate(nextCountdown.targetDate, getUserTimezone())}</span>
+            </div>
+          {/if}
+        </div>
+      </GlassCard>
+    {/if}
+
     <!-- Countdowns -->
     {#if countdowns.length > 0}
       <div class="space-y-3">
@@ -325,6 +443,15 @@
           <button onclick={nextMonth} class="touch-target p-2 rounded-lg hover:bg-white/5 transition-colors text-rina-slate">→</button>
         </div>
 
+        {#if currentCycleInfo}
+          <div class="mb-3 rounded-xl px-3 py-2 text-xs font-medium flex items-center gap-2 {getPhaseBg(currentCycleInfo)} {currentCycleInfo.phase === 'menstrual' ? 'text-rose-300' : currentCycleInfo.phase === 'follicular' ? 'text-rose-200' : currentCycleInfo.phase === 'ovulation' ? 'text-purple-300' : 'text-sky-300'}">
+            <span>
+              {currentCycleInfo.phase === 'menstrual' ? '🩸' : currentCycleInfo.phase === 'follicular' ? '🌸' : currentCycleInfo.phase === 'ovulation' ? '💜' : '🌙'}
+              {currentCycleInfo.phase.charAt(0).toUpperCase() + currentCycleInfo.phase.slice(1)} phase – Day {currentCycleInfo.day}/{cycleLength}
+            </span>
+          </div>
+        {/if}
+
         <div class="grid grid-cols-7 gap-1 mb-2">
           {#each ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as day}
             <div class="text-center text-[10px] font-medium text-rina-slate py-1">{day}</div>
@@ -335,15 +462,15 @@
           {#each daysWithEvents as cell}
             {#if cell}
               {@const { day, dateStr, events: dayEvents } = cell}
-              {@const period = isPeriodDay(day)}
+              {@const phaseInfo = getPhaseInfo(dateStr)}
               <button
                 onclick={() => openCreateModal(dateStr)}
                 class="relative aspect-square rounded-xl p-1 flex flex-col items-start gap-0.5
                   hover:bg-white/5 transition-colors text-left touch-target
                   {isToday(day) ? 'ring-2 ring-rina-rose ring-offset-2 ring-offset-rina-bg' : ''}
-                  {period ? 'bg-rose-500/[0.07]' : ''}"
+                  {getPhaseBg(phaseInfo)}"
               >
-                <span class="text-xs font-medium {isToday(day) ? 'text-rina-rose' : period ? 'text-rose-300' : 'text-white'}">
+                <span class="text-xs font-medium {isToday(day) ? 'text-rina-rose' : phaseInfo?.phase === 'menstrual' ? 'text-rose-300' : 'text-white'}">
                   {day}
                 </span>
                 {#if dayEvents.length > 0}
@@ -361,9 +488,6 @@
                     {/if}
                   </div>
                 {/if}
-                {#if period}
-                  <div class="absolute top-0.5 right-0.5 w-1 h-1 rounded-full bg-rose-400/70 shadow-[0_0_4px_rgba(251,113,133,0.4)]"></div>
-                {/if}
               </button>
             {:else}
               <div class="aspect-square"></div>
@@ -375,7 +499,10 @@
           <div class="flex items-center gap-2 flex-wrap">
             <div class="flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-full bg-rina-rose"></div>Shared</div>
             <div class="flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-full bg-rina-indigo"></div>Work</div>
-            <div class="flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-full bg-rose-400"></div>Period</div>
+            <div class="flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-sm bg-rose-500/60"></div>Menstrual</div>
+            <div class="flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-sm bg-rose-300/40"></div>Follicular</div>
+            <div class="flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-sm bg-purple-400/50"></div>Ovulation</div>
+            <div class="flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-sm bg-sky-300/40"></div>Luteal</div>
           </div>
           <button onclick={() => showCycleSettings = true} class="hover:text-rina-rose transition-colors">⚙️ Cycle</button>
         </div>

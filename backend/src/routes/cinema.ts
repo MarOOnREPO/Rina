@@ -156,6 +156,7 @@ export default async function cinemaRoutes(fastify: FastifyInstance) {
         source: {
           type: session.source.type,
           filename: session.source.filename,
+          s3Key: session.source.s3Key,
           metadata: session.source.metadata
         },
         error: session.error || undefined

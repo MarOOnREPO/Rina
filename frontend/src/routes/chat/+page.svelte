@@ -119,6 +119,18 @@
           {/if}
         </p>
       </div>
+      <button
+        onclick={() => goto('/video')}
+        class="relative group w-9 h-9 rounded-full glass flex items-center justify-center hover:bg-white/10 transition-colors"
+        aria-label="Start video call"
+      >
+        <svg class="w-5 h-5 text-rina-slate group-hover:text-white transition-colors" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+        </svg>
+        <span class="absolute -bottom-8 left-1/2 -translate-x-1/2 text-[10px] bg-rina-bg border border-rina-border px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+          Start video call
+        </span>
+      </button>
     </div>
 
     <!-- Messages -->

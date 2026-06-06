@@ -58,7 +58,7 @@
 {#if isAuthenticated()}
   <!-- Desktop Header -->
   <header class="fixed top-0 left-0 right-0 z-50 glass border-b border-rina-border hidden md:block">
-    <div class="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
+    <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
       <a href="/" class="flex items-center gap-2">
         <span class="text-xl font-bold text-gradient">Rina</span>
       </a>
@@ -67,57 +67,66 @@
         {#each mainNavItems as item}
           <a
             href={item.path}
-            class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200
+            class="relative px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 touch-target flex items-center gap-2
               {currentPath === item.path
-                ? 'bg-rina-rose/10 text-rina-rose'
-                : 'text-rina-slate hover:text-white hover:bg-white/5'}"
+                ? 'bg-rina-rose/15 text-rina-rose shadow-[0_0_16px_rgba(244,114,182,0.25)]'
+                : 'text-white/70 hover:text-white hover:bg-white/5'}"
           >
-            <span class="mr-1.5">{item.icon}</span>
-            {item.label}
+            <span class="text-base">{item.icon}</span>
+            <span>{item.label}</span>
+            {#if currentPath === item.path}
+              <span class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full bg-gradient-to-r from-rina-rose to-rina-indigo"></span>
+            {/if}
           </a>
         {/each}
         {#if currentUser()?.username === 'maroon'}
           <a
             href={adminNavItem.path}
-            class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200
+            class="relative px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 touch-target flex items-center gap-2
               {currentPath === adminNavItem.path
-                ? 'bg-rina-rose/10 text-rina-rose'
-                : 'text-rina-slate hover:text-white hover:bg-white/5'}"
+                ? 'bg-rina-rose/15 text-rina-rose shadow-[0_0_16px_rgba(244,114,182,0.25)]'
+                : 'text-white/70 hover:text-white hover:bg-white/5'}"
           >
-            <span class="mr-1.5">{adminNavItem.icon}</span>
-            {adminNavItem.label}
+            <span class="text-base">{adminNavItem.icon}</span>
+            <span>{adminNavItem.label}</span>
+            {#if currentPath === adminNavItem.path}
+              <span class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full bg-gradient-to-r from-rina-rose to-rina-indigo"></span>
+            {/if}
           </a>
         {/if}
         <div class="relative">
           <button
             bind:this={featuresButtonRef}
             onclick={() => showFeatures = !showFeatures}
-            class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200
+            class="relative px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 touch-target flex items-center gap-2
               {showFeatures
-                ? 'bg-rina-rose/10 text-rina-rose'
-                : 'text-rina-slate hover:text-white hover:bg-white/5'}"
+                ? 'bg-rina-rose/15 text-rina-rose shadow-[0_0_16px_rgba(244,114,182,0.25)]'
+                : 'text-white/70 hover:text-white hover:bg-white/5'}"
           >
-            <span class="mr-1.5">✨</span>
-            Features
+            <span class="text-base">✨</span>
+            <span>Features</span>
+            {#if showFeatures}
+              <span class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full bg-gradient-to-r from-rina-rose to-rina-indigo"></span>
+            {/if}
           </button>
 
           {#if showFeatures}
             <div
-              class="absolute top-full right-0 mt-2 w-56 glass-strong rounded-2xl p-3 border border-rina-border shadow-2xl"
+              class="absolute top-full right-0 mt-3 w-60 glass-strong rounded-2xl p-3 border border-rina-border shadow-2xl"
               transition:scale={{ duration: 150, start: 0.95 }}
             >
               <div class="grid grid-cols-2 gap-2">
                 {#each featureItems as item}
                   <a
                     href={item.path}
-                    class="flex flex-col items-center gap-1 p-2 rounded-xl transition-colors
+                    class="flex flex-col items-center gap-1.5 p-2.5 rounded-xl transition-all duration-200 touch-target
                       {currentPath === item.path
-                        ? 'bg-rina-rose/10 text-rina-rose'
-                        : 'hover:bg-white/5 text-rina-slate'}"
+                        ? 'bg-rina-rose/15 text-rina-rose shadow-[0_0_10px_rgba(244,114,182,0.2)]'
+                        : 'hover:bg-white/5 text-white/70 hover:text-white'}"
                     onclick={closeFeatures}
                   >
                     <span class="text-xl">{item.icon}</span>
-                    <span class="text-[10px] font-medium">{item.label}</span>
+                    <span class="text-[11px] font-semibold">{item.label}</span>
                   </a>
                 {/each}
               </div>
@@ -136,29 +145,29 @@
   <nav class="fixed-mobile bottom-0 z-50 md:hidden">
     <div class="mx-3 mb-[max(0.5rem,env(safe-area-inset-bottom))]">
       <div class="glass-strong rounded-2xl border border-rina-border shadow-lg backdrop-blur-xl">
-        <div class="flex items-center justify-around h-14">
+        <div class="flex items-center justify-around h-[4.5rem]">
           {#each mainNavItems as item}
             <a
               href={item.path}
-              class="flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl transition-all duration-200 touch-target
+              class="flex flex-col items-center justify-center gap-1 px-3 py-1.5 rounded-xl transition-all duration-200 touch-target min-w-[64px]
                 {currentPath === item.path
-                  ? 'text-rina-rose scale-105'
-                  : 'text-rina-slate-dark'}"
+                  ? 'text-rina-rose scale-105 shadow-[0_0_14px_rgba(244,114,182,0.3)] bg-rina-rose/10'
+                  : 'text-white/50 hover:text-white/80'}"
             >
-              <span class="text-lg">{item.icon}</span>
-              <span class="text-[9px] font-semibold leading-none">{item.label}</span>
+              <span class="text-xl">{item.icon}</span>
+              <span class="text-[10px] font-bold leading-none">{item.label}</span>
             </a>
           {/each}
           {#if currentUser()?.username === 'maroon'}
             <a
               href={adminNavItem.path}
-              class="flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl transition-all duration-200 touch-target
+              class="flex flex-col items-center justify-center gap-1 px-3 py-1.5 rounded-xl transition-all duration-200 touch-target min-w-[64px]
                 {currentPath === adminNavItem.path
-                  ? 'text-rina-rose scale-105'
-                  : 'text-rina-slate-dark'}"
+                  ? 'text-rina-rose scale-105 shadow-[0_0_14px_rgba(244,114,182,0.3)] bg-rina-rose/10'
+                  : 'text-white/50 hover:text-white/80'}"
             >
-              <span class="text-lg">{adminNavItem.icon}</span>
-              <span class="text-[9px] font-semibold leading-none">{adminNavItem.label}</span>
+              <span class="text-xl">{adminNavItem.icon}</span>
+              <span class="text-[10px] font-bold leading-none">{adminNavItem.label}</span>
             </a>
           {/if}
 
@@ -166,12 +175,12 @@
           <button
             bind:this={featuresButtonRef}
             onclick={() => showFeatures = !showFeatures}
-            class="flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl transition-all duration-200 touch-target
-              {showFeatures ? 'text-rina-rose scale-105' : 'text-rina-slate-dark'}"
+            class="flex flex-col items-center justify-center gap-1 px-3 py-1.5 rounded-xl transition-all duration-200 touch-target min-w-[64px]
+              {showFeatures ? 'text-rina-rose scale-105 shadow-[0_0_14px_rgba(244,114,182,0.3)] bg-rina-rose/10' : 'text-white/50 hover:text-white/80'}"
             aria-label="Features"
           >
-            <span class="text-lg">✨</span>
-            <span class="text-[9px] font-semibold leading-none">More</span>
+            <span class="text-xl">✨</span>
+            <span class="text-[10px] font-bold leading-none">More</span>
           </button>
         </div>
       </div>
@@ -191,13 +200,13 @@
             {#each featureItems as item}
               <button
                 onclick={() => handleFeatureClick(item.path)}
-                class="flex flex-col items-center gap-1 p-2 rounded-xl transition-colors touch-target
+                class="flex flex-col items-center gap-1.5 p-2.5 rounded-xl transition-all duration-200 touch-target
                   {currentPath === item.path
-                    ? 'bg-rina-rose/10 text-rina-rose'
-                    : 'hover:bg-white/5 text-rina-slate'}"
+                    ? 'bg-rina-rose/15 text-rina-rose shadow-[0_0_10px_rgba(244,114,182,0.2)]'
+                    : 'hover:bg-white/5 text-white/70 hover:text-white'}"
               >
                 <span class="text-xl">{item.icon}</span>
-                <span class="text-[9px] font-medium">{item.label}</span>
+                <span class="text-[10px] font-semibold">{item.label}</span>
               </button>
             {/each}
           </div>

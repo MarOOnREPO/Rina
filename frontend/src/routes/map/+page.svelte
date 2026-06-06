@@ -1,13 +1,14 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { isAuthenticated, isLoading } from '$lib/stores/auth.svelte';
   import { fade } from 'svelte/transition';
   import { scrapbookApi, type ScrapbookPhoto } from '$lib/utils/api';
   import { getConfig, loadConfig } from '$lib/stores/config.svelte';
+  import { socketStore } from '$lib/stores/socket.svelte';
   import GlassCard from '$lib/components/GlassCard.svelte';
   import 'mapbox-gl/dist/mapbox-gl.css';
-import type { Map } from 'mapbox-gl';
+  import type { Map } from 'mapbox-gl';
 
   function escapeHtml(str: string): string {
     return str
@@ -25,6 +26,15 @@ import type { Map } from 'mapbox-gl';
   let loading = $state(true);
   let photos: ScrapbookPhoto[] = $state([]);
   let markerInstances: Array<import('mapbox-gl').Marker> = [];
+
+  // Live location state
+  let shareLiveLocation = $state(false);
+  let userPosition = $state<{ lat: number; lng: number; accuracy: number } | null>(null);
+  let partnerPosition = $state<{ lat: number; lng: number } | null>(null);
+  let watchId: number | null = null;
+  let userMarker: import('mapbox-gl').Marker | null = null;
+  let partnerMarker: import('mapbox-gl').Marker | null = null;
+  let accuracyCircleMarker: import('mapbox-gl').Marker | null = null;
 
   // Fallback demo data if no real photos exist
   const demoPhotos = [
@@ -76,9 +86,105 @@ import type { Map } from 'mapbox-gl';
     });
   }
 
+  function createUserMarkerElement() {
+    const el = document.createElement('div');
+    el.className = 'relative w-4 h-4';
+    el.innerHTML = `
+      <div class="absolute inset-0 rounded-full bg-rina-rose border-2 border-white shadow-lg z-10"></div>
+      <div class="absolute inset-[-8px] rounded-full bg-rina-rose/30 animate-ping"></div>
+      <div class="absolute inset-[-4px] rounded-full bg-rina-rose/20 animate-pulse"></div>
+    `;
+    return el;
+  }
+
+  function createPartnerMarkerElement() {
+    const el = document.createElement('div');
+    el.className = 'relative w-4 h-4';
+    el.innerHTML = `
+      <div class="absolute inset-0 rounded-full bg-sky-400 border-2 border-white shadow-lg z-10"></div>
+      <div class="absolute inset-[-8px] rounded-full bg-sky-400/30 animate-ping"></div>
+      <div class="absolute inset-[-4px] rounded-full bg-sky-400/20 animate-pulse"></div>
+    `;
+    return el;
+  }
+
+  function updateAccuracyCircle(lat: number, lng: number, accuracy: number) {
+    if (!mapInstance || !mapboxModule) return;
+    if (accuracyCircleMarker) {
+      accuracyCircleMarker.remove();
+    }
+    const el = document.createElement('div');
+    el.className = 'rounded-full bg-rina-rose/10 border border-rina-rose/20 pointer-events-none';
+    const metersPerPixel = 40075016.686 * Math.abs(Math.cos(lat * Math.PI / 180)) / Math.pow(2, mapInstance.getZoom() + 8);
+    const sizePx = Math.max(accuracy / metersPerPixel, 20);
+    el.style.width = `${sizePx}px`;
+    el.style.height = `${sizePx}px`;
+    accuracyCircleMarker = new mapboxModule.Marker({ element: el, anchor: 'center' })
+      .setLngLat([lng, lat])
+      .addTo(mapInstance);
+  }
+
+  function updateUserMarker(lat: number, lng: number, accuracy: number) {
+    if (!mapInstance || !mapboxModule) return;
+    if (userMarker) {
+      userMarker.setLngLat([lng, lat]);
+    } else {
+      const el = createUserMarkerElement();
+      userMarker = new mapboxModule.Marker({ element: el, anchor: 'center' })
+        .setLngLat([lng, lat])
+        .addTo(mapInstance);
+    }
+    updateAccuracyCircle(lat, lng, accuracy);
+  }
+
+  function updatePartnerMarker(lat: number, lng: number) {
+    if (!mapInstance || !mapboxModule) return;
+    if (partnerMarker) {
+      partnerMarker.setLngLat([lng, lat]);
+    } else {
+      const el = createPartnerMarkerElement();
+      partnerMarker = new mapboxModule.Marker({ element: el, anchor: 'center' })
+        .setLngLat([lng, lat])
+        .addTo(mapInstance);
+    }
+  }
+
+  function handleLocationUpdate(data: { lat: number; lng: number }) {
+    partnerPosition = { lat: data.lat, lng: data.lng };
+    updatePartnerMarker(data.lat, data.lng);
+  }
+
+  function toggleLiveLocation() {
+    shareLiveLocation = !shareLiveLocation;
+    if (shareLiveLocation) {
+      if ('geolocation' in navigator) {
+        watchId = navigator.geolocation.watchPosition(
+          (pos) => {
+            const { latitude, longitude, accuracy } = pos.coords;
+            userPosition = { lat: latitude, lng: longitude, accuracy };
+            updateUserMarker(latitude, longitude, accuracy);
+            socketStore.emit('location:share', { lat: latitude, lng: longitude, accuracy });
+          },
+          (err) => {
+            console.error('[Map] Geolocation error:', err);
+            shareLiveLocation = false;
+          },
+          { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+        );
+      }
+    } else {
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+      }
+    }
+  }
+
   onMount(() => {
     loadPhotos();
     let resizeObserver: ResizeObserver | null = null;
+
+    socketStore.on('location:update', handleLocationUpdate);
 
     (async () => {
       await loadConfig();
@@ -122,6 +228,12 @@ import type { Map } from 'mapbox-gl';
             addMarkers(map, initial);
           });
 
+          map.on('zoom', () => {
+            if (userPosition) {
+              updateAccuracyCircle(userPosition.lat, userPosition.lng, userPosition.accuracy);
+            }
+          });
+
           // Handle resize
           resizeObserver = new ResizeObserver(() => {
             map.resize();
@@ -137,6 +249,16 @@ import type { Map } from 'mapbox-gl';
     return () => {
       if (resizeObserver) resizeObserver.disconnect();
     };
+  });
+
+  onDestroy(() => {
+    if (watchId !== null) {
+      navigator.geolocation.clearWatch(watchId);
+    }
+    socketStore.off('location:update', handleLocationUpdate);
+    if (userMarker) userMarker.remove();
+    if (partnerMarker) partnerMarker.remove();
+    if (accuracyCircleMarker) accuracyCircleMarker.remove();
   });
 
   // Reactive: update markers when photos change after initial load
@@ -190,7 +312,7 @@ import type { Map } from 'mapbox-gl';
       {/if}
 
       <!-- Overlay UI -->
-      <div class="absolute top-4 left-4 z-10 pointer-events-none">
+      <div class="absolute top-4 left-4 z-10 pointer-events-none space-y-3">
         <GlassCard padding="sm" class="max-w-xs pointer-events-auto">
           <h3 class="text-sm font-semibold mb-1">🌍 Scrapbook Map</h3>
           <p class="text-xs text-rina-slate">
@@ -202,6 +324,28 @@ import type { Map } from 'mapbox-gl';
               Photos pinned by EXIF location data.
             {/if}
           </p>
+        </GlassCard>
+
+        <GlassCard padding="sm" class="max-w-xs pointer-events-auto">
+          <button
+            onclick={toggleLiveLocation}
+            class="flex items-center gap-2 w-full text-left group"
+          >
+            <div class="w-8 h-8 rounded-full {shareLiveLocation ? 'bg-rina-rose' : 'glass'} flex items-center justify-center transition-colors">
+              <svg class="w-4 h-4 {shareLiveLocation ? 'text-white' : 'text-rina-slate'}" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+              </svg>
+            </div>
+            <div>
+              <p class="text-xs font-semibold {shareLiveLocation ? 'text-rina-rose' : 'text-white'}">
+                {shareLiveLocation ? 'Sharing live location' : 'Share my live location'}
+              </p>
+              <p class="text-[10px] text-rina-slate">
+                {shareLiveLocation ? 'Your partner can see you on the map' : 'Tap to let your partner see you'}
+              </p>
+            </div>
+          </button>
         </GlassCard>
       </div>
     </div>

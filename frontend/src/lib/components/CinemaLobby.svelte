@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { cinemaApi } from '$lib/utils/api';
+  import { cinemaApi, movieApi } from '$lib/utils/api';
   import { startUpload } from '$lib/utils/upload';
   import CinemaPlayer from './CinemaPlayer.svelte';
   import type { CinemaSessionResponse, CinemaTmdbMetadata } from '$lib/utils/api';
@@ -9,6 +9,8 @@
   let loading = $state(false);
   let error = $state('');
   let session = $state<{ id: string; playlistUrl: string; source: CinemaSessionResponse['source'] } | null>(null);
+  let sessionStatus = $state('starting');
+  let watchlistLoading = $state(false);
 
   // Upload state
   let fileInput: HTMLInputElement | null = null;
@@ -22,6 +24,30 @@
   let lastProgressTime = $state(0);
   let lastBytes = $state(0);
 
+  $effect(() => {
+    if (!session?.id) return;
+
+    sessionStatus = 'starting';
+    error = '';
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await cinemaApi.status(session.id);
+        sessionStatus = res.status;
+        if (res.status === 'error') {
+          error = res.error || 'Stream failed';
+        }
+        if (res.status === 'ready' || res.status === 'error' || res.status === 'completed') {
+          clearInterval(interval);
+        }
+      } catch (e) {
+        // ignore polling errors
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  });
+
   async function startSession() {
     if (!uri.trim()) return;
     loading = true;
@@ -33,7 +59,6 @@
           : { type: sourceType, uri: uri.trim() };
 
       const res = await cinemaApi.start(body);
-      if (res.status === 'error') throw new Error(res.error || 'Session failed');
       session = { id: res.id, playlistUrl: res.playlistUrl, source: res.source };
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
@@ -127,6 +152,17 @@
     uploadError = '';
     error = '';
     if (fileInput) fileInput.value = '';
+  }
+
+  async function addToWatchlist(tmdbId: number) {
+    watchlistLoading = true;
+    try {
+      await movieApi.add(tmdbId);
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'Failed to add to watchlist';
+    } finally {
+      watchlistLoading = false;
+    }
   }
 
   function getYear(date?: string | null): string {
@@ -248,6 +284,26 @@
   </div>
 {:else}
   <div class="space-y-4">
+    <!-- Status Banner -->
+    {#if sessionStatus === 'starting'}
+      <div class="glass rounded-xl p-3 flex items-center gap-3 text-sm">
+        <span class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin flex-shrink-0"></span>
+        <span class="text-white">⏳ Starting stream... (downloading torrent / fetching video)</span>
+      </div>
+    {:else if sessionStatus === 'ready'}
+      <div class="glass rounded-xl p-3 flex items-center gap-3 text-sm">
+        <span class="text-white">✅ Ready! Starting playback...</span>
+      </div>
+    {:else if sessionStatus === 'error'}
+      <div class="glass rounded-xl p-3 flex items-center gap-3 text-sm">
+        <span class="text-red-400">❌ {error || 'Stream failed'}</span>
+      </div>
+    {:else if sessionStatus === 'completed'}
+      <div class="glass rounded-xl p-3 flex items-center gap-3 text-sm">
+        <span class="text-white">✅ Stream complete</span>
+      </div>
+    {/if}
+
     <!-- TMDB Metadata Card -->
     {#if session.source?.metadata}
       {@const meta = session.source.metadata}
@@ -273,6 +329,15 @@
           {/if}
           {#if session.source.filename}
             <p class="text-[10px] text-rina-slate-dark mt-2 truncate">File: {session.source.filename}</p>
+          {/if}
+          {#if meta.tmdbId}
+            <button
+              onclick={() => addToWatchlist(meta.tmdbId)}
+              disabled={watchlistLoading}
+              class="mt-2 px-3 py-1.5 rounded-lg bg-rina-rose/20 text-rina-rose text-xs font-medium hover:bg-rina-rose/30 transition disabled:opacity-50"
+            >
+              {watchlistLoading ? 'Adding...' : 'Add to Watchlist'}
+            </button>
           {/if}
         </div>
       </div>

@@ -3,6 +3,7 @@
   import Hls from 'hls.js';
   import { socketStore, type CinemaSyncEvent } from '$lib/stores/socket.svelte';
   import { currentUser } from '$lib/stores/auth.svelte';
+  import { cinemaApi } from '$lib/utils/api';
 
   interface Props {
     sessionId: string;
@@ -23,16 +24,23 @@
   let isRemoteControl = $state(false);
   let syncLatency = $state(0);
   let waitingForSync = $state(false);
+  let playerError = $state('');
+  let sessionStatus = $state<string>('');
+  let statusPollInterval = $state<ReturnType<typeof setInterval> | null>(null);
+  let isBuffering = $state(false);
 
   onMount(() => {
     socketStore.emit('cinema:join', { sessionId });
     setupVideo();
     setupSocketListeners();
+    startStatusPolling();
     showControlsTemporarily();
     return () => {
       socketStore.emit('cinema:leave', { sessionId });
       hls?.destroy();
       if (controlsTimeout) clearTimeout(controlsTimeout);
+      if (statusPollInterval) clearInterval(statusPollInterval);
+      removeVideoListeners();
     };
   });
 
@@ -46,6 +54,21 @@
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         videoEl?.play().catch(() => {});
       });
+      hls.on(Hls.Events.ERROR, (_event, data) => {
+        if (data.fatal) {
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              playerError = 'Network error: unable to load stream. The worker may be down.';
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              playerError = 'Media error: the video format is not supported or is corrupted.';
+              break;
+            default:
+              playerError = `Stream error: ${data.details}`;
+              break;
+          }
+        }
+      });
     } else if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
       videoEl.src = playlistUrl;
     }
@@ -54,9 +77,23 @@
     videoEl.addEventListener('pause', handleLocalPause);
     videoEl.addEventListener('seeked', handleLocalSeek);
     videoEl.addEventListener('timeupdate', handleTimeUpdate);
-    videoEl.addEventListener('volumechange', () => {
-      volume = videoEl?.volume ?? 1;
-    });
+    videoEl.addEventListener('volumechange', handleVolumeChange);
+    videoEl.addEventListener('waiting', onWaiting);
+    videoEl.addEventListener('playing', onPlaying);
+  }
+
+  function onWaiting() { isBuffering = true; }
+  function onPlaying() { isBuffering = false; }
+
+  function removeVideoListeners() {
+    if (!videoEl) return;
+    videoEl.removeEventListener('play', handleLocalPlay);
+    videoEl.removeEventListener('pause', handleLocalPause);
+    videoEl.removeEventListener('seeked', handleLocalSeek);
+    videoEl.removeEventListener('timeupdate', handleTimeUpdate);
+    videoEl.removeEventListener('volumechange', handleVolumeChange);
+    videoEl.removeEventListener('waiting', onWaiting);
+    videoEl.removeEventListener('playing', onPlaying);
   }
 
   function handleTimeUpdate() {
@@ -64,6 +101,10 @@
     currentTime = videoEl.currentTime;
     duration = videoEl.duration || 0;
     buffered = videoEl.buffered.length ? videoEl.buffered.end(videoEl.buffered.length - 1) : 0;
+  }
+
+  function handleVolumeChange() {
+    volume = videoEl?.volume ?? 1;
   }
 
   function handleLocalPlay() {
@@ -135,6 +176,20 @@
     setTimeout(() => { isRemoteControl = false; }, 500);
   }
 
+  function startStatusPolling() {
+    statusPollInterval = setInterval(async () => {
+      try {
+        const status = await cinemaApi.status(sessionId);
+        sessionStatus = status.status;
+        if (status.error && !playerError) {
+          playerError = status.error;
+        }
+      } catch {
+        // ignore polling errors
+      }
+    }, 3000);
+  }
+
   function togglePlay() {
     if (!videoEl) return;
     if (videoEl.paused) videoEl.play();
@@ -184,7 +239,7 @@
   onmousemove={showControlsTemporarily}
   onclick={showControlsTemporarily}
   role="button"
-  tabindex="0"
+  tabindex={0}
   aria-label="Cinema player"
 >
   <video
@@ -192,8 +247,29 @@
     class="w-full h-full object-contain"
     playsinline
     preload="auto"
-    crossorigin="anonymous"
   ></video>
+
+  <!-- Loading / Buffering Overlay -->
+  {#if isBuffering && !playerError}
+    <div class="absolute inset-0 flex flex-col items-center justify-center bg-black/60 pointer-events-none gap-2">
+      <div class="w-8 h-8 border-2 border-rina-rose border-t-transparent rounded-full animate-spin"></div>
+      <span class="text-xs text-white/70">Buffering...</span>
+      {#if sessionStatus}
+        <span class="text-[10px] text-rina-slate-dark uppercase tracking-wider">Status: {sessionStatus}</span>
+      {/if}
+    </div>
+  {/if}
+
+  <!-- Error Overlay -->
+  {#if playerError}
+    <div class="absolute inset-0 flex flex-col items-center justify-center bg-black/80 pointer-events-none gap-3 px-6 text-center">
+      <span class="text-2xl">⚠️</span>
+      <span class="text-sm text-red-400 font-medium">{playerError}</span>
+      {#if sessionStatus}
+        <span class="text-[10px] text-rina-slate-dark uppercase tracking-wider">Session status: {sessionStatus}</span>
+      {/if}
+    </div>
+  {/if}
 
   <!-- Buffering / Sync Overlay -->
   {#if waitingForSync}

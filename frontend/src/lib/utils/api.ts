@@ -46,11 +46,13 @@ export class ApiClient {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new ApiError(
-        errorData.error || `HTTP ${response.status}`,
-        response.status,
-        errorData.code
-      );
+      const message =
+        typeof errorData.error === 'string'
+          ? errorData.error
+          : typeof errorData.message === 'string'
+            ? errorData.message
+            : `HTTP ${response.status}`;
+      throw new ApiError(message, response.status, errorData.code);
     }
 
     // Handle 204 No Content

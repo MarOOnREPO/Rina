@@ -33,7 +33,14 @@ export async function createCinemaSession(source: CinemaSource): Promise<string>
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(workerSource)
   });
-  if (!res.ok) throw new Error('Cinema worker failed to start session');
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    throw new Error(
+      typeof body.error === 'string'
+        ? body.error
+        : `Cinema worker failed to start session (${res.status})`
+    );
+  }
   const data = await res.json() as { id: string };
   return data.id;
 }
