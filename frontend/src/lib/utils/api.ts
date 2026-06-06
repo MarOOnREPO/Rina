@@ -115,7 +115,7 @@ export interface CalendarEvent {
   startTime: string;
   endTime?: string;
   type: 'WORK' | 'SHARED';
-  creator: string;
+  creatorId: string;
   allDay: boolean;
   color?: string;
 }
@@ -293,13 +293,39 @@ export const notificationApi = {
     api.post<void>('/auth/notifications/read', { ids })
 };
 
+export interface CinemaTmdbMetadata {
+  tmdbId?: number;
+  title: string;
+  overview?: string | null;
+  posterPath?: string | null;
+  backdropPath?: string | null;
+  releaseDate?: string | null;
+  mediaType?: 'movie' | 'tv';
+}
+
+export interface CinemaSessionResponse {
+  id: string;
+  status: string;
+  playlistUrl: string;
+  source: {
+    type: 'torrent' | 'direct' | 'upload';
+    uri?: string;
+    filename?: string;
+    s3Key?: string;
+    metadata?: CinemaTmdbMetadata;
+  };
+  error?: string;
+}
+
 // ─── Cinema API ──────────────────────────────────────────────────
 export const cinemaApi = {
-  start: (body: { type: 'torrent' | 'direct'; uri: string }) =>
-    api.post<{ id: string; status: string; playlistUrl: string; error?: string }>('/cinema/session', body),
+  start: (body: { type: 'torrent' | 'direct' | 'upload'; uri: string; filename?: string }) =>
+    api.post<CinemaSessionResponse>('/cinema/session', body),
   status: (id: string) =>
-    api.get<{ id: string; status: string; source: { type: string; uri: string }; createdAt: number; error?: string }>(`/cinema/session/${id}`),
-  destroy: (id: string) => api.delete<void>(`/cinema/session/${id}`)
+    api.get<{ id: string; status: string; source: CinemaSessionResponse['source']; createdAt: number; error?: string }>(`/cinema/session/${id}`),
+  destroy: (id: string) => api.delete<void>(`/cinema/session/${id}`),
+  downloadUrl: (id: string) =>
+    api.get<{ url: string; filename: string }>(`/cinema/session/${id}/download`)
 };
 
 // ─── Spotify API ─────────────────────────────────────────────────

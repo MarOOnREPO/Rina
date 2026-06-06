@@ -36,10 +36,10 @@ export interface CinemaSyncEvent {
   serverTime: number;
 }
 
-export interface SpotifyJamEvent {
-  action: 'play' | 'pause' | 'seek' | 'track';
-  uri?: string;
-  position_ms: number;
+export interface YouTubeSyncEvent {
+  action: 'play' | 'pause' | 'seek' | 'load';
+  time: number;
+  videoId: string;
   sender: string;
   senderDisplayName: string;
   serverTime: number;
@@ -306,25 +306,25 @@ export const cinemaSync = {
   }
 };
 
-// ─── Spotify Jam State ────────────────────────────────────────────
-let spotifyJamState = $state<SpotifyJamEvent | null>(null);
-let spotifyTimeout: ReturnType<typeof setTimeout> | null = null;
+// ─── YouTube Sync State ───────────────────────────────────────────
+let youtubeSyncState = $state<YouTubeSyncEvent | null>(null);
+let youtubeTimeout: ReturnType<typeof setTimeout> | null = null;
 
-export const spotifyJam = {
-  get value() { return spotifyJamState; },
+export const youtubeSync = {
+  get value() { return youtubeSyncState; },
 
-  receive(data: SpotifyJamEvent) {
-    spotifyJamState = data;
-    if (spotifyTimeout) clearTimeout(spotifyTimeout);
-    spotifyTimeout = setTimeout(() => { spotifyJamState = null; }, 100);
+  receive(data: YouTubeSyncEvent) {
+    youtubeSyncState = data;
+    if (youtubeTimeout) clearTimeout(youtubeTimeout);
+    youtubeTimeout = setTimeout(() => { youtubeSyncState = null; }, 100);
   },
 
-  emit(data: Omit<SpotifyJamEvent, 'sender' | 'senderDisplayName' | 'serverTime'>) {
-    socketStore.emit('spotify:control', data);
+  emit(data: Omit<YouTubeSyncEvent, 'sender' | 'senderDisplayName' | 'serverTime'>) {
+    socketStore.emit('youtube:sync', data);
   },
 
   init(socket: Socket) {
-    socket.on('spotify:state', (data: SpotifyJamEvent) => {
+    socket.on('youtube:sync', (data: YouTubeSyncEvent) => {
       this.receive(data);
     });
   }
@@ -383,7 +383,7 @@ function attachGlobalListeners() {
   pingReceived.init(s);
   mediaSync.init(s);
   cinemaSync.init(s);
-  spotifyJam.init(s);
+  youtubeSync.init(s);
   typing.init(s);
   globalSync.init(s);
 }

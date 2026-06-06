@@ -1,6 +1,6 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import { isAuthenticated } from '$lib/stores/auth.svelte';
+  import { isAuthenticated, currentUser } from '$lib/stores/auth.svelte';
   import PresenceOrb from './PresenceOrb.svelte';
   import { fade, scale } from 'svelte/transition';
   import { browser } from '$app/environment';
@@ -14,15 +14,16 @@
   const featureItems = [
     { path: '/goals', label: 'Goals', icon: '🎯' },
     { path: '/cinema', label: 'Cinema', icon: '🍿' },
-    { path: '/jam', label: 'Jam', icon: '🎵' },
+    { path: '/jam', label: 'Watch', icon: '📺' },
     { path: '/movies', label: 'Movies', icon: '🎬' },
     { path: '/video', label: 'Video', icon: '📹' },
     { path: '/capsules', label: 'Capsules', icon: '🔐' },
     { path: '/map', label: 'Map', icon: '🗺️' },
     { path: '/roulette', label: 'Food', icon: '🍽️' },
     { path: '/whiteboard', label: 'Draw', icon: '🎨' },
-    { path: '/settings', label: 'Settings', icon: '⚙️' },
   ];
+
+  const adminNavItem = { path: '/settings', label: 'Settings', icon: '⚙️' };
 
   let currentPath = $derived($page.url.pathname);
   let showFeatures = $state(false);
@@ -75,6 +76,18 @@
             {item.label}
           </a>
         {/each}
+        {#if currentUser()?.username === 'maroon'}
+          <a
+            href={adminNavItem.path}
+            class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200
+              {currentPath === adminNavItem.path
+                ? 'bg-rina-rose/10 text-rina-rose'
+                : 'text-rina-slate hover:text-white hover:bg-white/5'}"
+          >
+            <span class="mr-1.5">{adminNavItem.icon}</span>
+            {adminNavItem.label}
+          </a>
+        {/if}
         <div class="relative">
           <button
             bind:this={featuresButtonRef}
@@ -136,6 +149,18 @@
               <span class="text-[9px] font-semibold leading-none">{item.label}</span>
             </a>
           {/each}
+          {#if currentUser()?.username === 'maroon'}
+            <a
+              href={adminNavItem.path}
+              class="flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl transition-all duration-200 touch-target
+                {currentPath === adminNavItem.path
+                  ? 'text-rina-rose scale-105'
+                  : 'text-rina-slate-dark'}"
+            >
+              <span class="text-lg">{adminNavItem.icon}</span>
+              <span class="text-[9px] font-semibold leading-none">{adminNavItem.label}</span>
+            </a>
+          {/if}
 
           <!-- Features Trigger -->
           <button

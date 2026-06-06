@@ -2,16 +2,20 @@ import { browser } from '$app/environment';
 
 export interface AppConfig {
   features: {
-    spotify: boolean;
+    youtube: boolean;
     push: boolean;
     uploads: boolean;
     cinema: boolean;
     tmdb: boolean;
     backup: boolean;
+    mapbox: boolean;
   };
   domain: string;
   frontendUrl: string;
   vapidPublicKey: string | null;
+
+  mapboxToken: string | null;
+  youtubeInstance: string;
 }
 
 let config = $state<AppConfig | null>(null);

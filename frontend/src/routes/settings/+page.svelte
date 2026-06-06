@@ -8,8 +8,7 @@
     DOMAIN: string;
     FRONTEND_URL: string;
     CORS_ORIGIN: string;
-    SPOTIFY_TOKEN_ENCRYPTION_KEY: string;
-    VITE_SPOTIFY_CLIENT_ID: string;
+    YOUTUBE_API_KEY: string;
     VAPID_PUBLIC_KEY: string;
     VAPID_PRIVATE_KEY: string;
     TMDB_API_KEY: string;
@@ -20,6 +19,7 @@
     COTURN_REALM: string;
     COTURN_SECRET: string;
     BACKUP_ENCRYPTION_KEY: string;
+    VITE_MAPBOX_TOKEN: string;
   }
 
   let config = $state<Partial<ConfigValues>>({});
@@ -37,10 +37,10 @@
       help: 'Domain settings for CORS and links',
     },
     {
-      title: 'Spotify Jam',
-      icon: '🎵',
-      keys: ['VITE_SPOTIFY_CLIENT_ID', 'SPOTIFY_TOKEN_ENCRYPTION_KEY'] as const,
-      help: 'Client ID from Spotify Developer Dashboard. Encryption key must be 32+ chars.',
+      title: 'YouTube Sync',
+      icon: '📺',
+      keys: ['YOUTUBE_API_KEY'] as const,
+      help: 'Get free API key at https://console.cloud.google.com/apis/credentials (enable YouTube Data API v3). Search uses ~200 quota units per query.',
     },
     {
       title: 'TMDB Movies',
@@ -51,8 +51,8 @@
     {
       title: 'Mapbox',
       icon: '🗺️',
-      keys: [] as const,
-      help: 'Mapbox token is a frontend build variable. Add to frontend/.env.local and rebuild.',
+      keys: ['VITE_MAPBOX_TOKEN'] as const,
+      help: 'Get free token at https://account.mapbox.com/access-tokens/',
     },
     {
       title: 'AWS S3 Uploads',

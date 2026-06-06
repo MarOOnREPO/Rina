@@ -4,6 +4,7 @@
   import { isAuthenticated, isLoading } from '$lib/stores/auth.svelte';
   import { fade } from 'svelte/transition';
   import { scrapbookApi, type ScrapbookPhoto } from '$lib/utils/api';
+  import { getConfig, loadConfig } from '$lib/stores/config.svelte';
   import GlassCard from '$lib/components/GlassCard.svelte';
   import 'mapbox-gl/dist/mapbox-gl.css';
 import type { Map } from 'mapbox-gl';
@@ -17,14 +18,13 @@ import type { Map } from 'mapbox-gl';
       .replace(/'/g, '&#039;');
   }
 
-  const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || '';
-
   let mapContainer: HTMLDivElement | undefined = $state();
   let mapInstance: Map | null = $state(null);
   let mapboxModule: typeof import('mapbox-gl').default | null = null;
   let mapError = $state('');
   let loading = $state(true);
   let photos: ScrapbookPhoto[] = $state([]);
+  let markerInstances: Array<import('mapbox-gl').Marker> = [];
 
   // Fallback demo data if no real photos exist
   const demoPhotos = [
@@ -43,9 +43,13 @@ import type { Map } from 'mapbox-gl';
     }
   }
 
-  function addMarkers(map: Map, markers: Array<{ lat?: number; lng?: number; caption?: string; url?: string; takenAt?: string; year?: number }>) {
+  function addMarkers(map: Map, markerData: Array<{ lat?: number; lng?: number; caption?: string; url?: string; takenAt?: string; year?: number }>) {
     if (!mapboxModule) return;
-    const validMarkers = markers.filter((p) => typeof p.lat === 'number' && typeof p.lng === 'number');
+    // Clear existing markers
+    markerInstances.forEach((m) => m.remove());
+    markerInstances = [];
+
+    const validMarkers = markerData.filter((p) => typeof p.lat === 'number' && typeof p.lng === 'number');
     if (validMarkers.length === 0) return;
 
     validMarkers.forEach((photo) => {
@@ -63,10 +67,12 @@ import type { Map } from 'mapbox-gl';
             <p style="font-size:12px;color:#666;margin:4px 0 0">${photo.year !== undefined ? escapeHtml(String(photo.year)) : ''}</p>
           </div>`;
 
-      new mapboxModule!.Marker(el)
+      const marker = new mapboxModule!.Marker(el)
         .setLngLat([photo.lng!, photo.lat!])
         .setPopup(new mapboxModule!.Popup({ offset: 8 }).setHTML(popupHtml))
         .addTo(map);
+
+      markerInstances.push(marker);
     });
   }
 
@@ -74,53 +80,59 @@ import type { Map } from 'mapbox-gl';
     loadPhotos();
     let resizeObserver: ResizeObserver | null = null;
 
-    if (!MAPBOX_TOKEN) {
-      mapError = 'Mapbox token not configured. Set VITE_MAPBOX_TOKEN in frontend/.env.local';
-      return;
-    }
+    (async () => {
+      await loadConfig();
 
-    // Defer map init to next tick so DOM container is guaranteed mounted
-    requestAnimationFrame(() => {
-      import('mapbox-gl').then((mapboxgl) => {
-        mapboxModule = mapboxgl.default;
-        mapboxgl.default.accessToken = MAPBOX_TOKEN;
+      const MAPBOX_TOKEN = getConfig()?.mapboxToken || '';
 
-        const map = new mapboxgl.default.Map({
-          container: mapContainer!,
-          style: 'mapbox://styles/mapbox/dark-v11',
-          center: [20, 40],
-          zoom: 1.5,
-          projection: 'globe'
-        });
+      if (!MAPBOX_TOKEN) {
+        mapError = 'Mapbox token not configured. Set VITE_MAPBOX_TOKEN in frontend/.env.local';
+        return;
+      }
 
-        mapInstance = map;
+      // Defer map init to next tick so DOM container is guaranteed mounted
+      requestAnimationFrame(() => {
+        import('mapbox-gl').then((mapboxgl) => {
+          mapboxModule = mapboxgl.default;
+          mapboxgl.default.accessToken = MAPBOX_TOKEN;
 
-        map.on('style.load', () => {
-          map.setFog({
-            color: 'rgb(15, 15, 26)',
-            'high-color': 'rgb(22, 22, 42)',
-            'horizon-blend': 0.4,
-            'space-color': 'rgb(15, 15, 26)',
-            'star-intensity': 0.6
+          const map = new mapboxgl.default.Map({
+            container: mapContainer!,
+            style: 'mapbox://styles/mapbox/dark-v11',
+            center: [20, 40],
+            zoom: 1.5,
+            projection: 'globe'
           });
-        });
 
-        map.on('load', () => {
-          // Initial markers (will use demo if photos not loaded yet)
-          const initial = photos.length > 0 ? photos.filter((p) => p.lat != null && p.lng != null) : demoPhotos;
-          addMarkers(map, initial);
-        });
+          mapInstance = map;
 
-        // Handle resize
-        resizeObserver = new ResizeObserver(() => {
-          map.resize();
+          map.on('style.load', () => {
+            map.setFog({
+              color: 'rgb(15, 15, 26)',
+              'high-color': 'rgb(22, 22, 42)',
+              'horizon-blend': 0.4,
+              'space-color': 'rgb(15, 15, 26)',
+              'star-intensity': 0.6
+            });
+          });
+
+          map.on('load', () => {
+            // Initial markers (will use demo if photos not loaded yet)
+            const initial = photos.length > 0 ? photos.filter((p) => p.lat != null && p.lng != null) : demoPhotos;
+            addMarkers(map, initial);
+          });
+
+          // Handle resize
+          resizeObserver = new ResizeObserver(() => {
+            map.resize();
+          });
+          if (mapContainer) resizeObserver.observe(mapContainer);
+        }).catch((err) => {
+          mapError = 'Failed to load Mapbox. Check console for details.';
+          console.error('[Map]', err);
         });
-        if (mapContainer) resizeObserver.observe(mapContainer);
-      }).catch((err) => {
-        mapError = 'Failed to load Mapbox. Check console for details.';
-        console.error('[Map]', err);
       });
-    });
+    })();
 
     return () => {
       if (resizeObserver) resizeObserver.disconnect();
@@ -129,7 +141,7 @@ import type { Map } from 'mapbox-gl';
 
   // Reactive: update markers when photos change after initial load
   $effect(() => {
-    if (mapInstance && photos.length > 0) {
+    if (mapInstance && mapboxModule && photos.length > 0) {
       // Clear existing markers by reloading the map style layer
       // For simplicity, we reload markers. In production, track marker refs.
       const valid = photos.filter((p) => p.lat != null && p.lng != null);

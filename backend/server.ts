@@ -30,6 +30,7 @@ import rtcRoutes from './src/routes/rtc.js';
 import whiteboardRoutes from './src/routes/whiteboard.js';
 import cycleRoutes from './src/routes/cycle.js';
 import cinemaRoutes from './src/routes/cinema.js';
+import youtubeRoutes from './src/routes/youtube.js';
 import spotifyRoutes from './src/routes/spotify.js';
 import adminRoutes from './src/routes/admin.js';
 
@@ -114,7 +115,7 @@ await app.register(helmet, {
       scriptSrc: ["'self'", "'unsafe-inline'", 'https://www.youtube.com', 'https://s.ytimg.com'],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
-      connectSrc: ["'self'", 'wss:', 'ws:'],
+      connectSrc: ["'self'", 'wss:', 'ws:', 'https://api.open-meteo.com', 'https://api.mapbox.com', 'https://events.mapbox.com', 'https://www.youtube.com', 'https://www.googleapis.com'],
       fontSrc: ["'self'"],
       frameSrc: ["'self'", 'https://www.youtube.com', 'https://www.youtube-nocookie.com'],
       objectSrc: ["'none'"],
@@ -432,51 +433,76 @@ io.on('connection', async (socket: Socket) => {
     socket.leave(`cinema:${data.sessionId}`);
   });
 
-  // ─── Spotify Jam Sync ──────────────────────────────────────
-  socket.on('spotify:join', async () => {
-    socket.join('spotify-jam');
-    console.log('[Spotify] User joined jam:', user.id);
+  // ─── Spotify Jam Sync (deprecated) ─────────────────────────
+  // socket.on('spotify:join', async () => {
+  //   socket.join('spotify-jam');
+  //   console.log('[Spotify] User joined jam:', user.id);
+  // });
+
+  // socket.on('spotify:control', async (data: { action: 'play' | 'pause' | 'seek' | 'track'; uri?: string; position_ms: number; device_id?: string }) => {
+  //   const partner = await getPartner(user.id);
+  //   if (!partner) return;
+
+  //   const tokens = await prisma.spotifyToken.findUnique({ where: { userId: partner.id } });
+  //   if (!tokens) {
+  //     socket.emit('spotify:error', { message: 'Partner has not connected Spotify' });
+  //     return;
+  //   }
+
+  //   const { spotifyApiRequest } = await import('./src/services/spotify.js');
+  //   try {
+  //     let result;
+  //     if (data.action === 'play' || data.action === 'track') {
+  //       const payload: any = { position_ms: data.position_ms };
+  //       if (data.uri) payload.uris = [data.uri];
+  //       const endpoint = data.device_id ? `/me/player/play?device_id=${data.device_id}` : '/me/player/play';
+  //       result = await spotifyApiRequest(endpoint, { method: 'PUT', body: JSON.stringify(payload) }, partner.id);
+  //     } else if (data.action === 'pause') {
+  //       const endpoint = data.device_id ? `/me/player/pause?device_id=${data.device_id}` : '/me/player/pause';
+  //       result = await spotifyApiRequest(endpoint, { method: 'PUT' }, partner.id);
+  //     } else if (data.action === 'seek') {
+  //       const query = new URLSearchParams({ position_ms: String(data.position_ms) });
+  //       if (data.device_id) query.set('device_id', data.device_id);
+  //       result = await spotifyApiRequest(`/me/player/seek?${query.toString()}`, { method: 'PUT' }, partner.id);
+  //     }
+
+  //     if (result && !result.success) {
+  //       socket.emit('spotify:error', { message: result.error || 'Spotify command failed' });
+  //       return;
+  //     }
+
+  //     io.to('spotify-jam').emit('spotify:state', {
+  //       ...data,
+  //       sender: user.username,
+  //       senderDisplayName: user.displayName,
+  //       serverTime: Date.now()
+  //     });
+  //   } catch (err: any) {
+  //     socket.emit('spotify:error', { message: err.message || 'Spotify command failed' });
+  //   }
+  // });
+
+  // socket.on('spotify:leave', async () => {
+  //   socket.leave('spotify-jam');
+  // });
+
+  // ─── YouTube Sync (Watch Together) ─────────────────────────
+  socket.on('youtube:join', () => {
+    socket.join('youtube-sync');
+    console.log('[YouTube] User joined room:', user.id);
   });
 
-  socket.on('spotify:control', async (data: { action: 'play' | 'pause' | 'seek' | 'track'; uri?: string; position_ms: number; device_id?: string }) => {
-    const partner = await getPartner(user.id);
-    if (!partner) return;
-
-    const tokens = await prisma.spotifyToken.findUnique({ where: { userId: partner.id } });
-    if (!tokens) {
-      socket.emit('spotify:error', { message: 'Partner has not connected Spotify' });
-      return;
-    }
-
-    const { spotifyApiRequest } = await import('./src/services/spotify.js');
-    try {
-      if (data.action === 'play' || data.action === 'track') {
-        const payload: any = { position_ms: data.position_ms };
-        if (data.uri) payload.uris = [data.uri];
-        const endpoint = data.device_id ? `/me/player/play?device_id=${data.device_id}` : '/me/player/play';
-        await spotifyApiRequest(endpoint, { method: 'PUT', body: JSON.stringify(payload) }, partner.id);
-      } else if (data.action === 'pause') {
-        const endpoint = data.device_id ? `/me/player/pause?device_id=${data.device_id}` : '/me/player/pause';
-        await spotifyApiRequest(endpoint, { method: 'PUT' }, partner.id);
-      } else if (data.action === 'seek') {
-        const query = new URLSearchParams({ position_ms: String(data.position_ms) });
-        if (data.device_id) query.set('device_id', data.device_id);
-        await spotifyApiRequest(`/me/player/seek?${query.toString()}`, { method: 'PUT' }, partner.id);
-      }
-
-      io.to('spotify-jam').emit('spotify:state', {
-        ...data,
-        sender: user.username,
-        senderDisplayName: user.displayName,
-        serverTime: Date.now()
-      });
-    } catch (err: any) {
-      socket.emit('spotify:error', { message: err.message || 'Spotify command failed' });
-    }
+  socket.on('youtube:leave', () => {
+    socket.leave('youtube-sync');
   });
 
-  socket.on('spotify:leave', async () => {
-    socket.leave('spotify-jam');
+  socket.on('youtube:sync', async (data: { action: 'play' | 'pause' | 'seek' | 'load'; time: number; videoId: string }) => {
+    io.to('youtube-sync').emit('youtube:sync', {
+      ...data,
+      sender: user.username,
+      senderDisplayName: user.displayName,
+      serverTime: Date.now()
+    });
   });
 
   // ─── Disconnection ─────────────────────────────────────────
@@ -559,6 +585,7 @@ await app.register(rtcRoutes, { prefix: '/api/rtc' });
 await app.register(whiteboardRoutes, { prefix: '/api/whiteboard' });
 await app.register(cycleRoutes, { prefix: '/api/cycle' });
 await app.register(cinemaRoutes, { prefix: '/api/cinema' });
+await app.register(youtubeRoutes, { prefix: '/api/youtube' });
 await app.register(spotifyRoutes, { prefix: '/api/spotify' });
 
 app.get('/api/config', async (_request, reply) => {
