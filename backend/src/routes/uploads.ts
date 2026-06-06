@@ -22,7 +22,7 @@ if (isUploadsEnabled) {
       },
       bucket: BUCKET_NAME
     },
-    partSize: 50 * 1024 * 1024 // 50MB S3 parts — matches frontend chunk size
+    partSize: 200 * 1024 * 1024 // 200MB S3 parts — matches frontend chunk size
   });
 
   tusServer = new TusServer({
@@ -70,12 +70,19 @@ async function tusProxyHandler(request: FastifyRequest, reply: FastifyReply) {
     }
   }
 
+  const startTime = Date.now();
+  const contentLength = request.headers['content-length'] || 'unknown';
+  console.log(`[Upload] ${request.method} ${request.url} start | body: ${contentLength} bytes`);
+
   // Hijack Fastify response so Tus can handle it directly
   reply.hijack();
   try {
     await tusServer.handle(request.raw, reply.raw);
+    const duration = Date.now() - startTime;
+    console.log(`[Upload] ${request.method} ${request.url} done | ${duration}ms`);
   } catch (err) {
-    console.error('[Tus Error]', err);
+    const duration = Date.now() - startTime;
+    console.error(`[Upload] ${request.method} ${request.url} ERROR after ${duration}ms`, err);
     if (!reply.raw.writableEnded) {
       reply.raw.writeHead(500, { 'Content-Type': 'application/json' });
       reply.raw.end(JSON.stringify({ error: 'Upload processing failed' }));
