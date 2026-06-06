@@ -146,7 +146,7 @@
           <span class="text-sm text-white font-medium">
             {isUploading ? 'Uploading...' : 'Click to select a video file'}
           </span>
-          <span class="text-xs text-rina-slate-dark">MKV, MP4, AVI, MOV up to 500MB</span>
+          <span class="text-xs text-rina-slate-dark">MKV, MP4, AVI, MOV up to 5GB</span>
         </button>
 
         {#if isUploading}

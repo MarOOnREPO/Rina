@@ -32,7 +32,7 @@ if (isUploadsEnabled) {
       const id = `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
       return id;
     },
-    maxSize: 500 * 1024 * 1024
+    maxSize: 5 * 1024 * 1024 * 1024 // 5GB
   });
 } else {
   console.warn('[Uploads] AWS_ACCESS_KEY_ID or AWS_SECRET_ACCESS_KEY missing — uploads disabled');
