@@ -22,7 +22,7 @@ if (isUploadsEnabled) {
       },
       bucket: BUCKET_NAME
     },
-    partSize: 8 * 1024 * 1024 // 8MB multipart chunks
+    partSize: 50 * 1024 * 1024 // 50MB S3 parts — matches frontend chunk size
   });
 
   tusServer = new TusServer({
