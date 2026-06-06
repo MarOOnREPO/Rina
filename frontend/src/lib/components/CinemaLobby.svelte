@@ -12,9 +12,15 @@
 
   // Upload state
   let fileInput: HTMLInputElement | null = null;
-  let uploadProgress = $state(0);
   let isUploading = $state(false);
+  let uploadProgress = $state(0);
+  let bytesUploaded = $state(0);
+  let bytesTotal = $state(0);
+  let uploadSpeed = $state('');
+  let timeRemaining = $state('');
   let uploadError = $state('');
+  let lastProgressTime = $state(0);
+  let lastBytes = $state(0);
 
   async function startSession() {
     if (!uri.trim()) return;
@@ -50,8 +56,33 @@
 
     const upload = startUpload({
       file,
-      onProgress: (bytesUploaded, bytesTotal) => {
-        uploadProgress = bytesTotal > 0 ? Math.round((bytesUploaded / bytesTotal) * 100) : 0;
+      onProgress: (uploaded, total) => {
+        bytesUploaded = uploaded;
+        bytesTotal = total;
+        uploadProgress = total > 0 ? Math.round((uploaded / total) * 100) : 0;
+
+        const now = Date.now();
+        if (lastProgressTime > 0) {
+          const deltaMs = now - lastProgressTime;
+          const deltaBytes = uploaded - lastBytes;
+          if (deltaMs > 0 && deltaBytes > 0) {
+            const speedBps = (deltaBytes / deltaMs) * 1000;
+            if (speedBps > 1024 * 1024) {
+              uploadSpeed = `${(speedBps / (1024 * 1024)).toFixed(1)} MB/s`;
+            } else {
+              uploadSpeed = `${(speedBps / 1024).toFixed(1)} KB/s`;
+            }
+            const remainingBytes = total - uploaded;
+            const remainingSec = Math.ceil(remainingBytes / speedBps);
+            if (remainingSec < 60) {
+              timeRemaining = `${remainingSec}s`;
+            } else {
+              timeRemaining = `${Math.floor(remainingSec / 60)}m ${remainingSec % 60}s`;
+            }
+          }
+        }
+        lastProgressTime = now;
+        lastBytes = uploaded;
       },
       onSuccess: (uploadUrl) => {
         isUploading = false;
@@ -150,14 +181,27 @@
         </button>
 
         {#if isUploading}
-          <div class="space-y-1">
+          <div class="space-y-2">
             <div class="h-2 bg-white/10 rounded-full overflow-hidden">
               <div
                 class="h-full bg-rina-rose transition-all duration-300"
                 style="width: {uploadProgress}%"
               ></div>
             </div>
-            <p class="text-xs text-rina-slate-dark text-center">{uploadProgress}% uploaded</p>
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-rina-slate-dark">
+                {uploadProgress}% uploaded
+                {#if bytesTotal > 0}
+                  · {(bytesUploaded / (1024 * 1024)).toFixed(1)} / {(bytesTotal / (1024 * 1024)).toFixed(1)} MB
+                {/if}
+              </span>
+              {#if uploadSpeed}
+                <span class="text-rina-slate-dark">{uploadSpeed}</span>
+              {/if}
+            </div>
+            {#if timeRemaining}
+              <p class="text-xs text-rina-slate-dark text-center">{timeRemaining} remaining</p>
+            {/if}
           </div>
         {/if}
 
