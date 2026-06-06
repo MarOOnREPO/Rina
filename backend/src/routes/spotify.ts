@@ -49,11 +49,21 @@ export default async function spotifyRoutes(fastify: FastifyInstance) {
       expires_in: number;
     };
 
-    return reply.send({
-      accessToken: data.access_token,
-      refreshToken: data.refresh_token,
-      expiresIn: data.expires_in
+    // Save tokens directly — avoids second authenticated request from popup
+    const expiresAt = new Date(Date.now() + data.expires_in * 1000);
+    const encryptedAccessToken = isEncryptionEnabled ? encrypt(data.access_token)! : data.access_token;
+    const encryptedRefreshToken = isEncryptionEnabled ? encrypt(data.refresh_token)! : data.refresh_token;
+    if (!isEncryptionEnabled) {
+      console.warn('[Spotify] Storing tokens plaintext because encryption is disabled');
+    }
+
+    await prisma.spotifyToken.upsert({
+      where: { userId: request.user!.id },
+      update: { accessToken: encryptedAccessToken, refreshToken: encryptedRefreshToken, expiresAt },
+      create: { userId: request.user!.id, accessToken: encryptedAccessToken, refreshToken: encryptedRefreshToken, expiresAt }
     });
+
+    return reply.send({ connected: true });
   });
 
   // Store tokens sent from frontend after PKCE popup flow

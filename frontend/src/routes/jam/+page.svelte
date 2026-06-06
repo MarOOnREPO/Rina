@@ -53,21 +53,6 @@
         throw new Error(errData.error || `Token exchange failed: ${tokenRes.status}`);
       }
 
-      const data = await tokenRes.json();
-
-      const storeRes = await fetch('/api/spotify/connect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          accessToken: data.accessToken,
-          refreshToken: data.refreshToken,
-          expiresIn: data.expiresIn
-        })
-      });
-
-      if (!storeRes.ok) throw new Error('Failed to save tokens on server');
-
       window.opener?.postMessage({ type: 'SPOTIFY_CONNECTED' }, window.location.origin);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
