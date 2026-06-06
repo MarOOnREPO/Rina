@@ -46,6 +46,13 @@
   let results = $state<SpotifyTrack[]>([]);
   let loading = $state(false);
   let error = $state('');
+
+  function setError(value: unknown) {
+    if (value instanceof Error) error = value.message;
+    else if (typeof value === 'string') error = value;
+    else if (value && typeof value === 'object' && 'message' in value) error = String((value as { message: unknown }).message);
+    else error = String(value);
+  }
   let currentTrack = $state<LocalTrack | null>(null);
   let isPlaying = $state(false);
   let isConnected = $state(false);
@@ -94,8 +101,8 @@
       isPlaying = data.action === 'play' || data.action === 'track';
     });
 
-    socketStore.on('spotify:error', (data: { message: string }) => {
-      error = data.message;
+    socketStore.on('spotify:error', (data: unknown) => {
+      setError(data && typeof data === 'object' && 'message' in data ? (data as { message: unknown }).message : data);
       setTimeout(() => (error = ''), 5000);
     });
   }
@@ -105,7 +112,7 @@
       if (event.origin !== window.location.origin) return;
       if (event.data?.type === 'SPOTIFY_CONNECTED') {
         if (event.data.error) {
-          error = event.data.error;
+          setError(event.data.error);
         } else {
           isConnected = true;
           loadDevices();
@@ -133,7 +140,7 @@
   async function connectSpotify() {
     error = '';
     if (clientIdWarning) {
-      error = 'Please add your Spotify Client ID in .env or via server config';
+      setError('Please add your Spotify Client ID in .env or via server config');
       return;
     }
 
@@ -173,7 +180,7 @@
       const res = await spotifyApi.search(query);
       results = res.data?.tracks?.items || [];
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      setError(err);
     } finally {
       loading = false;
     }
@@ -193,7 +200,7 @@
         device_id: selectedDevice || undefined
       });
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      setError(err);
     }
   }
 
