@@ -54,7 +54,8 @@
         code: data.current_weather.weathercode,
         label: timezone
       };
-    } catch {
+    } catch (err) {
+      console.error('[Weather]', err);
       return null;
     }
   }
@@ -69,7 +70,8 @@
         code: data.daily.weathercode[1],
         label: timezone
       };
-    } catch {
+    } catch (err) {
+      console.error('[Weather]', err);
       return null;
     }
   }

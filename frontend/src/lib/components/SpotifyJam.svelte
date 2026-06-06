@@ -3,7 +3,7 @@
   import { socketStore, type SpotifyJamEvent } from '$lib/stores/socket.svelte';
   import { spotifyApi } from '$lib/utils/api';
   import { currentUser } from '$lib/stores/auth.svelte';
-  import { SPOTIFY_CLIENT_ID } from '$lib/config/spotify';
+  import { getEffectiveClientId } from '$lib/config/spotify';
 
   interface SpotifyImage {
     url: string;
@@ -52,7 +52,7 @@
   let devices = $state<SpotifyDevice[]>([]);
   let selectedDevice = $state('');
   let searchFocused = $state(false);
-  let clientIdWarning = $state((SPOTIFY_CLIENT_ID as string) === '');
+  let clientIdWarning = $state(getEffectiveClientId() === '');
 
   onMount(() => {
     socketStore.emit('spotify:join');
@@ -133,7 +133,7 @@
   async function connectSpotify() {
     error = '';
     if (clientIdWarning) {
-      error = 'Please add your Spotify Client ID in src/lib/config/spotify.ts';
+      error = 'Please add your Spotify Client ID in .env or via server config';
       return;
     }
 
@@ -145,7 +145,7 @@
     const scope = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
 
     const url = new URL('https://accounts.spotify.com/authorize');
-    url.searchParams.set('client_id', SPOTIFY_CLIENT_ID);
+    url.searchParams.set('client_id', getEffectiveClientId());
     url.searchParams.set('response_type', 'code');
     url.searchParams.set('redirect_uri', redirectUri);
     url.searchParams.set('code_challenge', challenge);
@@ -233,6 +233,9 @@
   {/if}
 
   {#if !isConnected}
+    {#if error}
+      <div class="text-xs text-red-400 bg-red-400/10 rounded-lg px-3 py-2">{error}</div>
+    {/if}
     <div class="text-center py-8 space-y-4">
       <div class="w-14 h-14 rounded-full bg-[#1DB954]/10 flex items-center justify-center mx-auto">
         <svg class="w-7 h-7 text-[#1DB954]" viewBox="0 0 24 24" fill="currentColor">

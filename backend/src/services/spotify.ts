@@ -1,5 +1,6 @@
 import { prisma } from './prisma.js';
 import { encrypt, decrypt, isEncryptionEnabled } from './encryption.js';
+import { getConfig } from './config.js';
 
 const SPOTIFY_API = 'https://api.spotify.com/v1';
 
@@ -34,7 +35,8 @@ export async function refreshSpotifyToken(
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       grant_type: 'refresh_token',
-      refresh_token: refreshToken
+      refresh_token: refreshToken,
+      client_id: await getConfig('VITE_SPOTIFY_CLIENT_ID')
     })
   });
 

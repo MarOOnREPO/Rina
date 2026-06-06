@@ -37,6 +37,7 @@ export const CONFIG_KEYS = [
   'COTURN_REALM',
   'COTURN_SECRET',
   'BACKUP_ENCRYPTION_KEY',
+  'VITE_MAPBOX_TOKEN',
 ] as const;
 
 export type ConfigKey = typeof CONFIG_KEYS[number];
@@ -97,10 +98,13 @@ export async function buildPublicConfig(): Promise<{
     cinema: boolean;
     tmdb: boolean;
     backup: boolean;
+    mapbox: boolean;
   };
   domain: string;
   frontendUrl: string;
   vapidPublicKey: string | null;
+  spotifyClientId: string | null;
+  mapboxToken: string | null;
 }> {
   await loadCache();
   const spotifyKey = await getConfig('SPOTIFY_TOKEN_ENCRYPTION_KEY');
@@ -110,6 +114,8 @@ export async function buildPublicConfig(): Promise<{
   const awsSecret = await getConfig('AWS_SECRET_ACCESS_KEY');
   const tmdb = await getConfig('TMDB_API_KEY');
   const backup = await getConfig('BACKUP_ENCRYPTION_KEY');
+  const spotifyClientId = await getConfig('VITE_SPOTIFY_CLIENT_ID');
+  const mapboxToken = await getConfig('VITE_MAPBOX_TOKEN');
 
   return {
     features: {
@@ -119,9 +125,12 @@ export async function buildPublicConfig(): Promise<{
       cinema: true,
       tmdb: !!(tmdb && !tmdb.startsWith('your_')),
       backup: backup.length >= 32,
+      mapbox: !!(mapboxToken && !mapboxToken.startsWith('your_')),
     },
     domain: await getConfig('DOMAIN'),
     frontendUrl: await getConfig('FRONTEND_URL'),
     vapidPublicKey: vapidPub && !vapidPub.startsWith('your_') ? vapidPub : null,
+    spotifyClientId: spotifyClientId || null,
+    mapboxToken: mapboxToken && !mapboxToken.startsWith('your_') ? mapboxToken : null,
   };
 }

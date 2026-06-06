@@ -8,3 +8,9 @@
 //    - https://your-domain.com/jam (for production)
 
 export const SPOTIFY_CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID || '';
+
+import { getConfig } from '$lib/stores/config.svelte';
+
+export function getEffectiveClientId(): string {
+  return import.meta.env.VITE_SPOTIFY_CLIENT_ID || getConfig()?.spotifyClientId || '';
+}

@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import SpotifyJam from '$lib/components/SpotifyJam.svelte';
   import FeatureGate from '$lib/components/FeatureGate.svelte';
-  import { SPOTIFY_CLIENT_ID } from '$lib/config/spotify';
+  import { getEffectiveClientId } from '$lib/config/spotify';
 
   let isPopupCallback = $state(false);
   let popupError = $state('');
@@ -42,7 +42,7 @@
           grant_type: 'authorization_code',
           code,
           redirect_uri: redirectUri,
-          client_id: SPOTIFY_CLIENT_ID,
+          client_id: getEffectiveClientId(),
           code_verifier: verifier
         })
       });

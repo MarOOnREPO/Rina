@@ -115,7 +115,7 @@ export interface CalendarEvent {
   startTime: string;
   endTime?: string;
   type: 'WORK' | 'SHARED';
-  creator: string;
+  creatorId: string;
   allDay: boolean;
   color?: string;
 }

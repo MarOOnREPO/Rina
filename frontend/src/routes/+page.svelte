@@ -6,6 +6,7 @@
   import { notificationApi, type AppNotification } from '$lib/utils/api';
   import { fade, fly } from 'svelte/transition';
   import PatchworkTile from '$lib/components/PatchworkTile.svelte';
+  import WeatherWidget from '$lib/components/WeatherWidget.svelte';
 
   // ─── Notifications ─────────────────────────────────────────────
   let notifications = $state<AppNotification[]>([]);
@@ -101,6 +102,12 @@
         </div>
       {/if}
     {/if}
+
+    <!-- Desktop Weather -->
+    <div class="hidden md:grid md:grid-cols-2 gap-3">
+      <WeatherWidget lat={34.26} lon={-6.58} timezone="Africa/Casablanca" label="Kenitra" />
+      <WeatherWidget lat={58.01} lon={56.25} timezone="Asia/Yekaterinburg" label="Perm" />
+    </div>
 
     <!-- Main Patchwork Grid -->
     <div class="grid grid-cols-2 gap-3 auto-rows-[minmax(100px,auto)]">

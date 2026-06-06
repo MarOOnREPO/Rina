@@ -8,10 +8,13 @@ export interface AppConfig {
     cinema: boolean;
     tmdb: boolean;
     backup: boolean;
+    mapbox: boolean;
   };
   domain: string;
   frontendUrl: string;
   vapidPublicKey: string | null;
+  spotifyClientId: string | null;
+  mapboxToken: string | null;
 }
 
 let config = $state<AppConfig | null>(null);

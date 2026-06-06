@@ -15,6 +15,7 @@
   let events: CalendarEvent[] = $state([]);
   let countdowns: Countdown[] = $state([]);
   let loading = $state(true);
+  let saving = $state(false);
   let error = $state('');
 
   // View toggle: 'agenda' | 'grid'
@@ -54,7 +55,7 @@
 
   function eventMatchesDay(event: CalendarEvent, day: number): boolean {
     const d = new Date(event.startTime);
-    return d.getUTCDate() === day && d.getUTCMonth() === month && d.getUTCFullYear() === year;
+    return d.getDate() === day && d.getMonth() === month && d.getFullYear() === year;
   }
 
   let daysWithEvents = $derived(calendarDays.map((day) => {
@@ -118,6 +119,7 @@
 
   function openEditModal(event: CalendarEvent) {
     modalMode = 'edit';
+    selectedDate = event.startTime.split('T')[0];
     editingEvent = event;
     formEvent = {
       title: event.title,
@@ -137,6 +139,7 @@
       return;
     }
     error = '';
+    saving = true;
 
     const payload: Partial<CalendarEvent> = {
       ...formEvent,
@@ -160,11 +163,14 @@
     } catch (err) {
       error = modalMode === 'edit' ? 'Failed to update event' : 'Failed to create event';
       console.error('[Calendar]', err);
+    } finally {
+      saving = false;
     }
   }
 
   async function deleteEvent(id: string) {
     if (!confirm('Delete this event?')) return;
+    saving = true;
     try {
       await calendarApi.remove(id);
       showEventModal = false;
@@ -173,6 +179,8 @@
     } catch (err) {
       error = 'Failed to delete event';
       console.error('[Calendar]', err);
+    } finally {
+      saving = false;
     }
   }
 
@@ -227,8 +235,8 @@
       const to = `${toDate.getFullYear()}-${String(toDate.getMonth() + 1).padStart(2, '0')}-${String(toDate.getDate()).padStart(2, '0')}`;
       const { entries } = await cycleApi.list(from, to);
       cycleEntries = entries;
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error('[Calendar] loadCycleData failed:', err);
     }
   }
 
@@ -246,8 +254,8 @@
       });
       showCycleSettings = false;
       await loadCycleData();
-    } catch {
-      // ignore error
+    } catch (err) {
+      console.error('[Calendar] saveCycleSettings failed:', err);
     }
   }
 
@@ -341,7 +349,12 @@
                 {#if dayEvents.length > 0}
                   <div class="flex flex-col gap-[2px] w-full overflow-hidden">
                     {#each dayEvents.slice(0, 2) as event}
-                      <div class="h-1 rounded-full w-full" style="background-color: {getEventColor(event.type, event.color)}"></div>
+                      <button
+                        onclick={(e) => { e.stopPropagation(); openEditModal(event); }}
+                        class="h-1 rounded-full w-full cursor-pointer hover:opacity-80"
+                        style="background-color: {getEventColor(event.type, event.color)}"
+                        aria-label={event.title}
+                      ></button>
                     {/each}
                     {#if dayEvents.length > 2}
                       <span class="text-[7px] text-rina-slate pl-0.5">+{dayEvents.length - 2}</span>
@@ -382,14 +395,15 @@
         {:else}
           <div class="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
             {#each upcomingEvents as event (event.id)}
+              {@const eventDate = new Date(event.startTime)}
               <button
                 onclick={() => openEditModal(event)}
                 class="w-full flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] transition-colors text-left"
                 transition:slide
               >
                 <div class="flex flex-col items-center min-w-[3rem]">
-                  <span class="text-[10px] text-rina-slate uppercase">{new Date(event.startTime).toLocaleDateString('en-GB', { month: 'short' })}</span>
-                  <span class="text-xl font-bold">{new Date(event.startTime).getDate()}</span>
+                  <span class="text-[10px] text-rina-slate uppercase">{eventDate.toLocaleDateString('en-GB', { month: 'short', timeZone: getUserTimezone() })}</span>
+                  <span class="text-xl font-bold">{eventDate.toLocaleDateString('en-GB', { day: 'numeric', timeZone: getUserTimezone() })}</span>
                 </div>
                 <div class="w-1 h-8 rounded-full shrink-0" style="background-color: {getEventColor(event.type, event.color)}"></div>
                 <div class="flex-1 min-w-0">
@@ -481,7 +495,9 @@
                 <button onclick={() => deleteEvent(editingEvent!.id)} class="touch-target px-4 py-2.5 rounded-xl bg-red-500/20 text-red-400 text-sm hover:bg-red-500/30 transition-colors">Delete</button>
               {/if}
               <button onclick={() => showEventModal = false} class="touch-target flex-1 py-2.5 rounded-xl border border-rina-border text-sm hover:bg-white/5 transition-colors">Cancel</button>
-              <button onclick={saveEvent} class="touch-target flex-1 py-2.5 rounded-xl bg-rina-rose text-white text-sm font-medium hover:opacity-90 transition-opacity">Save</button>
+              <button onclick={saveEvent} disabled={saving} class="touch-target flex-1 py-2.5 rounded-xl bg-rina-rose text-white text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed">
+                {saving ? 'Saving...' : 'Save'}
+              </button>
             </div>
           </div>
         </div>

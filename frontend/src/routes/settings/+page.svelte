@@ -20,6 +20,7 @@
     COTURN_REALM: string;
     COTURN_SECRET: string;
     BACKUP_ENCRYPTION_KEY: string;
+    VITE_MAPBOX_TOKEN: string;
   }
 
   let config = $state<Partial<ConfigValues>>({});
@@ -51,8 +52,8 @@
     {
       title: 'Mapbox',
       icon: '🗺️',
-      keys: [] as const,
-      help: 'Mapbox token is a frontend build variable. Add to frontend/.env.local and rebuild.',
+      keys: ['VITE_MAPBOX_TOKEN'] as const,
+      help: 'Get free token at https://account.mapbox.com/access-tokens/',
     },
     {
       title: 'AWS S3 Uploads',
