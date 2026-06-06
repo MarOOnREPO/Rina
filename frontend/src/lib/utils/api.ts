@@ -2,10 +2,16 @@ import { browser } from '$app/environment';
 
 const API_BASE = browser ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3000');
 
-export interface ApiError {
-  message: string;
+export class ApiError extends Error {
   code?: string;
   status: number;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = code;
+  }
 }
 
 export class ApiClient {
@@ -40,12 +46,11 @@ export class ApiClient {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      const error: ApiError = {
-        message: errorData.error || `HTTP ${response.status}`,
-        code: errorData.code,
-        status: response.status
-      };
-      throw error;
+      throw new ApiError(
+        errorData.error || `HTTP ${response.status}`,
+        response.status,
+        errorData.code
+      );
     }
 
     // Handle 204 No Content
