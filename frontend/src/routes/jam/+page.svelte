@@ -299,6 +299,10 @@
 
     try {
       const res = await fetch(`/api/youtube/search?q=${encodeURIComponent(query)}`);
+      if (res.status === 503) {
+        searchError = 'YouTube search requires an API key. Ask your admin to add one in Settings.';
+        return;
+      }
       if (!res.ok) throw new Error(`Search failed: ${res.status}`);
       const data = await res.json();
       searchResults = data

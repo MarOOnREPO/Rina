@@ -115,7 +115,7 @@ await app.register(helmet, {
       scriptSrc: ["'self'", "'unsafe-inline'", 'https://www.youtube.com', 'https://s.ytimg.com'],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
-      connectSrc: ["'self'", 'wss:', 'ws:', 'https://api.open-meteo.com', 'https://api.mapbox.com', 'https://events.mapbox.com', 'https://www.youtube.com', 'https://vid.puffyan.us', 'https://*.invidious.io', 'https://y.com.sb', 'https://iv.datura.network'],
+      connectSrc: ["'self'", 'wss:', 'ws:', 'https://api.open-meteo.com', 'https://api.mapbox.com', 'https://events.mapbox.com', 'https://www.youtube.com', 'https://www.googleapis.com'],
       fontSrc: ["'self'"],
       frameSrc: ["'self'", 'https://www.youtube.com', 'https://www.youtube-nocookie.com'],
       objectSrc: ["'none'"],

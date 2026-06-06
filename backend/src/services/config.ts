@@ -7,7 +7,7 @@ const ENV_DEFAULTS: Record<string, string> = {
   DOMAIN: process.env.DOMAIN || '',
   FRONTEND_URL: process.env.FRONTEND_URL || '',
   CORS_ORIGIN: process.env.CORS_ORIGIN || '',
-  YOUTUBE_INVIOUS_INSTANCE: process.env.YOUTUBE_INVIOUS_INSTANCE || 'vid.puffyan.us',
+  YOUTUBE_API_KEY: process.env.YOUTUBE_API_KEY || '',
   VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY || '',
   VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY || '',
   TMDB_API_KEY: process.env.TMDB_API_KEY || '',
@@ -24,7 +24,7 @@ export const CONFIG_KEYS = [
   'DOMAIN',
   'FRONTEND_URL',
   'CORS_ORIGIN',
-  'YOUTUBE_INVIOUS_INSTANCE',
+  'YOUTUBE_API_KEY',
   'SPOTIFY_TOKEN_ENCRYPTION_KEY',
   'VITE_SPOTIFY_CLIENT_ID',
   'VAPID_PUBLIC_KEY',
@@ -85,7 +85,7 @@ export async function deleteConfig(key: ConfigKey): Promise<void> {
 
 export function isFeatureEnabled(key: ConfigKey): boolean {
   const val = CONFIG_CACHE.get(key) ?? ENV_DEFAULTS[key] ?? '';
-  if (key === 'YOUTUBE_INVIOUS_INSTANCE') return val.length > 0;
+  if (key === 'YOUTUBE_API_KEY') return val.length > 0 && !val.startsWith('your_');
   if (key === 'BACKUP_ENCRYPTION_KEY') return val.length >= 32;
   return val.length > 0 && !val.startsWith('your_') && val !== '<GENERATE_WITH_OPENSSL_RAND_HEX_32>';
 }
@@ -107,7 +107,7 @@ export async function buildPublicConfig(): Promise<{
   youtubeInstance: string;
 }> {
   await loadCache();
-  const youtubeInstance = await getConfig('YOUTUBE_INVIOUS_INSTANCE');
+  const youtubeApiKey = await getConfig('YOUTUBE_API_KEY');
   const vapidPub = await getConfig('VAPID_PUBLIC_KEY');
   const vapidPriv = await getConfig('VAPID_PRIVATE_KEY');
   const awsId = await getConfig('AWS_ACCESS_KEY_ID');
@@ -118,7 +118,7 @@ export async function buildPublicConfig(): Promise<{
 
   return {
     features: {
-      youtube: !!(youtubeInstance && !youtubeInstance.startsWith('your_')),
+      youtube: !!(youtubeApiKey && !youtubeApiKey.startsWith('your_')),
       push: !!(vapidPub && vapidPriv && !vapidPub.startsWith('your_')),
       uploads: !!(awsId && awsSecret && !awsId.startsWith('your_')),
       cinema: true,
@@ -130,6 +130,6 @@ export async function buildPublicConfig(): Promise<{
     frontendUrl: await getConfig('FRONTEND_URL'),
     vapidPublicKey: vapidPub && !vapidPub.startsWith('your_') ? vapidPub : null,
     mapboxToken: mapboxToken && !mapboxToken.startsWith('your_') ? mapboxToken : null,
-    youtubeInstance: youtubeInstance || 'vid.puffyan.us',
+    youtubeInstance: 'youtube.com',
   };
 }

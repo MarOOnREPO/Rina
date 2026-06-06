@@ -8,7 +8,7 @@
     DOMAIN: string;
     FRONTEND_URL: string;
     CORS_ORIGIN: string;
-    YOUTUBE_INVIOUS_INSTANCE: string;
+    YOUTUBE_API_KEY: string;
     VAPID_PUBLIC_KEY: string;
     VAPID_PRIVATE_KEY: string;
     TMDB_API_KEY: string;
@@ -39,8 +39,8 @@
     {
       title: 'YouTube Sync',
       icon: '📺',
-      keys: ['YOUTUBE_INVIOUS_INSTANCE'] as const,
-      help: 'Optional Invidious instance for search (default: vid.puffyan.us). No API key needed.',
+      keys: ['YOUTUBE_API_KEY'] as const,
+      help: 'Get free API key at https://console.cloud.google.com/apis/credentials (enable YouTube Data API v3). Search uses ~200 quota units per query.',
     },
     {
       title: 'TMDB Movies',
