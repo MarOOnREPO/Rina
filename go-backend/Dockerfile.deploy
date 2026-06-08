@@ -1,0 +1,9 @@
+# Production deploy Dockerfile — uses pre-built Linux binaries
+FROM alpine:3.19
+WORKDIR /app
+COPY server ./server
+COPY migrate ./migrate
+COPY migrations ./migrations
+RUN apk add --no-cache ca-certificates
+EXPOSE 8080
+ENTRYPOINT ["./server"]

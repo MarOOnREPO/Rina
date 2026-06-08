@@ -285,7 +285,7 @@ cd "$PROJECT_DIR"
 
 # ─── Run DB Migrations ───────────────────────────────────────────
 LOG "🗄️  Running database migrations..."
-docker compose run --rm backend npx prisma migrate deploy
+docker compose run --rm backend ./migrate
 
 # ─── Deploy all services ─────────────────────────────────────────
 LOG "🐳 Starting all services..."

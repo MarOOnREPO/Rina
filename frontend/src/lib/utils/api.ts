@@ -122,7 +122,7 @@ export interface CalendarEvent {
   description?: string;
   startTime: string;
   endTime?: string;
-  type: 'WORK' | 'SHARED';
+  type: 'WORK' | 'SHARED' | 'PERSONAL';
   creatorId: string;
   allDay: boolean;
   color?: string;
@@ -156,25 +156,125 @@ export const cycleApi = {
   remove: (id: string) => api.delete<void>(`/cycle/${id}`)
 };
 
-// ─── Movie API (Admin Library) ───────────────────────────────────
+// ─── Movie API ───────────────────────────────────────────────────
+export interface Genre {
+  id: number;
+  name: string;
+}
+
+export interface CastMember {
+  id: number;
+  name: string;
+  character: string;
+  profilePath?: string;
+  order: number;
+}
+
 export interface Movie {
   id: string;
   title: string;
   posterPath?: string;
   backdropPath?: string;
   trailerUrl?: string;
-  filePath: string;
+  filePath?: string;
   uploadedBy: string;
   createdAt: string;
+  // TMDB & watchlist
+  tmdbId?: number;
+  overview?: string;
+  releaseDate?: string;
+  runtime?: number;
+  voteAverage?: number;
+  genres?: Genre[];
+  cast?: CastMember[];
+  director?: string;
+  sourceType: 'uploaded' | 'watchlist';
+  watched: boolean;
+  watchedAt?: string;
+  rating?: number;
 }
 
 export const movieApi = {
-  list: () => api.get<Movie[]>('/movies'),
+  list: (source?: 'uploaded' | 'watchlist' | 'all') =>
+    api.get<Movie[]>(`/movies${source && source !== 'all' ? `?source=${source}` : ''}`),
   get: (id: string) => api.get<Movie>(`/movies/${id}`),
   create: (formData: FormData) => api.post<Movie>('/movies', formData, { headers: {} }),
+  update: (id: string, body: Partial<Movie>) => api.patch<Movie>(`/movies/${id}`, body),
+  addToWatchlist: (tmdbId: number) => api.post<Movie>('/movies/watchlist', { tmdbId }),
   remove: (id: string) => api.delete<void>(`/movies/${id}`),
   download: (id: string) => `${API_BASE}/api/movies/${id}/download`,
   watch: (id: string) => `${API_BASE}/api/movies/${id}/watch`
+};
+
+// ─── TMDB API ────────────────────────────────────────────────────
+export interface TMDBMovieResult {
+  id: number;
+  title: string;
+  overview: string;
+  poster_path?: string;
+  backdrop_path?: string;
+  release_date: string;
+  vote_average: number;
+  genre_ids: number[];
+}
+
+export interface TMDBSearchResponse {
+  page: number;
+  results: TMDBMovieResult[];
+  total_pages: number;
+  total_results: number;
+}
+
+export interface TMDBDiscoverResponse {
+  page: number;
+  results: TMDBMovieResult[];
+  total_pages: number;
+  total_results: number;
+}
+
+export interface TMDBVideo {
+  key: string;
+  site: string;
+  type: string;
+}
+
+export interface TMDBMovieDetail {
+  id: number;
+  title: string;
+  tagline: string;
+  overview: string;
+  poster_path?: string;
+  backdrop_path?: string;
+  release_date: string;
+  runtime: number;
+  vote_average: number;
+  genres: Genre[];
+  credits?: {
+    cast: Array<{
+      id: number;
+      name: string;
+      character: string;
+      profile_path?: string;
+      order: number;
+    }>;
+    crew: Array<{ id: number; name: string; job: string; profile_path?: string }>;
+  };
+  videos?: {
+    results: TMDBVideo[];
+  };
+}
+
+export const tmdbApi = {
+  search: (q: string, page = 1) =>
+    api.get<TMDBSearchResponse>(`/tmdb/search?q=${encodeURIComponent(q)}&page=${page}`),
+  discover: (category: string, page = 1) =>
+    api.get<TMDBDiscoverResponse>(`/tmdb/discover?category=${category}&page=${page}`),
+  getMovie: (tmdbId: number) =>
+    api.get<TMDBMovieDetail>(`/tmdb/movie/${tmdbId}`),
+  getCredits: (tmdbId: number) =>
+    api.get<{ cast: Array<{ id: number; name: string; character: string; profile_path?: string; order: number }>; crew: Array<{ id: number; name: string; job: string; profile_path?: string }> }>(`/tmdb/movie/${tmdbId}/credits`),
+  getGenres: () =>
+    api.get<{ genres: Genre[] }>('/tmdb/genres')
 };
 
 // ─── Message API ─────────────────────────────────────────────────

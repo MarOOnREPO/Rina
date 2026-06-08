@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <link rel="icon" href="%sveltekit.assets%/favicon.png" />
@@ -12,12 +12,12 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="description" content="Project Rina — A private sanctuary for MarOOn and Rina" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com https://s.ytimg.com; style-src 'self' 'unsafe-inline' https://api.mapbox.com; img-src 'self' data: blob: https:; connect-src 'self' wss: ws: https://api.open-meteo.com https://api.mapbox.com; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none';" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com https://s.ytimg.com; style-src 'self' 'unsafe-inline' https://api.mapbox.com; img-src 'self' data: blob: https:; connect-src 'self' wss: ws: https://api.open-meteo.com https://api.mapbox.com; font-src 'self'; frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none';" />
     <link rel="manifest" href="%sveltekit.assets%/manifest.json" />
     <title>Project Rina</title>
     %sveltekit.head%
   </head>
-  <body data-sveltekit-preload-data="hover" class="bg-rina-bg text-white antialiased overflow-x-hidden selection:bg-rina-rose selection:text-white">
+  <body data-sveltekit-preload-data="hover" class="bg-rina-bg text-rina-text antialiased overflow-x-hidden selection:bg-rina-rose selection:text-white">
     <div style="display: contents">%sveltekit.body%</div>
   </body>
 </html>

@@ -1,9 +1,9 @@
 package services
 
 import (
-	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -33,11 +33,11 @@ func GetBucketName() string {
 	return bucketName
 }
 
-func UploadFile(ctx context.Context, key string, body []byte, contentType string) error {
+func UploadFile(ctx context.Context, key string, body io.Reader, contentType string) error {
 	_, err := s3Client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(bucketName),
 		Key:         aws.String(key),
-		Body:        bytes.NewReader(body),
+		Body:        body,
 		ContentType: aws.String(contentType),
 	})
 	return err

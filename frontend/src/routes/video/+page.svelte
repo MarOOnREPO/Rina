@@ -318,7 +318,7 @@
 </script>
 
 {#if isAuthenticated()}
-  <div class="max-w-md mx-auto px-3 py-4" in:fade>
+  <div class="mx-auto px-3 py-4 md:px-6 md:py-8 md:max-w-3xl lg:max-w-5xl" in:fade>
     <h2 class="text-2xl font-bold mb-4">📹 Video Call</h2>
 
     {#if error}
@@ -389,14 +389,14 @@
       {#if callState === 'idle'}
         <button
           onclick={startCall}
-          class="w-full max-w-sm px-8 py-3 rounded-full bg-rina-rose text-white font-semibold hover:opacity-90 active:scale-95 transition-all flex items-center justify-center gap-2 input-safe touch-target"
+          class="w-full max-w-sm md:max-w-md px-8 py-3 rounded-full bg-rina-rose text-white font-semibold hover:opacity-90 active:scale-95 transition-all flex items-center justify-center gap-2 input-safe touch-target"
         >
           <span>📞</span> Start Call
         </button>
       {:else if callState === 'calling'}
         <button
           onclick={cancelCall}
-          class="w-full max-w-sm px-6 py-3 rounded-full bg-red-500 text-white font-semibold hover:bg-red-600 active:scale-95 transition-all flex items-center justify-center gap-2 input-safe touch-target"
+          class="w-full max-w-sm md:max-w-md px-6 py-3 rounded-full bg-red-500 text-white font-semibold hover:bg-red-600 active:scale-95 transition-all flex items-center justify-center gap-2 input-safe touch-target"
         >
           <span>📵</span> Cancel
         </button>

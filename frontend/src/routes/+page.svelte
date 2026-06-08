@@ -79,7 +79,7 @@
 </script>
 
 {#if isAuthenticated()}
-  <div class="px-4 py-5 space-y-5" in:fade={{ duration: 300 }}>
+  <div class="px-4 md:px-8 py-5 md:py-8 space-y-5 max-w-7xl mx-auto" in:fade={{ duration: 300 }}>
     <!-- Greeting Header -->
     <div class="space-y-1" in:fly={{ y: 10, delay: 0 }}>
       <p class="text-xs font-medium text-rina-text-muted uppercase tracking-wider">{getGreeting()}</p>
@@ -126,7 +126,7 @@
 
     <!-- Notification Dropdown -->
     {#if showNotifications}
-      <div class="card p-4 space-y-3 max-w-md" transition:fade={{ duration: 200 }}>
+      <div class="card p-4 space-y-3 max-w-md md:max-w-none" transition:fade={{ duration: 200 }}>
         <div class="flex items-center justify-between">
           <p class="text-sm font-semibold text-rina-text">Notifications</p>
           <button
@@ -188,7 +188,7 @@
     <!-- Recent Activity -->
     <div in:fly={{ y: 10, delay: 160 }}>
       <p class="text-xs font-medium text-rina-text-muted uppercase tracking-wider mb-3">Your Space</p>
-      <div class="grid grid-cols-2 gap-3 auto-rows-[minmax(100px,auto)]">
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 auto-rows-[minmax(100px,auto)]">
         <!-- Chat -->
         <PatchworkTile href="/chat" icon="💬" title="Chat" subtitle="Encrypted messages" color="from-rina-primary-soft to-transparent" size="wide" delay={80}>
           <div class="mt-2 flex items-center gap-2">

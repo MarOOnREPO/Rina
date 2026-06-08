@@ -82,15 +82,41 @@ type CycleEntry struct {
 	CreatedAt     time.Time `json:"createdAt"`
 }
 
+type Genre struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+type CastMember struct {
+	ID          int     `json:"id"`
+	Name        string  `json:"name"`
+	Character   string  `json:"character"`
+	ProfilePath *string `json:"profilePath,omitempty"`
+	Order       int     `json:"order"`
+}
+
 type Movie struct {
-	ID           string    `json:"id"`
-	Title        string    `json:"title"`
-	PosterPath   *string   `json:"posterPath,omitempty"`
-	BackdropPath *string   `json:"backdropPath,omitempty"`
-	TrailerURL   *string   `json:"trailerUrl,omitempty"`
-	FilePath     string    `json:"filePath"`
-	UploadedBy   string    `json:"uploadedBy"`
-	CreatedAt    time.Time `json:"createdAt"`
+	ID           string       `json:"id"`
+	Title        string       `json:"title"`
+	PosterPath   *string      `json:"posterPath,omitempty"`
+	BackdropPath *string      `json:"backdropPath,omitempty"`
+	TrailerURL   *string      `json:"trailerUrl,omitempty"`
+	FilePath     *string      `json:"filePath,omitempty"`
+	UploadedBy   string       `json:"uploadedBy"`
+	CreatedAt    time.Time    `json:"createdAt"`
+	// TMDB & watchlist fields
+	TmdbID       *int         `json:"tmdbId,omitempty"`
+	Overview     *string      `json:"overview,omitempty"`
+	ReleaseDate  *time.Time   `json:"releaseDate,omitempty"`
+	Runtime      *int         `json:"runtime,omitempty"`
+	VoteAverage  *float64     `json:"voteAverage,omitempty"`
+	Genres       []Genre      `json:"genres,omitempty"`
+	Cast         []CastMember `json:"cast,omitempty"`
+	Director     *string      `json:"director,omitempty"`
+	SourceType   string       `json:"sourceType"`
+	Watched      bool         `json:"watched"`
+	WatchedAt    *time.Time   `json:"watchedAt,omitempty"`
+	Rating       *int         `json:"rating,omitempty"`
 }
 
 type Notification struct {

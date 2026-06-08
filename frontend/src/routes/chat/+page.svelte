@@ -6,6 +6,7 @@
   import { fly, fade, slide } from 'svelte/transition';
   import { messageApi, type ChatMessage } from '$lib/utils/api';
   import { formatTime, formatDate } from '$lib/utils/timezone';
+  import VideoCallOverlay from '$lib/components/VideoCallOverlay.svelte';
 
   let messages: ChatMessage[] = $state([]);
   let input = $state('');
@@ -13,6 +14,13 @@
   let loading = $state(true);
   let typingTimeout: ReturnType<typeof setTimeout>;
   let sendError = $state('');
+
+  // Video call state
+  let videoCallOpen = $state(false);
+  let incomingCallBanner = $state(false);
+  let incomingCallerName = $state('');
+  let incomingCallSender = $state('');
+  let videoCallRef = $state<VideoCallOverlay | undefined>(undefined);
 
   // Edit state
   let editingId = $state<string | null>(null);
@@ -154,10 +162,46 @@
     return groups;
   }
 
+  // Incoming video call handling
+  function handleVideoOffer(data: { sender: string; senderDisplayName: string; offer: unknown }) {
+    if (!videoCallOpen) {
+      incomingCallBanner = true;
+      incomingCallerName = data.senderDisplayName || data.sender;
+      incomingCallSender = data.sender;
+    }
+  }
+
+  function answerIncomingCall() {
+    videoCallOpen = true;
+    incomingCallBanner = false;
+  }
+
+  function declineIncomingCall() {
+    // Let the overlay handle sending the decline signal
+    if (videoCallRef) {
+      videoCallRef.declineCall();
+    }
+    incomingCallBanner = false;
+    incomingCallerName = '';
+    incomingCallSender = '';
+  }
+
+  function handleVideoCallClose() {
+    videoCallOpen = false;
+    // The overlay will clean up its own call state via its internal effect
+  }
+
   // Redirect if not authenticated (wait for auth loading to finish)
   $effect(() => {
     if (!isLoading() && !isAuthenticated() && typeof window !== 'undefined') {
       goto('/login');
+    }
+  });
+
+  // Hide incoming call banner when the video overlay is opened
+  $effect(() => {
+    if (videoCallOpen) {
+      incomingCallBanner = false;
     }
   });
 
@@ -171,11 +215,13 @@
   onMount(() => {
     loadHistory();
     socketStore.on('chat:message', handleChatMessage);
+    socketStore.on('webrtc:offer', handleVideoOffer);
   });
 
   onDestroy(() => {
     clearTimeout(typingTimeout);
     socketStore.off('chat:message', handleChatMessage);
+    socketStore.off('webrtc:offer', handleVideoOffer);
   });
 
   let partnerTyping = $derived(socketStore.typing);
@@ -183,9 +229,47 @@
 </script>
 
 {#if isAuthenticated()}
-  <div class="h-full flex flex-col bg-rina-bg" in:fade={{ duration: 200 }}>
+  <div class="h-full flex flex-col bg-rina-bg max-w-7xl mx-auto px-4 md:px-8 w-full" in:fade={{ duration: 200 }}>
+    <!-- Incoming call notification banner -->
+    {#if incomingCallBanner}
+      <div
+        class="fixed top-4 left-4 right-4 z-[90] md:left-auto md:right-4 md:w-96"
+        transition:fly={{ y: -20, duration: 300 }}
+      >
+        <div class="card flex items-center gap-3 px-4 py-3 shadow-soft-lg border-rina-primary/30">
+          <div class="w-12 h-12 rounded-full bg-rina-primary-soft flex items-center justify-center shrink-0 animate-pulse">
+            <span class="text-xl">📲</span>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-rina-text truncate">{incomingCallerName}</p>
+            <p class="text-xs text-rina-text-muted">Incoming video call</p>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <button
+              onclick={answerIncomingCall}
+              class="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center text-white hover:bg-green-600 active:scale-95 transition-all"
+              aria-label="Answer call"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.517l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.948V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+              </svg>
+            </button>
+            <button
+              onclick={declineIncomingCall}
+              class="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center text-white hover:bg-red-600 active:scale-95 transition-all"
+              aria-label="Decline call"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16 8l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M5 3a2 2 0 00-2 2v1c0 8.284 6.716 15 15 15h1a2 2 0 002-2v-3.28a1 1 0 00-.684-.948l-4.493-1.498a1 1 0 00-1.21.502l-1.13 2.257a11.042 11.042 0 01-5.516-5.517l2.257-1.128a1 1 0 00.502-1.21L9.228 3.683A1 1 0 008.279 3H5z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    {/if}
+
     <!-- Chat Header -->
-    <div class="shrink-0 px-4 pt-4 pb-3">
+    <div class="shrink-0 pt-4 pb-3 w-full">
       <div class="card flex items-center justify-between px-4 py-3">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 rounded-full bg-rina-primary-soft flex items-center justify-center">
@@ -213,7 +297,7 @@
           </div>
         </div>
         <button
-          onclick={() => goto('/video')}
+          onclick={() => videoCallOpen = true}
           class="w-10 h-10 rounded-xl bg-rina-surface-muted flex items-center justify-center hover:bg-rina-primary-soft transition-all duration-200 group"
           aria-label="Start video call"
         >
@@ -227,7 +311,7 @@
     <!-- Messages -->
     <div
       bind:this={containerRef}
-      class="flex-1 overflow-y-auto px-4 pb-2 space-y-4"
+      class="flex-1 overflow-y-auto pb-2 space-y-4 w-full"
       style="scroll-behavior: smooth;"
       role="log"
       aria-live="polite"
@@ -244,7 +328,7 @@
             <span class="text-3xl">💌</span>
           </div>
           <h3 class="text-lg font-semibold text-rina-text font-display mb-1">No messages yet</h3>
-          <p class="text-sm text-rina-text-muted max-w-[16rem]">Say something sweet to start the conversation.</p>
+          <p class="text-sm text-rina-text-muted max-w-[16rem] md:max-w-sm">Say something sweet to start the conversation.</p>
         </div>
       {:else}
         {#each messageGroups as group (group.date)}
@@ -346,7 +430,7 @@
 
     <!-- Typing Indicator (when partner is typing and no messages yet in current session) -->
     {#if partnerTyping && messages.length > 0}
-      <div class="px-4 pb-1" in:fly={{ y: 4, duration: 150 }} out:fly={{ y: 4, duration: 150 }}>
+      <div class="pb-1 w-full" in:fly={{ y: 4, duration: 150 }} out:fly={{ y: 4, duration: 150 }}>
         <div class="flex items-end gap-2">
           <div class="w-7 h-7 rounded-full bg-rina-primary-soft flex items-center justify-center text-xs">
             💕
@@ -361,7 +445,7 @@
     {/if}
 
     <!-- Input -->
-    <div class="shrink-0 px-4 pb-4 pt-2">
+    <div class="shrink-0 pb-4 pt-2 w-full">
       {#if sendError}
         <p class="text-rina-accent text-xs px-1 mb-2" transition:fade>{sendError}</p>
       {/if}
@@ -386,6 +470,13 @@
       </div>
     </div>
   </div>
+
+  <!-- Video Call Overlay -->
+  <VideoCallOverlay
+    bind:this={videoCallRef}
+    isOpen={videoCallOpen}
+    onClose={handleVideoCallClose}
+  />
 {/if}
 
 <style>

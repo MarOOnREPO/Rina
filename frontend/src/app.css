@@ -190,9 +190,9 @@
     @apply bg-clip-text text-transparent bg-gradient-to-r from-rina-primary via-rina-secondary to-rina-accent;
   }
 
-  /* ─── Mobile viewport ───────────────────────────────── */
+  /* ─── App viewport ──────────────────────────────────── */
   .mobile-viewport {
-    @apply max-w-md mx-auto w-full min-h-screen bg-rina-bg relative;
+    @apply w-full min-h-screen bg-rina-bg relative;
   }
 
   /* ─── Safe area utilities ───────────────────────────── */
@@ -203,13 +203,12 @@
     padding-top: env(safe-area-inset-top, 0px);
   }
 
-  /* ─── iOS-style fixed centering ─────────────────────── */
+  /* ─── Responsive fixed centering ──────────────────── */
   .fixed-mobile {
     position: fixed;
-    left: 50%;
-    transform: translateX(-50%);
+    left: 0;
+    right: 0;
     width: 100%;
-    max-width: 28rem;
   }
 
   /* ─── Touch targets ─────────────────────────────────── */

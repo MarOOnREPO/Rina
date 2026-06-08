@@ -208,7 +208,7 @@
   const partner = $derived(user?.partner);
 </script>
 
-<div class="min-h-screen px-4 py-6 max-w-3xl mx-auto bg-rina-bg" in:fade={{ duration: 300 }}>
+<div class="min-h-screen px-4 md:px-8 py-6 md:py-8 max-w-7xl mx-auto bg-rina-bg" in:fade={{ duration: 300 }}>
   <!-- Header -->
   <div class="flex items-center gap-3 mb-8">
     <div class="w-10 h-10 rounded-xl bg-rina-primary-soft flex items-center justify-center">

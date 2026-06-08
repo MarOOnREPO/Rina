@@ -168,7 +168,7 @@
 
 {#if isAuthenticated()}
   <div class="h-full flex flex-col bg-rina-bg overflow-y-auto" in:fade={{ duration: 200 }}>
-    <div class="px-4 py-4 space-y-4">
+    <div class="px-4 md:px-8 py-4 md:py-8 space-y-4 max-w-7xl mx-auto w-full">
       <!-- Header -->
       <div class="flex items-center justify-between">
         <div>
@@ -372,7 +372,7 @@
       <!-- Phase Legend -->
       <div class="card p-4">
         <h3 class="text-sm font-semibold text-rina-text font-display mb-3">Cycle Phases</h3>
-        <div class="grid grid-cols-2 gap-2">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
           <div class="flex items-center gap-2 p-2 rounded-xl bg-rose-50">
             <span class="text-lg">🩸</span>
             <div>

@@ -52,7 +52,7 @@
 {#if isAuthenticated()}
   <!-- Desktop Header -->
   <header class="fixed top-0 left-0 right-0 z-50 glass border-b border-rina-border hidden md:block">
-    <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+    <div class="max-w-7xl mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
       <a href="/" class="flex items-center gap-2">
         <span class="text-xl font-bold text-gradient font-display">Rina</span>
       </a>

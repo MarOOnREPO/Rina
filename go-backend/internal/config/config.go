@@ -28,6 +28,7 @@ type Config struct {
 	AWSAccessKeyID      string `env:"AWS_ACCESS_KEY_ID"`
 	AWSSecretAccessKey  string `env:"AWS_SECRET_ACCESS_KEY"`
 	S3BucketName        string `env:"S3_BUCKET_NAME" envDefault:"rina-movies-storage"`
+	TMDBAPIKey          string `env:"TMDB_API_KEY"`
 }
 
 var cfg Config

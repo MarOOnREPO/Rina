@@ -83,6 +83,9 @@ func main() {
 		ContentSecurityPolicy: "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com https://s.ytimg.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' wss: ws: https://api.open-meteo.com https://api.mapbox.com https://events.mapbox.com https://www.youtube.com https://www.googleapis.com; font-src 'self'; frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com; object-src 'none';",
 	}))
 
+	// ─── Body Limit ──────────────────────────────────────────────
+	e.Use(middleware.BodyLimit("10G"))
+
 	// ─── Rate Limit ──────────────────────────────────────────────
 	e.Use(middleware.RateLimiter(middleware.NewRateLimiterMemoryStore(100)))
 
@@ -150,9 +153,18 @@ func registerRoutes(e *echo.Echo) {
 	e.GET("/api/movies", authmw.RequireAuth(handlers.ListMovies))
 	e.POST("/api/movies", authmw.RequireAuth(handlers.AdminOnly(handlers.CreateMovie)))
 	e.GET("/api/movies/:id", authmw.RequireAuth(handlers.GetMovie))
+	e.PATCH("/api/movies/:id", authmw.RequireAuth(handlers.UpdateMovie))
+	e.POST("/api/movies/watchlist", authmw.RequireAuth(handlers.AddToWatchlist))
 	e.GET("/api/movies/:id/download", authmw.RequireAuth(handlers.DownloadMovie))
 	e.GET("/api/movies/:id/watch", authmw.RequireAuth(handlers.WatchMovie))
 	e.DELETE("/api/movies/:id", authmw.RequireAuth(handlers.AdminOnly(handlers.DeleteMovie)))
+
+	// TMDB
+	e.GET("/api/tmdb/search", authmw.RequireAuth(handlers.SearchTMDB))
+	e.GET("/api/tmdb/discover", authmw.RequireAuth(handlers.DiscoverTMDB))
+	e.GET("/api/tmdb/movie/:tmdbId", authmw.RequireAuth(handlers.GetTMDBMovie))
+	e.GET("/api/tmdb/movie/:tmdbId/credits", authmw.RequireAuth(handlers.GetTMDBCredits))
+	e.GET("/api/tmdb/genres", authmw.RequireAuth(handlers.GetTMDBGenres))
 
 	// YouTube
 	e.GET("/api/youtube/search", authmw.RequireAuth(handlers.SearchYouTube))

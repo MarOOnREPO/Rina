@@ -24,6 +24,9 @@
   let selectedDate: string | null = $state(null);
   let editingEvent: CalendarEvent | null = $state(null);
 
+  // Selected day for detail panel
+  let selectedDayDetail = $state<string | null>(null);
+
   // Form state
   let formEvent: Partial<CalendarEvent> = $state({
     title: '',
@@ -46,13 +49,20 @@
     return dayNum;
   }));
 
-  const today = new Date();
-  const isToday = (day: number) =>
-    day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+  function isToday(day: number) {
+    const today = new Date();
+    return day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+  }
 
   function eventMatchesDay(event: CalendarEvent, day: number): boolean {
     const d = new Date(event.startTime);
     return d.getDate() === day && d.getMonth() === month && d.getFullYear() === year;
+  }
+
+  function eventMatchesDateStr(event: CalendarEvent, dateStr: string): boolean {
+    const d = new Date(event.startTime);
+    const [y, m, day] = dateStr.split('-').map(Number);
+    return d.getDate() === day && d.getMonth() === m - 1 && d.getFullYear() === y;
   }
 
   let daysWithEvents = $derived(calendarDays.map((day) => {
@@ -100,8 +110,11 @@
     editingEvent = null;
   }
 
-  function openCreateModal(dateStr?: string) {
-    selectedDate = dateStr || new Date().toISOString().split('T')[0];
+  function openCreateModal(dateStr?: string | null) {
+    const now = new Date();
+    const localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    selectedDate = dateStr || localToday;
+    selectedDayDetail = selectedDate;
     modalMode = 'create';
     resetForm();
     formEvent.startTime = isoToDatetimeLocal(`${selectedDate}T09:00:00Z`);
@@ -112,6 +125,7 @@
   function openEditModal(event: CalendarEvent) {
     modalMode = 'edit';
     selectedDate = event.startTime.split('T')[0];
+    selectedDayDetail = selectedDate;
     editingEvent = event;
     formEvent = {
       title: event.title,
@@ -178,12 +192,16 @@
 
   function getEventColor(type: string, customColor?: string) {
     if (customColor) return customColor;
-    return type === 'WORK' ? '#818cf8' : '#BE185D';
+    if (type === 'WORK') return '#818cf8';
+    if (type === 'PERSONAL') return '#9ca3af';
+    return '#BE185D';
   }
 
   function getEventBadgeColor(type: string, customColor?: string): string {
     if (customColor) return '';
-    return type === 'WORK' ? 'badge bg-indigo-50 text-indigo-600' : 'badge-primary';
+    if (type === 'WORK') return 'badge bg-indigo-50 text-indigo-600';
+    if (type === 'PERSONAL') return 'badge bg-gray-50 text-gray-600';
+    return 'badge-primary';
   }
 
   function formatEventTime(event: CalendarEvent): string {
@@ -193,6 +211,36 @@
 
   function formatEventDate(event: CalendarEvent): string {
     return formatDate(event.startTime, getUserTimezone());
+  }
+
+  function hexToRgba(hex: string, alpha: number): string {
+    if (!hex || typeof hex !== 'string') return `rgba(0, 0, 0, ${alpha})`;
+    let c = hex.replace('#', '');
+    if (c.length === 3) c = c.split('').map(x => x + x).join('');
+    if (c.length !== 6) return `rgba(0, 0, 0, ${alpha})`;
+    const r = parseInt(c.substring(0, 2), 16);
+    const g = parseInt(c.substring(2, 4), 16);
+    const b = parseInt(c.substring(4, 6), 16);
+    if ([r, g, b].some(Number.isNaN)) return `rgba(0, 0, 0, ${alpha})`;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  function getEventTypeIcon(type: string): string {
+    switch (type) {
+      case 'SHARED': return '💕';
+      case 'WORK': return '💼';
+      case 'PERSONAL': return '👤';
+      default: return '📌';
+    }
+  }
+
+  function getEventTypeLabel(type: string): string {
+    switch (type) {
+      case 'SHARED': return 'Shared';
+      case 'WORK': return 'Work';
+      case 'PERSONAL': return 'Personal';
+      default: return type;
+    }
   }
 
   // ─── Agenda View Helpers ───────────────────────────────────────
@@ -369,12 +417,15 @@
   });
 
   onMount(() => {
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    selectedDayDetail = todayStr;
     loadData();
   });
 </script>
 
 {#if isAuthenticated()}
-  <div class="h-full flex flex-col bg-rina-bg px-4 py-4 space-y-4 overflow-y-auto" in:fade={{ duration: 200 }}>
+  <div class="h-full flex flex-col bg-rina-bg px-4 md:px-8 py-4 md:py-8 space-y-4 max-w-7xl mx-auto overflow-y-auto" in:fade={{ duration: 200 }}>
     <!-- Header -->
     <div class="flex items-center justify-between shrink-0">
       <div>
@@ -443,12 +494,12 @@
       <CyclePhaseOrb lastPeriodStart={getLastPeriodStart()} {cycleLength} />
 
       <!-- Month Grid -->
-      <div class="card p-4">
+      <div class="card p-4 md:p-6">
         <div class="flex items-center justify-between mb-4">
           <button onclick={prevMonth} aria-label="Previous month" class="w-10 h-10 rounded-xl bg-rina-surface-muted flex items-center justify-center hover:bg-rina-primary-soft transition-all duration-200 text-rina-text-secondary hover:text-rina-primary">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
           </button>
-          <h3 class="text-base font-semibold text-rina-text font-display">{monthName}</h3>
+          <h3 class="text-base md:text-lg font-semibold text-rina-text font-display">{monthName}</h3>
           <button onclick={nextMonth} aria-label="Next month" class="w-10 h-10 rounded-xl bg-rina-surface-muted flex items-center justify-center hover:bg-rina-primary-soft transition-all duration-200 text-rina-text-secondary hover:text-rina-primary">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
           </button>
@@ -463,48 +514,58 @@
           </div>
         {/if}
 
-        <div class="grid grid-cols-7 gap-1 mb-2">
+        <div class="grid grid-cols-7 gap-1 md:gap-2 mb-2">
           {#each ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as day}
-            <div class="text-center text-[11px] font-semibold text-rina-text-muted py-2">{day}</div>
+            <div class="text-center text-[11px] md:text-sm font-semibold text-rina-text-muted py-2 md:py-3">{day}</div>
           {/each}
         </div>
 
-        <div class="grid grid-cols-7 gap-1">
+        <div class="grid grid-cols-7 gap-1 md:gap-2">
           {#each daysWithEvents as cell}
             {#if cell}
               {@const { day, dateStr, events: dayEvents } = cell}
               {@const phaseInfo = getPhaseInfo(dateStr)}
+              {@const todayClass = isToday(day)}
               <div
-                role="button"
-                tabindex="0"
-                onclick={() => openCreateModal(dateStr)}
-                onkeydown={(e) => e.key === 'Enter' && openCreateModal(dateStr)}
-                class="relative aspect-square rounded-xl p-1 flex flex-col items-start gap-0.5
-                  hover:bg-rina-surface-muted transition-all duration-200 text-left touch-target
-                  {isToday(day) ? 'ring-2 ring-rina-primary ring-offset-2 ring-offset-rina-bg' : ''}
+                class="relative min-h-[72px] md:min-h-[110px] rounded-xl touch-target
+                  hover:bg-rina-surface-muted/60 transition-all duration-200
+                  {todayClass ? 'ring-2 ring-rina-primary ring-offset-2 ring-offset-rina-bg bg-rose-50/60' : ''}
                   {getPhaseBg(phaseInfo)}"
               >
-                <span class="text-xs font-medium {isToday(day) ? 'text-rina-primary' : phaseInfo?.phase === 'menstrual' ? 'text-rose-600' : 'text-rina-text'}">
-                  {day}
-                </span>
-                {#if dayEvents.length > 0}
-                  <div class="flex flex-col gap-[2px] w-full overflow-hidden">
-                    {#each dayEvents.slice(0, 2) as event}
-                      <button
-                        onclick={(e) => { e.stopPropagation(); openEditModal(event); }}
-                        class="h-1.5 rounded-full w-full cursor-pointer hover:opacity-80 transition-opacity"
-                        style="background-color: {getEventColor(event.type, event.color)}"
-                        aria-label={event.title}
-                      ></button>
-                    {/each}
-                    {#if dayEvents.length > 2}
-                      <span class="text-[8px] text-rina-text-muted pl-0.5">+{dayEvents.length - 2}</span>
-                    {/if}
-                  </div>
-                {/if}
+                <button
+                  type="button"
+                  onclick={() => openCreateModal(dateStr)}
+                  onkeydown={(e) => e.key === 'Enter' && openCreateModal(dateStr)}
+                  class="absolute inset-0 rounded-xl z-0 cursor-pointer"
+                  aria-label={`Add event for ${dateStr}`}
+                ></button>
+                <div class="relative z-10 pointer-events-none flex flex-col items-start gap-1 p-1.5 md:p-2.5 h-full text-left">
+                  <span class="text-sm md:text-base font-semibold pointer-events-none {todayClass ? 'text-rina-primary' : phaseInfo?.phase === 'menstrual' ? 'text-rose-600' : 'text-rina-text'}">
+                    {day}
+                  </span>
+                  {#if dayEvents.length > 0}
+                    <div class="flex flex-col gap-[3px] w-full overflow-hidden pointer-events-none">
+                      {#each dayEvents.slice(0, 3) as event}
+                        <button
+                          type="button"
+                          onclick={() => openEditModal(event)}
+                          class="w-full text-left px-1.5 py-[3px] rounded-md text-[10px] md:text-xs truncate cursor-pointer hover:brightness-95 transition-all leading-tight font-medium pointer-events-auto"
+                          style="background-color: {hexToRgba(getEventColor(event.type, event.color), 0.12)}; color: {getEventColor(event.type, event.color)}; border-left: 3px solid {getEventColor(event.type, event.color)};"
+                          aria-label={event.title}
+                          title={event.title}
+                        >
+                          <span class="mr-0.5">{getEventTypeIcon(event.type)}</span>{event.title}
+                        </button>
+                      {/each}
+                      {#if dayEvents.length > 3}
+                        <span class="text-[8px] md:text-[10px] text-rina-text-muted pl-0.5 font-medium pointer-events-none">+{dayEvents.length - 3} more</span>
+                      {/if}
+                    </div>
+                  {/if}
+                </div>
               </div>
             {:else}
-              <div class="aspect-square"></div>
+              <div class="min-h-[72px] md:min-h-[110px]"></div>
             {/if}
           {/each}
         </div>
@@ -512,6 +573,7 @@
         <div class="flex items-center justify-between mt-4 pt-3 border-t border-rina-border">
           <div class="flex items-center gap-3 flex-wrap">
             <div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-rina-primary"></div><span class="text-[10px] text-rina-text-muted">Shared</span></div>
+            <div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-gray-400"></div><span class="text-[10px] text-rina-text-muted">Personal</span></div>
             <div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-indigo-400"></div><span class="text-[10px] text-rina-text-muted">Work</span></div>
             <div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-sm bg-rose-400"></div><span class="text-[10px] text-rina-text-muted">Menstrual</span></div>
             <div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-sm bg-pink-300"></div><span class="text-[10px] text-rina-text-muted">Follicular</span></div>
@@ -524,12 +586,76 @@
           </button>
         </div>
       </div>
+
+      <!-- Day Detail Panel -->
+      {#if selectedDayDetail}
+        {@const selectedDayEvents = events.filter((e) => eventMatchesDateStr(e, selectedDayDetail!))}
+        {@const selectedDateObj = new Date(selectedDayDetail + 'T00:00:00')}
+        <div class="card p-4 md:p-6" transition:slide>
+          <div class="flex items-center justify-between mb-4">
+            <h4 class="text-base md:text-lg font-semibold text-rina-text font-display">
+              {selectedDateObj.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+            </h4>
+            <button onclick={() => openCreateModal(selectedDayDetail)} class="btn-secondary text-xs md:text-sm px-3 py-1.5">
+              + Add Event
+            </button>
+          </div>
+          {#if selectedDayEvents.length === 0}
+            <div class="flex flex-col items-center justify-center py-10 text-center" transition:fade>
+              <div class="w-14 h-14 rounded-full bg-rina-primary-soft flex items-center justify-center mb-4">
+                <span class="text-2xl">📆</span>
+              </div>
+              <p class="text-sm md:text-base text-rina-text-muted mb-1">No events for this day</p>
+              <p class="text-xs text-rina-text-muted/70 mb-4">Tap the button below to plan something special</p>
+              <button onclick={() => openCreateModal(selectedDayDetail)} class="btn-primary text-sm px-5 py-2">
+                + Add Event
+              </button>
+            </div>
+          {:else}
+            <div class="space-y-2.5">
+              {#each selectedDayEvents.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()) as event (event.id)}
+                <button
+                  onclick={() => openEditModal(event)}
+                  class="w-full flex items-center gap-3 md:gap-4 p-3 md:p-4 rounded-xl bg-rina-surface-muted hover:bg-rina-primary-soft transition-all duration-200 text-left group"
+                  transition:slide
+                >
+                  <div class="w-1 h-10 md:h-12 rounded-full shrink-0" style="background-color: {getEventColor(event.type, event.color)}"></div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-0.5">
+                      <p class="text-sm md:text-base font-semibold text-rina-text truncate group-hover:text-rina-primary transition-colors">{event.title}</p>
+                      <span class="text-xs shrink-0" title={getEventTypeLabel(event.type)}>{getEventTypeIcon(event.type)}</span>
+                    </div>
+                    {#if event.description}
+                      <p class="text-xs md:text-sm text-rina-text-muted truncate mb-1">{event.description}</p>
+                    {/if}
+                    <p class="text-[11px] md:text-xs text-rina-text-muted flex items-center gap-1.5 flex-wrap">
+                      <span class="inline-flex items-center gap-1">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        {event.allDay ? 'All day' : formatTime(event.startTime, getUserTimezone())}
+                        {#if event.endTime && !event.allDay}
+                          – {formatTime(event.endTime, getUserTimezone())}
+                        {/if}
+                      </span>
+                      <span class="w-1 h-1 rounded-full bg-rina-text-muted/40"></span>
+                      <span class="inline-flex items-center gap-1">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                        {formatEventDate(event)}
+                      </span>
+                    </p>
+                  </div>
+                  <svg class="w-4 h-4 md:w-5 md:h-5 text-rina-text-muted group-hover:text-rina-primary transition-colors shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                </button>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      {/if}
     {:else}
       <!-- Agenda View -->
-      <div class="card p-4">
+      <div class="card p-4 md:p-6">
         <div class="flex items-center justify-between mb-4">
-          <h3 class="text-base font-semibold text-rina-text font-display">Upcoming Events</h3>
-          <span class="text-xs text-rina-text-muted">{monthName}</span>
+          <h3 class="text-base md:text-lg font-semibold text-rina-text font-display">Upcoming Events</h3>
+          <span class="text-xs md:text-sm text-rina-text-muted">{monthName}</span>
         </div>
 
         {#if loading}
@@ -538,37 +664,54 @@
             <p class="text-sm text-rina-text-muted">Loading events...</p>
           </div>
         {:else if upcomingEvents.length === 0}
-          <div class="flex flex-col items-center justify-center py-10 text-center">
-            <div class="w-12 h-12 rounded-full bg-rina-primary-soft flex items-center justify-center mb-3">
-              <span class="text-xl">📆</span>
+          <div class="flex flex-col items-center justify-center py-12 text-center" transition:fade>
+            <div class="w-14 h-14 rounded-full bg-rina-primary-soft flex items-center justify-center mb-4">
+              <span class="text-2xl">📆</span>
             </div>
-            <p class="text-sm text-rina-text-muted">No upcoming events. Tap + to add one.</p>
+            <p class="text-sm md:text-base text-rina-text-muted mb-1">No upcoming events</p>
+            <p class="text-xs text-rina-text-muted/70 mb-5">Plan your next special moment together</p>
+            <button onclick={() => openCreateModal()} class="btn-primary text-sm px-5 py-2">
+              + Add Event
+            </button>
           </div>
         {:else}
-          <div class="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
+          <div class="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
             {#each upcomingEvents as event (event.id)}
               {@const eventDate = new Date(event.startTime)}
               <button
                 onclick={() => openEditModal(event)}
-                class="w-full flex items-center gap-3 p-3 rounded-xl bg-rina-surface-muted hover:bg-rina-primary-soft transition-all duration-200 text-left group"
+                class="w-full flex items-center gap-3 md:gap-4 p-3 md:p-4 rounded-xl bg-rina-surface-muted hover:bg-rina-primary-soft transition-all duration-200 text-left group border-l-4"
+                style="border-left-color: {getEventColor(event.type, event.color)}"
                 transition:slide
               >
-                <div class="flex flex-col items-center min-w-[3rem]">
-                  <span class="text-[10px] font-semibold text-rina-text-muted uppercase">{eventDate.toLocaleDateString('en-GB', { month: 'short', timeZone: getUserTimezone() })}</span>
-                  <span class="text-xl font-bold text-rina-text font-display">{eventDate.toLocaleDateString('en-GB', { day: 'numeric', timeZone: getUserTimezone() })}</span>
+                <div class="flex flex-col items-center min-w-[3.5rem] md:min-w-[4rem]">
+                  <span class="text-[10px] md:text-xs font-semibold text-rina-text-muted uppercase">{eventDate.toLocaleDateString('en-GB', { month: 'short', timeZone: getUserTimezone() })}</span>
+                  <span class="text-xl md:text-2xl font-bold text-rina-text font-display">{eventDate.toLocaleDateString('en-GB', { day: 'numeric', timeZone: getUserTimezone() })}</span>
                 </div>
-                <div class="w-1 h-10 rounded-full shrink-0" style="background-color: {getEventColor(event.type, event.color)}"></div>
                 <div class="flex-1 min-w-0">
-                  <p class="text-sm font-medium text-rina-text truncate group-hover:text-rina-primary transition-colors">{event.title}</p>
-                  <p class="text-[11px] text-rina-text-muted">
-                    {formatEventDate(event)}
-                    {event.allDay ? '' : formatEventTime(event)}
-                    {#if event.endTime}
-                      – {formatTime(event.endTime, getUserTimezone())}
-                    {/if}
+                  <div class="flex items-center gap-2 mb-0.5">
+                    <p class="text-sm md:text-base font-semibold text-rina-text truncate group-hover:text-rina-primary transition-colors">{event.title}</p>
+                    <span class="text-xs shrink-0" title={getEventTypeLabel(event.type)}>{getEventTypeIcon(event.type)}</span>
+                  </div>
+                  {#if event.description}
+                    <p class="text-xs md:text-sm text-rina-text-muted truncate mb-1">{event.description}</p>
+                  {/if}
+                  <p class="text-[11px] md:text-xs text-rina-text-muted flex items-center gap-1.5 flex-wrap">
+                    <span class="inline-flex items-center gap-1">
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                      {event.allDay ? 'All day' : formatTime(event.startTime, getUserTimezone())}
+                      {#if event.endTime && !event.allDay}
+                        – {formatTime(event.endTime, getUserTimezone())}
+                      {/if}
+                    </span>
+                    <span class="w-1 h-1 rounded-full bg-rina-text-muted/40"></span>
+                    <span class="inline-flex items-center gap-1">
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                      {formatEventDate(event)}
+                    </span>
                   </p>
                 </div>
-                <svg class="w-4 h-4 text-rina-text-muted group-hover:text-rina-primary transition-colors shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                <svg class="w-4 h-4 md:w-5 md:h-5 text-rina-text-muted group-hover:text-rina-primary transition-colors shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
               </button>
             {/each}
           </div>
@@ -579,7 +722,7 @@
     <!-- Cycle Settings Modal -->
     {#if showCycleSettings}
       <div class="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 bg-rina-text/20 backdrop-blur-sm" transition:fade role="dialog" aria-modal="true" tabindex="-1" onclick={(e) => { if (e.target === e.currentTarget) showCycleSettings = false; }} onkeydown={(e) => e.key === 'Escape' && (showCycleSettings = false)}>
-        <div class="glass-strong rounded-t-2xl md:rounded-2xl p-5 w-full max-w-sm" transition:fly={{ y: 20 }}>
+        <div class="glass-strong rounded-t-2xl md:rounded-2xl p-5 w-full max-w-sm md:max-w-lg" transition:fly={{ y: 20 }}>
           <h3 class="text-lg font-semibold text-rina-text font-display mb-4">Cycle Settings</h3>
           <div class="space-y-4">
             <div>
@@ -602,7 +745,7 @@
     <!-- Event Modal (Create/Edit) -->
     {#if showEventModal}
       <div class="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 bg-rina-text/20 backdrop-blur-sm" transition:fade role="dialog" aria-modal="true" tabindex="-1" onclick={(e) => { if (e.target === e.currentTarget) showEventModal = false; }} onkeydown={(e) => e.key === 'Escape' && (showEventModal = false)}>
-        <div class="glass-strong rounded-t-2xl md:rounded-2xl p-5 w-full max-w-md max-h-[90vh] overflow-y-auto" transition:fly={{ y: 20 }}>
+        <div class="glass-strong rounded-t-2xl md:rounded-2xl p-5 w-full max-w-md md:max-w-lg max-h-[90vh] overflow-y-auto" transition:fly={{ y: 20 }}>
           <h3 class="text-lg font-semibold text-rina-text font-display mb-4">
             {modalMode === 'edit' ? 'Edit Event' : 'Add Event'} – {selectedDate}
           </h3>
@@ -629,8 +772,9 @@
               <div>
                 <label for="eventType" class="block text-xs font-medium text-rina-text-secondary mb-1.5">Type</label>
                 <select id="eventType" bind:value={formEvent.type} class="input">
-                  <option value="SHARED">Shared</option>
-                  <option value="WORK">Work</option>
+                  <option value="SHARED">💕 Shared</option>
+                  <option value="PERSONAL">👤 Personal</option>
+                  <option value="WORK">💼 Work</option>
                 </select>
               </div>
               <div>
