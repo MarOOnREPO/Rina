@@ -1,401 +1,187 @@
 import { browser } from '$app/environment';
-import { io, type Socket } from 'socket.io-client';
-import { currentUser } from './auth.svelte';
 
-// ─── Types ───────────────────────────────────────────────────────
-export type PresenceStatus = 'online' | 'away' | 'typing' | 'offline';
+interface WSMessage {
+  event: string;
+  payload: unknown;
+}
 
-export interface PresenceState {
+type PresenceStatus = 'online' | 'away' | 'typing' | 'offline';
+
+interface PresenceData {
   username: string;
-  displayName: string;
   status: PresenceStatus;
-  lastSeen?: string;
-}
-
-export interface PingEvent {
-  from: string;
-  fromUsername: string;
+  displayName: string;
   timestamp: string;
 }
 
-export interface MediaSyncEvent {
-  action: 'play' | 'pause' | 'seek';
-  time: number;
-  videoId: string;
-  sender: string;
-  senderDisplayName: string;
-  serverTime: number;
-}
+class SocketStore {
+  private ws: WebSocket | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private url: string;
 
-export interface CinemaSyncEvent {
-  sessionId: string;
-  action: 'play' | 'pause' | 'seek';
-  time: number;
-  sender: string;
-  senderDisplayName: string;
-  serverTime: number;
-}
+  connected = $state(false);
+  connecting = $state(false);
+  error = $state<string | null>(null);
 
-export interface YouTubeSyncEvent {
-  action: 'play' | 'pause' | 'seek' | 'load';
-  time: number;
-  videoId: string;
-  sender: string;
-  senderDisplayName: string;
-  serverTime: number;
-}
+  presence = $state<Record<string, PresenceData>>({});
+  typing = $state<{ username: string; displayName: string } | null>(null);
+  pingReceived = $state<{ from: string } | null>(null);
+  mediaSync = $state<WSMessage | null>(null);
+  globalSync = $state<WSMessage | null>(null);
 
-export interface WebRTCOfferEvent {
-  sender: string;
-  senderDisplayName: string;
-  offer: RTCSessionDescriptionInit;
-}
+  getPartnerPresence() {
+    const user = (typeof window !== 'undefined' && (window as any).__user) || null;
+    if (!user) return null;
+    const partnerName = user.username === 'maroon' ? 'rina' : 'maroon';
+    return this.presence[partnerName] || null;
+  }
 
-export interface WebRTCAnswerEvent {
-  sender: string;
-  senderDisplayName: string;
-  answer: RTCSessionDescriptionInit;
-}
-
-export interface WebRTCIceEvent {
-  sender: string;
-  candidate: RTCIceCandidateInit;
-}
-
-export interface WebRTCHangupEvent {
-  sender: string;
-  senderDisplayName: string;
-}
-
-export interface SyncUpdateEvent {
-  type: string;
-  action: 'created' | 'updated' | 'deleted';
-  data: unknown;
-  senderId: string;
-  senderUsername: string;
-  timestamp: string;
-}
-
-// ─── Socket State ────────────────────────────────────────────────
-let socket: Socket | null = null;
-let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
-let heartbeatTimeout: ReturnType<typeof setTimeout> | null = null;
-
-const socketState = $state<{
-  connected: boolean;
-  connecting: boolean;
-  error: string | null;
-}>({
-  connected: false,
-  connecting: false,
-  error: null
-});
-
-export const socketStore = {
-  get connected() { return socketState.connected; },
-  get connecting() { return socketState.connecting; },
-  get error() { return socketState.error; },
+  constructor() {
+    const protocol = browser && window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = browser ? window.location.host : 'localhost:8080';
+    this.url = `${protocol}//${host}/ws`;
+  }
 
   connect() {
-    if (!browser || socket?.connected) return;
-    socketState.connecting = true;
-    socketState.error = null;
+    if (!browser || this.ws?.readyState === WebSocket.OPEN) return;
+    if (this.connecting) return;
 
-    socket = io({
-      path: '/socket.io',
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      timeout: 20000
-    });
+    this.connecting = true;
+    this.error = null;
 
-    socket.on('connect', () => {
-      console.log('[Socket] Connected:', socket?.id);
-      socketState.connected = true;
-      socketState.connecting = false;
-      socketState.error = null;
-      attachGlobalListeners();
-      startHeartbeat();
-    });
+    try {
+      this.ws = new WebSocket(this.url);
 
-    socket.on('disconnect', (reason) => {
-      console.log('[Socket] Disconnected:', reason);
-      socketState.connected = false;
-      socketState.connecting = false;
-      stopHeartbeat();
-    });
+      this.ws.onopen = () => {
+        this.connected = true;
+        this.connecting = false;
+        this.error = null;
+        this.startHeartbeat();
+      };
 
-    socket.on('heartbeat:pong', () => {
-      if (heartbeatTimeout) {
-        clearTimeout(heartbeatTimeout);
-        heartbeatTimeout = null;
-      }
-    });
+      this.ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data) as WSMessage;
+          this.handleMessage(msg);
+        } catch {
+          // ignore invalid messages
+        }
+      };
 
-    socket.on('connect_error', (err) => {
-      console.error('[Socket] Connection error:', err.message);
-      socketState.error = err.message || 'Connection error — retrying with backoff...';
-      socketState.connected = false;
-      socketState.connecting = false;
-    });
+      this.ws.onclose = () => {
+        this.connected = false;
+        this.connecting = false;
+        this.stopHeartbeat();
+        this.scheduleReconnect();
+      };
 
-    socket.on('reconnect_attempt', (attempt: number) => {
-      socketState.error = `Reconnecting... (attempt ${attempt})`;
-    });
-
-    socket.on('reconnect', () => {
-      console.log('[Socket] Reconnected');
-      attachGlobalListeners();
-      startHeartbeat();
-    });
-  },
+      this.ws.onerror = () => {
+        this.error = 'Connection error';
+        this.connecting = false;
+      };
+    } catch (err) {
+      this.error = err instanceof Error ? err.message : 'Connection failed';
+      this.connecting = false;
+    }
+  }
 
   disconnect() {
-    stopHeartbeat();
-    if (socket) {
-      socket.disconnect();
-      socket = null;
+    this.stopHeartbeat();
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
     }
-    socketState.connected = false;
-    socketState.connecting = false;
-    socketState.error = null;
-  },
-
-  getSocket(): Socket | null {
-    return socket;
-  },
-
-  emit(event: string, ...args: unknown[]) {
-    socket?.emit(event, ...args);
-  },
-
-  on<T = unknown>(event: string, callback: (data: T) => void) {
-    socket?.on(event, callback as (...args: unknown[]) => void);
-  },
-
-  off(event: string, callback?: (...args: unknown[]) => void) {
-    socket?.off(event, callback);
-  }
-};
-
-// ─── Heartbeat ───────────────────────────────────────────────────
-function startHeartbeat() {
-  stopHeartbeat();
-  heartbeatInterval = setInterval(() => {
-    if (socket?.connected) {
-      socket.emit('heartbeat:ping');
-      heartbeatTimeout = setTimeout(() => {
-        socketState.error = 'Connection unstable';
-        socket?.disconnect();
-        socket?.connect();
-      }, 25000);
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
     }
-  }, 10000);
+    this.connected = false;
+  }
+
+  send(event: string, payload?: unknown) {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ event, payload }));
+    }
+  }
+
+  private handleMessage(msg: WSMessage) {
+    switch (msg.event) {
+      case 'presence:update': {
+        const data = msg.payload as PresenceData;
+        this.presence[data.username] = data;
+        break;
+      }
+      case 'typing:start': {
+        const data = msg.payload as { username: string; displayName: string };
+        this.typing = data;
+        break;
+      }
+      case 'typing:stop': {
+        this.typing = null;
+        break;
+      }
+      case 'sync:update':
+        this.globalSync = msg;
+        setTimeout(() => (this.globalSync = null), 100);
+        break;
+      case 'media:sync':
+        this.mediaSync = msg;
+        setTimeout(() => (this.mediaSync = null), 100);
+        break;
+      case 'heartbeat:pong':
+        // handled implicitly
+        break;
+      case 'webrtc:offer':
+      case 'webrtc:answer':
+      case 'webrtc:ice':
+        // handled by video call page
+        break;
+    }
+  }
+
+  private startHeartbeat() {
+    this.heartbeatTimer = setInterval(() => {
+      this.send('heartbeat:ping');
+    }, 10000);
+  }
+
+  private stopHeartbeat() {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+  }
+
+  private scheduleReconnect() {
+    if (this.reconnectTimer) return;
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.connect();
+    }, 3000);
+  }
 }
 
-function stopHeartbeat() {
-  if (heartbeatInterval) {
-    clearInterval(heartbeatInterval);
-    heartbeatInterval = null;
-  }
-  if (heartbeatTimeout) {
-    clearTimeout(heartbeatTimeout);
-    heartbeatTimeout = null;
-  }
-}
-
-// ─── Presence State ──────────────────────────────────────────────
-let presenceState = $state<Record<string, PresenceState>>({});
-
-export const presence = {
-  get state() { return presenceState; },
-
-  setPresence(data: PresenceState) {
-    presenceState[data.username] = data;
-  },
-
-  getPresence(username: string): PresenceState | undefined {
-    return presenceState[username];
-  },
-
-  clear() {
-    presenceState = {};
-  },
-
-  init(socket: Socket) {
-    socket.on('presence:update', (data: PresenceState) => {
-      this.setPresence(data);
-    });
-  }
-};
-
-// ─── Partner Presence ─────────────────────────────────────────────
-export const partnerPresence = () => {
-  const user = currentUser();
-  if (!user || !user.partner) return undefined;
-  return presenceState[user.partner.username];
-};
-
-// ─── Ping State ───────────────────────────────────────────────────
-let pingState = $state<PingEvent | null>(null);
-let pingTimeout: ReturnType<typeof setTimeout> | null = null;
-
-export const pingReceived = {
-  get value() { return pingState; },
-
-  trigger(data: PingEvent) {
-    pingState = data;
-    if (pingTimeout) clearTimeout(pingTimeout);
-    pingTimeout = setTimeout(() => { pingState = null; }, 4000);
-  },
-
-  init(socket: Socket) {
-    socket.on('ping:received', (data: PingEvent) => {
-      this.trigger(data);
-    });
-  }
-};
-
-// ─── Media Sync State ─────────────────────────────────────────────
-let mediaSyncState = $state<MediaSyncEvent | null>(null);
-let mediaTimeout: ReturnType<typeof setTimeout> | null = null;
-
-export const mediaSync = {
-  get value() { return mediaSyncState; },
-
-  receive(data: MediaSyncEvent) {
-    mediaSyncState = data;
-    if (mediaTimeout) clearTimeout(mediaTimeout);
-    mediaTimeout = setTimeout(() => { mediaSyncState = null; }, 100);
-  },
-
-  emit(data: Omit<MediaSyncEvent, 'sender' | 'senderDisplayName' | 'serverTime'>) {
-    socketStore.emit('media:sync', data);
-  },
-
-  init(socket: Socket) {
-    socket.on('media:sync', (data: MediaSyncEvent) => {
-      this.receive(data);
-    });
-  }
-};
-
-// ─── Cinema Sync State ────────────────────────────────────────────
-let cinemaSyncState = $state<CinemaSyncEvent | null>(null);
-let cinemaTimeout: ReturnType<typeof setTimeout> | null = null;
-
-export const cinemaSync = {
-  get value() { return cinemaSyncState; },
-
-  receive(data: CinemaSyncEvent) {
-    cinemaSyncState = data;
-    if (cinemaTimeout) clearTimeout(cinemaTimeout);
-    cinemaTimeout = setTimeout(() => { cinemaSyncState = null; }, 100);
-  },
-
-  emit(data: Omit<CinemaSyncEvent, 'sender' | 'senderDisplayName' | 'serverTime'>) {
-    socketStore.emit('cinema:control', data);
-  },
-
-  init(socket: Socket) {
-    socket.on('cinema:sync', (data: CinemaSyncEvent) => {
-      this.receive(data);
-    });
-  }
-};
-
-// ─── YouTube Sync State ───────────────────────────────────────────
-let youtubeSyncState = $state<YouTubeSyncEvent | null>(null);
-let youtubeTimeout: ReturnType<typeof setTimeout> | null = null;
-
-export const youtubeSync = {
-  get value() { return youtubeSyncState; },
-
-  receive(data: YouTubeSyncEvent) {
-    youtubeSyncState = data;
-    if (youtubeTimeout) clearTimeout(youtubeTimeout);
-    youtubeTimeout = setTimeout(() => { youtubeSyncState = null; }, 100);
-  },
-
-  emit(data: Omit<YouTubeSyncEvent, 'sender' | 'senderDisplayName' | 'serverTime'>) {
-    socketStore.emit('youtube:sync', data);
-  },
-
-  init(socket: Socket) {
-    socket.on('youtube:sync', (data: YouTubeSyncEvent) => {
-      this.receive(data);
-    });
-  }
-};
-
-// ─── Typing State ─────────────────────────────────────────────────
-let typingState = $state<{ username: string; displayName: string } | null>(null);
-let typingTimeout: ReturnType<typeof setTimeout> | null = null;
-
-export const typing = {
-  get value() { return typingState; },
-
-  start(data: { username: string; displayName: string }) {
-    typingState = data;
-    if (typingTimeout) clearTimeout(typingTimeout);
-    typingTimeout = setTimeout(() => { typingState = null; }, 3000);
-  },
-
-  stop() {
-    typingState = null;
-    if (typingTimeout) clearTimeout(typingTimeout);
-  },
-
-  init(socket: Socket) {
-    socket.on('typing:start', (data: { username: string; displayName: string }) => {
-      this.start(data);
-    });
-    socket.on('typing:stop', () => {
-      this.stop();
-    });
-  }
-};
-
-// ─── Global Sync State ────────────────────────────────────────────
-let lastSyncUpdate = $state<SyncUpdateEvent | null>(null);
-
-export const globalSync = {
-  get lastUpdate() { return lastSyncUpdate; },
-
-  receive(data: SyncUpdateEvent) {
-    lastSyncUpdate = data;
-  },
-
-  init(socket: Socket) {
-    socket.on('sync:update', (data: SyncUpdateEvent) => {
-      this.receive(data);
-    });
-  }
-};
-
-// ─── Global Socket Initialization ─────────────────────────────────
-function attachGlobalListeners() {
-  const s = socketStore.getSocket();
-  if (!s) return;
-  presence.init(s);
-  pingReceived.init(s);
-  mediaSync.init(s);
-  cinemaSync.init(s);
-  youtubeSync.init(s);
-  typing.init(s);
-  globalSync.init(s);
-}
+export const socketStore = new SocketStore();
 
 export function initializeSockets() {
-  if (!browser) return;
-
-  const sock = socketStore.getSocket();
-  if (!sock || !sock.connected) {
+  if (browser) {
     socketStore.connect();
-  } else {
-    attachGlobalListeners();
-    startHeartbeat();
   }
+}
+
+export function sendTyping(start: boolean) {
+  socketStore.send(start ? 'typing:start' : 'typing:stop');
+}
+
+export function sendChatMessage(msg: { id: string; content: string; type: string; mediaUrl?: string; replyToId?: string }) {
+  socketStore.send('chat:message', msg);
+}
+
+export function sendMediaSync(payload: unknown) {
+  socketStore.send('media:sync', payload);
+}
+
+export function sendWebRTCSignal(event: 'offer' | 'answer' | 'ice', payload: unknown) {
+  socketStore.send(`webrtc:${event}`, payload);
 }

@@ -85,7 +85,7 @@ model CycleEntry {
 // ─── Movie Watchlist ─────────────────────────────────────────────
 model Movie {
   id           String    @id @default(cuid())
-  tmdbId       Int       @unique
+  tmdbId       Int?
   title        String    @db.VarChar(300)
   overview     String?
   posterPath   String?
@@ -95,6 +95,9 @@ model Movie {
   watchedAt    DateTime?
   rating       Int?      @db.SmallInt // 1-10
   addedBy      String
+  s3Key        String?   @db.VarChar(500)
+  sourceUrl    String?   @db.VarChar(1000)
+  tmdbData     Json?     // cast, trailer, genres, runtime, voteAverage, director
   createdAt    DateTime  @default(now())
 
   user User @relation(fields: [addedBy], references: [id], onDelete: Cascade)

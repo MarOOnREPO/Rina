@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { isAuthenticated, isLoading, currentUser } from '$lib/stores/auth.svelte';
-  import { socketStore, youtubeSync, presence } from '$lib/stores/socket.svelte';
+  import { socketStore } from '$lib/stores/socket.svelte';
   import { getConfig } from '$lib/stores/config.svelte';
   import { fade, scale } from 'svelte/transition';
   import GlassCard from '$lib/components/GlassCard.svelte';
@@ -24,7 +24,7 @@
   let lastReportedTime = $state(0);
   let syncStatus = $state<'idle' | 'syncing'>('idle');
   const partner = $derived(currentUser()?.partner);
-  const partnerStatus = $derived(partner ? presence.state[partner.username]?.status : undefined);
+  const partnerStatus = $derived(partner ? socketStore.presence[partner.username]?.status : undefined);
   const partnerInRoom = $derived(partnerStatus === 'online' || partnerStatus === 'away');
   let playerContainerId = $state(`yt-player-${Math.random().toString(36).slice(2, 9)}`);
 
@@ -185,7 +185,7 @@
   }
 
   function emitSync(action: 'play' | 'pause' | 'seek' | 'load', time = 0) {
-    youtubeSync.emit({ action, time, videoId: currentVideoId });
+    socketStore.send('media:sync', { action, time, videoId: currentVideoId });
   }
 
   function handleRemoteSync(event: { action: 'play' | 'pause' | 'seek' | 'load'; time: number; videoId: string; sender: string; serverTime: number }) {
@@ -345,7 +345,7 @@
   });
 
   $effect(() => {
-    const evt = youtubeSync.value;
+    const evt = socketStore.mediaSync;
     if (evt) handleRemoteSync(evt);
   });
 

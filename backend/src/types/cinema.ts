@@ -16,6 +16,14 @@ export interface CinemaSource {
   metadata?: CinemaTmdbMetadata;
 }
 
+export interface CinemaProgress {
+  type: 'torrent' | 'transcode';
+  percent: number;
+  speed?: string;
+  peers?: number;
+  message?: string;
+}
+
 export interface CinemaSession {
   id: string;
   source: CinemaSource;
@@ -23,4 +31,5 @@ export interface CinemaSession {
   error?: string;
   createdAt: number;
   completedAt?: number;
+  progress?: CinemaProgress;
 }

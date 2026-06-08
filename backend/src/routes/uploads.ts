@@ -97,12 +97,12 @@ export default async function uploadRoutes(fastify: FastifyInstance, _opts: Fast
   });
 
   // TUS creation endpoint: POST /api/upload
-  fastify.all('/', { preValidation: [authenticateJWT] }, tusProxyHandler);
+  fastify.all('/', { preValidation: [authenticateJWT], config: { rateLimit: false } }, tusProxyHandler);
   // TUS continuation endpoints: HEAD/PATCH/DELETE /api/upload/:id
-  fastify.all('/*', { preValidation: [authenticateJWT] }, tusProxyHandler);
+  fastify.all('/*', { preValidation: [authenticateJWT], config: { rateLimit: false } }, tusProxyHandler);
 
   // Presigned download URL helper
-  fastify.get('/url/:key', { preValidation: [authenticateJWT] }, async (request, reply) => {
+  fastify.get('/url/:key', { preValidation: [authenticateJWT], config: { rateLimit: false } }, async (request, reply) => {
     if (!isUploadsEnabled) {
       return reply.status(503).send({ error: 'Uploads not configured' });
     }

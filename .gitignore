@@ -43,3 +43,8 @@ playwright-report/
 test-results/
 playwright/.auth/
 **/playwright/.auth/
+
+# Go build artifacts
+go-backend/server
+go-backend/migrate
+go-backend/*.exe

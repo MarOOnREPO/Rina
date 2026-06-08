@@ -5,21 +5,21 @@ test.describe('Dashboard', () => {
     await page.goto('/');
     await expect(page.locator('a[href="/chat"]').first()).toBeVisible();
     await expect(page.locator('a[href="/calendar"]').first()).toBeVisible();
-    await expect(page.locator('a[href="/cinema"]').first()).toBeVisible();
+    await expect(page.locator('a[href="/movies"]').first()).toBeVisible();
     await expect(page.locator('a[href="/jam"]').first()).toBeVisible();
+    await expect(page.locator('a[href="/video"]').first()).toBeVisible();
+    await expect(page.locator('a[href="/cycle"]').first()).toBeVisible();
   });
 
-  test('navigates to cinema', async ({ page }) => {
+  test('navigates to movies', async ({ page }) => {
     await page.goto('/');
-    await page.click('a[href="/cinema"]');
-    await expect(page.locator('text=Cinema Room')).toBeVisible();
-    await expect(page.locator('text=Direct Link')).toBeVisible();
+    await page.click('a[href="/movies"]');
+    await expect(page.locator('text=Movie Library')).toBeVisible();
   });
 
   test('navigates to jam', async ({ page }) => {
     await page.goto('/');
     await page.click('a[href="/jam"]');
-    await expect(page.locator('text=Spotify Jam')).toBeVisible();
-    await expect(page.locator('text=Connect Spotify Premium')).toBeVisible();
+    await expect(page.locator('text=YouTube')).toBeVisible();
   });
 });

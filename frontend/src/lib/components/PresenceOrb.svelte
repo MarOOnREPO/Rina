@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { partnerPresence } from '$lib/stores/socket.svelte';
-  import { partnerName } from '$lib/stores/auth.svelte';
+  import { socketStore } from '$lib/stores/socket.svelte';
+  import { partnerName, currentUser } from '$lib/stores/auth.svelte';
 
-  // Orb breathes based on partner status
-  let status = $derived(partnerPresence()?.status ?? 'offline');
+  let partnerUsername = $derived(currentUser()?.username === 'maroon' ? 'rina' : 'maroon');
+  let presence = $derived(socketStore.presence[partnerUsername]);
+  let status = $derived(presence?.status ?? 'offline');
   let color = $derived(status === 'online' ? '#22c55e' : status === 'typing' ? '#f59e0b' : status === 'away' ? '#94a3b8' : '#475569');
   let glowClass = $derived(status === 'typing' ? 'animate-pulse' : status === 'online' ? 'animate-pulse-slow' : '');
 </script>

@@ -2,20 +2,19 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { isAuthenticated, isLoading, currentUser } from '$lib/stores/auth.svelte';
-  import { socketStore, partnerPresence } from '$lib/stores/socket.svelte';
-  import { notificationApi, type AppNotification } from '$lib/utils/api';
+  import { socketStore } from '$lib/stores/socket.svelte';
+  import { authApi, type AppNotification } from '$lib/utils/api';
   import { fade, fly } from 'svelte/transition';
   import PatchworkTile from '$lib/components/PatchworkTile.svelte';
   import WeatherWidget from '$lib/components/WeatherWidget.svelte';
 
-  // ─── Notifications ─────────────────────────────────────────────
   let notifications = $state<AppNotification[]>([]);
   let showNotifications = $state(false);
 
   async function fetchNotifications() {
     try {
-      const { notifications: notifs } = await notificationApi.list();
-      notifications = notifs;
+      const notifs = await authApi.notifications();
+      notifications = notifs.notifications;
     } catch {
       // Silently fail
     }
@@ -23,7 +22,7 @@
 
   async function markAllRead() {
     try {
-      await notificationApi.markRead();
+      await authApi.markRead();
       notifications = [];
       showNotifications = false;
     } catch {
@@ -32,14 +31,14 @@
   }
 
   function sendPing() {
-    socketStore.emit('ping:partner');
+    // TODO: implement ping via WebSocket
   }
 
   const quickActions = [
     { label: 'Chat', icon: '💬', href: '/chat', color: 'bg-rina-rose/15 text-rina-rose' },
-    { label: 'Goals', icon: '🎯', href: '/goals', color: 'bg-cyan-500/15 text-cyan-400' },
     { label: 'Calendar', icon: '📅', href: '/calendar', color: 'bg-emerald-500/15 text-emerald-400' },
-    { label: 'Cinema', icon: '🍿', href: '/cinema', color: 'bg-rose-500/15 text-rose-400' },
+    { label: 'Movies', icon: '🎬', href: '/movies', color: 'bg-amber-500/15 text-amber-400' },
+    { label: 'Video', icon: '📹', href: '/video', color: 'bg-rina-indigo/15 text-rina-indigo' },
   ];
 
   function getGreeting(): string {
@@ -47,6 +46,13 @@
     if (hour < 12) return 'Good morning';
     if (hour < 18) return 'Good afternoon';
     return 'Good evening';
+  }
+
+  function partnerPresence() {
+    const user = currentUser();
+    if (!user) return null;
+    const partnerName = user.username === 'maroon' ? 'rina' : 'maroon';
+    return socketStore.presence[partnerName];
   }
 
   onMount(() => {
@@ -65,7 +71,7 @@
     <!-- Greeting Header -->
     <div class="flex items-center justify-between" in:fly={{ y: 10, delay: 0 }}>
       <div>
-        <h1 class="text-lg font-bold text-white">{getGreeting()}, <span class="text-gradient">{currentUser()?.username || 'Love'}</span></h1>
+        <h1 class="text-lg font-bold text-white">{getGreeting()}, <span class="text-gradient">{currentUser()?.displayName || 'Love'}</span></h1>
         <p class="text-xs text-white/50 mt-0.5">{new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
       </div>
       {#if notifications.length > 0}
@@ -143,7 +149,7 @@
     <!-- Main Patchwork Grid -->
     <div class="grid grid-cols-2 gap-3 auto-rows-[minmax(100px,auto)]">
       <!-- Chat -->
-      <PatchworkTile href="/chat" icon="💬" title="Chat" subtitle="Messages chiffrés" color="from-rina-rose/15 to-rina-rose/5" size="wide" delay={80}>
+      <PatchworkTile href="/chat" icon="💬" title="Chat" subtitle="Encrypted messages" color="from-rina-rose/15 to-rina-rose/5" size="wide" delay={80}>
         <div class="mt-2 flex items-center gap-2">
           <span class="relative flex h-2.5 w-2.5">
             <span class="animate-ping absolute inline-flex h-full w-full rounded-full {partnerPresence()?.status === 'online' ? 'bg-emerald-400' : 'bg-white/20'} opacity-75"></span>
@@ -155,35 +161,20 @@
 
       <!-- Calendar -->
       <PatchworkTile href="/calendar" icon="📅" title="Calendar" subtitle="Planning & dates" color="from-emerald-500/15 to-emerald-500/5" size="wide" delay={140}>
-        <p class="text-[11px] text-white/60 mt-1 font-medium">Prochain événement →</p>
+        <p class="text-[11px] text-white/60 mt-1 font-medium">Next event →</p>
       </PatchworkTile>
 
-      <!-- Cinema -->
-      <PatchworkTile href="/cinema" icon="🍿" title="Cinema" subtitle="Watch together" color="from-rose-500/15 to-rose-500/5" delay={180} />
-
       <!-- Movies -->
-      <PatchworkTile href="/movies" icon="🎬" title="Movies" subtitle="À voir ensemble" color="from-amber-500/15 to-amber-500/5" delay={220} />
+      <PatchworkTile href="/movies" icon="🎬" title="Movies" subtitle="Watch together" color="from-amber-500/15 to-amber-500/5" delay={180} />
 
       <!-- YouTube Sync -->
-      <PatchworkTile href="/jam" icon="📺" title="YouTube Sync" subtitle="Watch together" color="from-pink-500/15 to-pink-500/5" delay={280} />
-
-      <!-- Food -->
-      <PatchworkTile href="/roulette" icon="🍽️" title="Food" subtitle="Roulette des repas" color="from-orange-500/15 to-orange-500/5" delay={340} />
+      <PatchworkTile href="/jam" icon="📺" title="YouTube Sync" subtitle="Watch together" color="from-pink-500/15 to-pink-500/5" delay={220} />
 
       <!-- Video -->
-      <PatchworkTile href="/video" icon="📹" title="Video Call" subtitle="Appel visio" color="from-rina-indigo/15 to-rina-indigo/5" delay={400} />
+      <PatchworkTile href="/video" icon="📹" title="Video Call" subtitle="Face to face" color="from-rina-indigo/15 to-rina-indigo/5" delay={280} />
 
-      <!-- Capsules -->
-      <PatchworkTile href="/capsules" icon="🔐" title="Capsules" subtitle="Messages temporels" color="from-violet-500/15 to-violet-500/5" delay={460} />
-
-      <!-- Goals -->
-      <PatchworkTile href="/goals" icon="🎯" title="Goals" subtitle="Objectifs communs" color="from-cyan-500/15 to-cyan-500/5" delay={520} />
-
-      <!-- Map -->
-      <PatchworkTile href="/map" icon="🗺️" title="Map" subtitle="Notre monde" color="from-teal-500/15 to-teal-500/5" delay={580} />
-
-      <!-- Whiteboard -->
-      <PatchworkTile href="/whiteboard" icon="🎨" title="Whiteboard" subtitle="Dessin collaboratif" color="from-fuchsia-500/15 to-fuchsia-500/5" delay={640} />
+      <!-- Cycle -->
+      <PatchworkTile href="/cycle" icon="🌙" title="Cycle" subtitle="Period tracker" color="from-violet-500/15 to-violet-500/5" delay={340} />
     </div>
   </div>
 {/if}

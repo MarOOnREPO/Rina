@@ -11,7 +11,7 @@ concurrency:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     permissions:
       contents: read
@@ -33,6 +33,12 @@ jobs:
             frontend/package-lock.json
             backend/package-lock.json
 
+      - name: Setup Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
+        with:
+          go-version: '1.25'
+          cache-dependency-path: go-backend/go.sum
+
       - name: Lint & Type Check Frontend
         working-directory: ./frontend
         run: |
@@ -40,12 +46,28 @@ jobs:
           npm run lint
           npm run check
 
+      - name: npm audit Frontend
+        working-directory: ./frontend
+        run: npm audit --audit-level=moderate
+
       - name: Build & Test Backend
         working-directory: ./backend
         run: |
           npm ci
           npm run db:generate
           npm run build
+
+      - name: npm audit Backend
+        working-directory: ./backend
+        run: npm audit --audit-level=moderate
+
+      - name: Build Go Backend
+        working-directory: ./go-backend
+        run: go build ./cmd/server
+
+      - name: Test Go Backend
+        working-directory: ./go-backend
+        run: go test ./...
 
       - name: Build Frontend for Production
         working-directory: ./frontend
@@ -58,6 +80,22 @@ jobs:
         run: |
           npx playwright install chromium
           npx playwright test
+
+      - name: Scan go-backend filesystem with Trivy
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8
+        with:
+          scan-type: 'fs'
+          scan-ref: './go-backend'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+
+      - name: Scan nginx image with Trivy
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8
+        with:
+          scan-type: 'image'
+          image-ref: 'nginx:1.27-alpine'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
 
       - name: Check deploy secrets
         id: deploy-check
@@ -82,7 +120,7 @@ jobs:
           REMOTE_USER: ${{ secrets.REMOTE_USER }}
           SOURCE: './'
           TARGET: '/home/ubuntu/rina'
-          EXCLUDE: 'backend/node_modules,frontend/node_modules,frontend/.svelte-kit,backend/dist,.git,.env'
+          EXCLUDE: 'backend/node_modules,frontend/node_modules,frontend/.svelte-kit,backend/dist,go-backend/server,go-backend/migrate,.git,.env'
 
       - name: Restart services via SSH
         if: github.ref == 'refs/heads/main' && steps.deploy-check.outputs.has_secrets == 'true'
@@ -100,3 +138,14 @@ jobs:
         run: |
           sleep 10
           curl -sf "https://${{ secrets.REMOTE_HOST }}/api/health" || (echo "❌ Health check failed" && exit 1)
+
+      - name: Post-deploy WebSocket Auth Check
+        if: github.ref == 'refs/heads/main' && steps.deploy-check.outputs.has_secrets == 'true'
+        run: |
+          sleep 2
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://${{ secrets.REMOTE_HOST }}/ws")
+          if [ "$STATUS" != "401" ]; then
+            echo "❌ WebSocket endpoint did not return 401 (got $STATUS)"
+            exit 1
+          fi
+          echo "✅ WebSocket endpoint correctly requires auth (401)"

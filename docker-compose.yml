@@ -32,36 +32,37 @@ services:
           cpus: '0.5'
           memory: 128M
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://backend:3000/api/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://backend:8080/api/health"]
       interval: 15s
       timeout: 5s
       retries: 3
 
   backend:
     build:
-      context: ./backend
+      context: ./go-backend
       dockerfile: Dockerfile
     container_name: rina-backend
     environment:
+      - PORT=8080
       - NODE_ENV=production
       - DATABASE_URL=postgresql://rina_user:${POSTGRES_PASSWORD}@postgres:5432/rina_db
       - JWT_SECRET=${JWT_SECRET}
       - COOKIE_SECRET=${COOKIE_SECRET}
       - REDIS_URL=redis://redis:6379
-      - AWS_REGION=${AWS_REGION:-us-east-1}
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      - S3_BUCKET_NAME=${S3_BUCKET_NAME:-rina-uploads}
-      - TMDB_API_KEY=${TMDB_API_KEY}
       - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY}
+      - YOUTUBE_API_KEY=${YOUTUBE_API_KEY}
       - CORS_ORIGIN=${CORS_ORIGIN}
       - COTURN_REALM=${COTURN_REALM}
       - COTURN_SECRET=${COTURN_SECRET}
       - MAROON_PASSWORD_HASH=${MAROON_PASSWORD_HASH}
       - RINA_PASSWORD_HASH=${RINA_PASSWORD_HASH}
+      - AWS_REGION=${AWS_REGION:-eu-central-1}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME:-rina-movies-storage}
     expose:
-      - "3000"
+      - "8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -75,7 +76,7 @@ services:
     tmpfs:
       - /tmp
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:3000/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8080/api/health || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -88,8 +89,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1.0'
-          memory: 512M
+          cpus: '0.5'
+          memory: 256M
 
   postgres:
     image: postgres:16.3-alpine
@@ -159,28 +160,7 @@ services:
         max-size: "5m"
         max-file: "3"
 
-  cinema-worker:
-    build:
-      context: ./cinema-worker
-      dockerfile: Dockerfile
-    container_name: rina-cinema-worker
-    expose:
-      - "4000"
-    networks:
-      - rina-network
-    restart: unless-stopped
-    init: true
-    healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:4000/health || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
+
 
 volumes:
   postgres_data:

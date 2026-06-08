@@ -10,7 +10,7 @@ export function setBroadcastServer(socketIo: SocketIOServer) {
 
 export interface BroadcastPayload {
   type: string;
-  action: 'created' | 'updated' | 'deleted';
+  action: 'created' | 'updated' | 'deleted' | 'cleared';
   data: unknown;
   senderId: string;
   senderUsername: string;

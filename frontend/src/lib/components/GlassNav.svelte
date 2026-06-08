@@ -12,15 +12,9 @@
   ];
 
   const featureItems = [
-    { path: '/goals', label: 'Goals', icon: '🎯' },
-    { path: '/cinema', label: 'Cinema', icon: '🍿' },
     { path: '/jam', label: 'Watch', icon: '📺' },
     { path: '/movies', label: 'Movies', icon: '🎬' },
     { path: '/video', label: 'Video', icon: '📹' },
-    { path: '/capsules', label: 'Capsules', icon: '🔐' },
-    { path: '/map', label: 'Map', icon: '🗺️' },
-    { path: '/roulette', label: 'Food', icon: '🍽️' },
-    { path: '/whiteboard', label: 'Draw', icon: '🎨' },
   ];
 
   const adminNavItem = { path: '/settings', label: 'Settings', icon: '⚙️' };

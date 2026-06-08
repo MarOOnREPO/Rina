@@ -6,14 +6,12 @@
   import { calendarApi, type CalendarEvent, cycleApi, type CycleEntry } from '$lib/utils/api';
   import { formatTime, formatDate, getUserTimezone, isoToDatetimeLocal, datetimeLocalToIso } from '$lib/utils/timezone';
   import GlassCard from '$lib/components/GlassCard.svelte';
-  import CountdownTimer from '$lib/components/CountdownTimer.svelte';
-  import { countdownApi, type Countdown } from '$lib/utils/api';
-  import { globalSync } from '$lib/stores/socket.svelte';
+  import { socketStore } from '$lib/stores/socket.svelte';
   import CyclePhaseOrb from '$lib/components/CyclePhaseOrb.svelte';
 
   let currentDate = $state(new Date());
   let events: CalendarEvent[] = $state([]);
-  let countdowns: Countdown[] = $state([]);
+
   let loading = $state(true);
   let saving = $state(false);
   let error = $state('');
@@ -71,12 +69,7 @@
     try {
       const fromDate = new Date(year, month, 1);
       const toDate = new Date(year, month + 1, 0, 23, 59, 59);
-      const [evts, cnts] = await Promise.all([
-        calendarApi.list(fromDate.toISOString(), toDate.toISOString()),
-        countdownApi.list()
-      ]);
-      events = evts;
-      countdowns = cnts;
+      events = await calendarApi.list(fromDate.toISOString(), toDate.toISOString());
     } catch (err) {
       error = 'Failed to load calendar data';
       console.error('[Calendar]', err);
@@ -323,12 +316,6 @@
     })()
   );
 
-  let nextCountdown = $derived(
-    [...countdowns]
-      .filter((cd) => new Date(cd.targetDate).getTime() > new Date().getTime())
-      .sort((a, b) => new Date(a.targetDate).getTime() - new Date(b.targetDate).getTime())[0] ?? null
-  );
-
   let currentCycleInfo = $derived(
     (() => {
       const today = new Date();
@@ -351,7 +338,7 @@
   });
 
   $effect(() => {
-    const update = globalSync.lastUpdate;
+    const update = socketStore.globalSync;
     if (update && update.type === 'calendar') {
       loadData();
     }
@@ -383,7 +370,7 @@
     {/if}
 
     <!-- Up Next -->
-    {#if nextUpcomingEvent || daysUntilNextPeriod !== null || nextCountdown}
+    {#if nextUpcomingEvent || daysUntilNextPeriod !== null}
       <GlassCard class="mb-2">
         <div class="flex items-center gap-2 mb-2">
           <span class="text-sm font-semibold text-white">⏭️ Up Next</span>
@@ -411,24 +398,8 @@
               </span>
             </div>
           {/if}
-          {#if nextCountdown}
-            <div class="flex items-center gap-2">
-              <span class="shrink-0">⏳</span>
-              <span class="truncate font-medium">{nextCountdown.title}</span>
-              <span class="text-rina-slate shrink-0 ml-auto">{formatDate(nextCountdown.targetDate, getUserTimezone())}</span>
-            </div>
-          {/if}
         </div>
       </GlassCard>
-    {/if}
-
-    <!-- Countdowns -->
-    {#if countdowns.length > 0}
-      <div class="space-y-3">
-        {#each countdowns as cd (cd.id)}
-          <CountdownTimer targetDate={cd.targetDate} title={cd.title} />
-        {/each}
-      </div>
     {/if}
 
     {#if viewMode === 'grid'}

@@ -2,7 +2,7 @@
   import { onMount, onDestroy, tick } from 'svelte';
   import { goto } from '$app/navigation';
   import { isAuthenticated, isLoading, currentUser } from '$lib/stores/auth.svelte';
-  import { socketStore, typing, globalSync } from '$lib/stores/socket.svelte';
+  import { socketStore } from '$lib/stores/socket.svelte';
   import { fly, fade, slide } from 'svelte/transition';
   import { messageApi, type ChatMessage } from '$lib/utils/api';
   import { formatTime } from '$lib/utils/timezone';
@@ -34,10 +34,10 @@
   }
 
   function handleInput() {
-    socketStore.emit('typing:start');
+    socketStore.send('typing:start');
     clearTimeout(typingTimeout);
     typingTimeout = setTimeout(() => {
-      socketStore.emit('typing:stop');
+      socketStore.send('typing:stop');
     }, 1500);
   }
 
@@ -45,7 +45,7 @@
     const text = input.trim();
     if (!text) return;
     input = '';
-    socketStore.emit('typing:stop');
+    socketStore.send('typing:stop');
 
     try {
       const msg = await messageApi.send(text);
@@ -79,7 +79,7 @@
   });
 
   $effect(() => {
-    const update = globalSync.lastUpdate;
+    const update = socketStore.globalSync;
     if (update && update.type === 'message') {
       loadHistory();
     }
@@ -102,7 +102,7 @@
     }
   });
 
-  let partnerTyping = $derived(typing.value);
+  let partnerTyping = $derived(socketStore.typing);
 </script>
 
 {#if isAuthenticated()}

@@ -1,6 +1,6 @@
 import { browser } from '$app/environment';
 
-const API_BASE = browser ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3000');
+const API_BASE = browser ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:8080');
 
 export class ApiError extends Error {
   code?: string;
@@ -55,7 +55,6 @@ export class ApiClient {
       throw new ApiError(message, response.status, errorData.code);
     }
 
-    // Handle 204 No Content
     if (response.status === 204) {
       return undefined as T;
     }
@@ -92,6 +91,7 @@ export interface AuthUser {
   username: string;
   displayName: string;
   timezone: string;
+  avatarUrl?: string;
 }
 
 export interface PartnerInfo {
@@ -108,10 +108,11 @@ export interface LoginCredentials {
 export const authApi = {
   login: (credentials: LoginCredentials) =>
     api.post<{ user: AuthUser; partner?: PartnerInfo | null }>('/auth/login', credentials),
-
   logout: () => api.post<void>('/auth/logout'),
-
-  me: () => api.get<{ user: AuthUser; partner?: PartnerInfo | null }>('/auth/me')
+  me: () => api.get<{ user: AuthUser; partner?: PartnerInfo | null }>('/auth/me'),
+  notifications: () => api.get<{ notifications: AppNotification[] }>('/auth/notifications'),
+  markRead: () => api.post<void>('/auth/notifications/read'),
+  updateMe: (data: Partial<AuthUser>) => api.patch<void>('/auth/me', data)
 };
 
 // ─── Calendar API ────────────────────────────────────────────────
@@ -130,37 +131,50 @@ export interface CalendarEvent {
 export const calendarApi = {
   list: (from?: string, to?: string) =>
     api.get<CalendarEvent[]>(`/calendar?from=${from || ''}&to=${to || ''}`),
-  create: (data: Partial<CalendarEvent>) =>
-    api.post<CalendarEvent>('/calendar', data),
-  update: (id: string, data: Partial<CalendarEvent>) =>
-    api.patch<CalendarEvent>(`/calendar/${id}`, data),
+  create: (data: Partial<CalendarEvent>) => api.post<CalendarEvent>('/calendar', data),
+  update: (id: string, data: Partial<CalendarEvent>) => api.patch<CalendarEvent>(`/calendar/${id}`, data),
   remove: (id: string) => api.delete<void>(`/calendar/${id}`)
 };
 
-// ─── Movie API ───────────────────────────────────────────────────
+// ─── Cycle Tracker API ───────────────────────────────────────────
+export interface CycleEntry {
+  id: string;
+  userId: string;
+  date: string;
+  flowIntensity?: number;
+  symptoms: string[];
+  temperature?: number;
+  notes?: string;
+  createdAt: string;
+}
+
+export const cycleApi = {
+  list: (from?: string, to?: string) =>
+    api.get<CycleEntry[]>(`/cycle?from=${from || ''}&to=${to || ''}`),
+  create: (data: Partial<CycleEntry> & { date: string }) => api.post<CycleEntry>('/cycle', data),
+  update: (id: string, data: Partial<CycleEntry>) => api.patch<CycleEntry>(`/cycle/${id}`, data),
+  remove: (id: string) => api.delete<void>(`/cycle/${id}`)
+};
+
+// ─── Movie API (Admin Library) ───────────────────────────────────
 export interface Movie {
   id: string;
-  tmdbId: number;
   title: string;
-  overview?: string;
   posterPath?: string;
   backdropPath?: string;
-  releaseDate?: string;
-  watched: boolean;
-  watchedAt?: string;
-  rating?: number;
+  trailerUrl?: string;
+  filePath: string;
+  uploadedBy: string;
+  createdAt: string;
 }
 
 export const movieApi = {
   list: () => api.get<Movie[]>('/movies'),
-  searchTmdb: (query: string) =>
-    api.get<Array<{ tmdbId: number; title: string; posterPath?: string; releaseDate?: string }>>(
-      `/movies/search?t=${encodeURIComponent(query)}`
-    ),
-  add: (tmdbId: number) => api.post<Movie>('/movies', { tmdbId }),
-  toggleWatched: (id: string) => api.patch<Movie>(`/movies/${id}/watched`),
-  rate: (id: string, rating: number) => api.patch<Movie>(`/movies/${id}/rate`, { rating }),
-  remove: (id: string) => api.delete<void>(`/movies/${id}`)
+  get: (id: string) => api.get<Movie>(`/movies/${id}`),
+  create: (formData: FormData) => api.post<Movie>('/movies', formData, { headers: {} }),
+  remove: (id: string) => api.delete<void>(`/movies/${id}`),
+  download: (id: string) => `${API_BASE}/api/movies/${id}/download`,
+  watch: (id: string) => `${API_BASE}/api/movies/${id}/watch`
 };
 
 // ─── Message API ─────────────────────────────────────────────────
@@ -178,112 +192,42 @@ export interface ChatMessage {
 export const messageApi = {
   history: (before?: string, limit = 50) =>
     api.get<ChatMessage[]>(`/messages?limit=${limit}${before ? `&before=${before}` : ''}`),
-  send: (content: string, type?: ChatMessage['type']) =>
-    api.post<ChatMessage>('/messages', { content, type: type || 'TEXT' })
+  send: (content: string, type?: ChatMessage['type'], replyToId?: string) =>
+    api.post<ChatMessage>('/messages', { content, type: type || 'TEXT', replyToId }),
+  edit: (id: string, content: string) => api.patch<ChatMessage>(`/messages/${id}`, { content }),
+  remove: (id: string) => api.delete<void>(`/messages/${id}`)
 };
 
-// ─── Time Capsule API ────────────────────────────────────────────
-export interface TimeCapsule {
-  id: string;
-  title: string;
-  description?: string;
-  mediaType: 'audio' | 'video' | 'text';
-  unlockAt: string;
-  creatorId: string;
-  openedAt?: string;
-  createdAt: string;
-}
-
-export const capsuleApi = {
-  list: () => api.get<TimeCapsule[]>('/capsules'),
-  create: (data: Partial<TimeCapsule> & { encryptedData: string }) =>
-    api.post<TimeCapsule>('/capsules', data),
-  unlock: (id: string) => api.get<{ data: string; decrypted: boolean }>(`/capsules/${id}/unlock`),
-  remove: (id: string) => api.delete<void>(`/capsules/${id}`)
+// ─── YouTube API ─────────────────────────────────────────────────
+export const youtubeApi = {
+  search: (q: string) =>
+    api.get<Array<{ videoId: string; title: string; description: string; thumbnail: string }>>(`/youtube/search?q=${encodeURIComponent(q)}`)
 };
 
-// ─── Scrapbook API ───────────────────────────────────────────────
-export interface ScrapbookPhoto {
-  id: string;
-  url: string;
-  thumbnailUrl?: string;
-  lat?: number;
-  lng?: number;
-  caption?: string;
-  takenAt?: string;
-  uploadedBy: string;
-  createdAt: string;
-}
-
-export const scrapbookApi = {
-  list: () => api.get<ScrapbookPhoto[]>('/scrapbook'),
-  upload: (formData: FormData) =>
-    api.post<ScrapbookPhoto>('/scrapbook', formData, {
-      headers: {} // Let browser set Content-Type with boundary
-    }),
-  remove: (id: string) => api.delete<void>(`/scrapbook/${id}`)
+// ─── Push API ────────────────────────────────────────────────────
+export const pushApi = {
+  subscribe: (sub: { endpoint: string; p256dh: string; auth: string }) =>
+    api.post<void>('/push/subscribe', sub),
+  unsubscribe: (sub: { endpoint: string }) =>
+    api.post<void>('/push/unsubscribe', sub),
+  notify: (payload: { title: string; body: string }) =>
+    api.post<void>('/push/notify', payload),
+  vapidPublicKey: () => api.get<{ publicKey: string }>('/push/vapid-public')
 };
 
-// ─── Goal API ────────────────────────────────────────────────────
-export interface Goal {
-  id: string;
-  title: string;
-  targetAmount: number;
-  currentAmount: number;
-  currency: string;
-  deadline?: string;
-  icon?: string;
-  createdBy: string;
-  createdAt: string;
-}
-
-export const goalApi = {
-  list: () => api.get<Goal[]>('/goals'),
-  create: (data: Partial<Goal>) => api.post<Goal>('/goals', data),
-  update: (id: string, data: Partial<Goal>) => api.patch<Goal>(`/goals/${id}`, data),
-  contribute: (id: string, amount: number) =>
-    api.patch<Goal>(`/goals/${id}/contribute`, { amount }),
-  remove: (id: string) => api.delete<void>(`/goals/${id}`)
+// ─── RTC API ─────────────────────────────────────────────────────
+export const rtcApi = {
+  iceServers: () => api.get<{ iceServers: Array<{ urls: string[]; username?: string; credential?: string }> }>('/rtc/ice-servers')
 };
 
-// ─── Countdown API ───────────────────────────────────────────────
-export interface Countdown {
-  id: string;
-  title: string;
-  targetDate: string;
-  location?: string;
-  imageUrl?: string;
-  createdAt: string;
-}
-
-export const countdownApi = {
-  list: () => api.get<Countdown[]>('/countdowns'),
-  create: (data: Partial<Countdown>) => api.post<Countdown>('/countdowns', data),
-  remove: (id: string) => api.delete<void>(`/countdowns/${id}`)
+// ─── Admin Config API ────────────────────────────────────────────
+export const adminConfigApi = {
+  list: () => api.get<Array<{ id: string; key: string; value: string; updatedAt: string; updatedBy?: string }>>('/admin/config'),
+  public: () => api.get<Record<string, unknown>>('/admin/config/public'),
+  update: (key: string, value: string) => api.put<void>(`/admin/config/${key}`, { value })
 };
 
-// ─── Cycle Tracker API ───────────────────────────────────────────
-export interface CycleEntry {
-  id: string;
-  date: string;
-  flowIntensity?: number;
-  symptoms: string[];
-  temperature?: number;
-  notes?: string;
-  createdAt: string;
-}
-
-export const cycleApi = {
-  list: (from?: string, to?: string) =>
-    api.get<{ entries: CycleEntry[] }>(`/cycle?from=${from || ''}&to=${to || ''}`),
-  create: (data: Partial<CycleEntry> & { date: string }) =>
-    api.post<{ entry: CycleEntry }>('/cycle', data),
-  update: (id: string, data: Partial<CycleEntry>) =>
-    api.patch<{ entry: CycleEntry }>(`/cycle/${id}`, data),
-  remove: (id: string) => api.delete<void>(`/cycle/${id}`)
-};
-
-// ─── Notification API ────────────────────────────────────────────
+// ─── Notification Types ──────────────────────────────────────────
 export interface AppNotification {
   id: string;
   type: string;
@@ -293,95 +237,3 @@ export interface AppNotification {
   read: boolean;
   createdAt: string;
 }
-
-export const notificationApi = {
-  list: () => api.get<{ notifications: AppNotification[] }>('/auth/notifications'),
-  markRead: (ids?: string[]) =>
-    api.post<void>('/auth/notifications/read', { ids })
-};
-
-export interface CinemaTmdbMetadata {
-  tmdbId?: number;
-  title: string;
-  overview?: string | null;
-  posterPath?: string | null;
-  backdropPath?: string | null;
-  releaseDate?: string | null;
-  mediaType?: 'movie' | 'tv';
-}
-
-export interface CinemaSessionResponse {
-  id: string;
-  status: string;
-  playlistUrl: string;
-  source: {
-    type: 'torrent' | 'direct' | 'upload';
-    uri?: string;
-    filename?: string;
-    s3Key?: string;
-    metadata?: CinemaTmdbMetadata;
-  };
-  error?: string;
-}
-
-// ─── Cinema API ──────────────────────────────────────────────────
-export const cinemaApi = {
-  start: (body: { type: 'torrent' | 'direct' | 'upload'; uri: string; filename?: string }) =>
-    api.post<CinemaSessionResponse>('/cinema/session', body),
-  status: (id: string) =>
-    api.get<{ id: string; status: string; source: CinemaSessionResponse['source']; createdAt: number; error?: string }>(`/cinema/session/${id}`),
-  destroy: (id: string) => api.delete<void>(`/cinema/session/${id}`),
-  downloadUrl: (id: string) =>
-    api.get<{ url: string; filename: string }>(`/cinema/session/${id}/download`)
-};
-
-// ─── Spotify API ─────────────────────────────────────────────────
-interface SpotifyImage {
-  url: string;
-  height: number;
-  width: number;
-}
-
-interface SpotifyArtist {
-  name: string;
-}
-
-interface SpotifyAlbum {
-  images: SpotifyImage[];
-}
-
-interface SpotifyTrack {
-  uri: string;
-  name: string;
-  artists: SpotifyArtist[];
-  album: SpotifyAlbum;
-}
-
-interface SpotifyDevice {
-  id: string;
-  name: string;
-  type: string;
-  is_active: boolean;
-}
-
-interface SpotifyApiResponse<T = unknown> {
-  success: boolean;
-  data?: T;
-  error?: string;
-  status: number;
-}
-
-export const spotifyApi = {
-  connect: (body: { accessToken: string; refreshToken: string; expiresIn: number }) =>
-    api.post<void>('/spotify/connect', body),
-  disconnect: () => api.delete<void>('/spotify/connect'),
-  me: () => api.get<SpotifyApiResponse<{ item?: SpotifyTrack; is_playing?: boolean }>>('/spotify/me'),
-  devices: () => api.get<SpotifyApiResponse<{ devices: SpotifyDevice[] }>>('/spotify/devices'),
-  search: (q: string) => api.get<SpotifyApiResponse<{ tracks?: { items: SpotifyTrack[] } }>>(`/spotify/search?q=${encodeURIComponent(q)}`),
-  play: (body: { uris?: string[]; position_ms?: number; device_id?: string }) => api.put<SpotifyApiResponse<unknown>>('/spotify/play', body),
-  pause: (query?: { device_id?: string }) => {
-    const qs = query ? `?${new URLSearchParams(query).toString()}` : '';
-    return api.put<SpotifyApiResponse<unknown>>(`/spotify/pause${qs}`, {});
-  },
-  seek: (body: { position_ms: number; device_id?: string }) => api.put<SpotifyApiResponse<unknown>>('/spotify/seek', body)
-};

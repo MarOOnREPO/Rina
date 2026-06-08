@@ -1,4 +1,4 @@
-import { S3Client, GetObjectCommand, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, GetObjectCommand, PutObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID;
@@ -52,6 +52,27 @@ export async function deleteObject(key: string): Promise<void> {
     Key: key
   });
   await s3Client.send(command);
+}
+
+export async function listObjects(prefix?: string): Promise<Array<{ key: string; size: number; lastModified: Date }>> {
+  const objects: Array<{ key: string; size: number; lastModified: Date }> = [];
+  let continuationToken: string | undefined;
+  do {
+    const command = new ListObjectsV2Command({
+      Bucket: BUCKET_NAME,
+      Prefix: prefix,
+      ContinuationToken: continuationToken,
+      MaxKeys: 1000
+    });
+    const response = await s3Client.send(command);
+    for (const obj of response.Contents || []) {
+      if (obj.Key && obj.Size && obj.LastModified) {
+        objects.push({ key: obj.Key, size: obj.Size, lastModified: obj.LastModified });
+      }
+    }
+    continuationToken = response.NextContinuationToken;
+  } while (continuationToken);
+  return objects;
 }
 
 export { BUCKET_NAME };

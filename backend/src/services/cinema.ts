@@ -47,7 +47,14 @@ export async function createCinemaSession(source: CinemaSource): Promise<string>
 
 export async function getSession(id: string): Promise<CinemaSession | undefined> {
   const res = await fetch(`${WORKER_URL}/session/${id}`);
-  if (!res.ok) return undefined;
+  if (!res.ok) {
+    // Forward worker error so backend route can return proper status
+    const body = await res.json().catch(() => ({ error: 'Worker error' })) as Record<string, unknown>;
+    const err = new Error(typeof body.error === 'string' ? body.error : `Worker error (${res.status})`);
+    (err as any).statusCode = res.status;
+    (err as any).workerError = body;
+    throw err;
+  }
   const session = (await res.json()) as CinemaSession;
   const meta = cinemaMetadata.get(id);
   if (meta) {
@@ -61,16 +68,16 @@ export async function getSession(id: string): Promise<CinemaSession | undefined>
   return session;
 }
 
-export async function getPlaylist(id: string): Promise<Buffer | null> {
+export async function getPlaylist(id: string): Promise<{ data: Buffer; status: number } | null> {
   const res = await fetch(`${WORKER_URL}/stream/${id}/playlist.m3u8`);
   if (!res.ok) return null;
-  return Buffer.from(await res.arrayBuffer());
+  return { data: Buffer.from(await res.arrayBuffer()), status: res.status };
 }
 
-export async function getSegment(id: string, filename: string): Promise<Buffer | null> {
+export async function getSegment(id: string, filename: string): Promise<{ data: Buffer; status: number } | null> {
   const res = await fetch(`${WORKER_URL}/stream/${id}/${encodeURIComponent(filename)}`);
   if (!res.ok) return null;
-  return Buffer.from(await res.arrayBuffer());
+  return { data: Buffer.from(await res.arrayBuffer()), status: res.status };
 }
 
 export async function destroySession(id: string): Promise<void> {
