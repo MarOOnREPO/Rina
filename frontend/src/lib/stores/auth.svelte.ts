@@ -73,6 +73,17 @@ export const auth = {
   setUser(user: AuthUser | null) {
     state.user = user;
     state.loading = false;
+  },
+
+  async updateMe(data: Partial<AuthUser>) {
+    try {
+      await authApi.updateMe(data);
+      if (state.user) {
+        state.user = { ...state.user, ...data };
+      }
+    } catch (err) {
+      throw err;
+    }
   }
 };
 

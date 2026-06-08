@@ -19,6 +19,7 @@ class SocketStore {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private url: string;
+  private listeners = new Map<string, Set<(payload: unknown) => void>>();
 
   connected = $state(false);
   connecting = $state(false);
@@ -105,6 +106,17 @@ class SocketStore {
     }
   }
 
+  on(event: string, callback: (payload: any) => void) {
+    if (!this.listeners.has(event)) {
+      this.listeners.set(event, new Set());
+    }
+    this.listeners.get(event)!.add(callback);
+  }
+
+  off(event: string, callback: (payload: any) => void) {
+    this.listeners.get(event)?.delete(callback);
+  }
+
   private handleMessage(msg: WSMessage) {
     switch (msg.event) {
       case 'presence:update': {
@@ -132,12 +144,9 @@ class SocketStore {
       case 'heartbeat:pong':
         // handled implicitly
         break;
-      case 'webrtc:offer':
-      case 'webrtc:answer':
-      case 'webrtc:ice':
-        // handled by video call page
-        break;
     }
+    // Dispatch to any registered listeners for this event
+    this.listeners.get(msg.event)?.forEach((cb) => cb(msg.payload));
   }
 
   private startHeartbeat() {

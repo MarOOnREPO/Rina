@@ -346,7 +346,7 @@
 
   $effect(() => {
     const evt = socketStore.mediaSync;
-    if (evt) handleRemoteSync(evt);
+    if (evt) handleRemoteSync(evt.payload as Parameters<typeof handleRemoteSync>[0]);
   });
 
   onMount(() => {
@@ -354,7 +354,7 @@
       console.error('[YouTube]', err);
       apiError = true;
     });
-    socketStore.emit('youtube:join');
+    socketStore.send('youtube:join');
   });
 
   onDestroy(() => {
@@ -367,7 +367,7 @@
       player = null;
     }
     ytApiPromise = null;
-    socketStore.emit('youtube:leave');
+    socketStore.send('youtube:leave');
   });
 </script>
 

@@ -44,7 +44,7 @@
       if (event.candidate) {
         const partner = currentUser()?.partner;
         if (!partner) return;
-        socketStore.emit('webrtc:ice-candidate', {
+        socketStore.send('webrtc:ice-candidate', {
           target: partner.username,
           candidate: event.candidate.toJSON()
         });
@@ -95,7 +95,7 @@
         return;
       }
 
-      socketStore.emit('webrtc:offer', {
+      socketStore.send('webrtc:offer', {
         target: partner.username,
         offer: { type: offer.type, sdp: offer.sdp! }
       });
@@ -114,14 +114,14 @@
   async function cancelCall() {
     const partner = currentUser()?.partner;
     if (partner) {
-      socketStore.emit('webrtc:decline', { target: partner.username });
+      socketStore.send('webrtc:decline', { target: partner.username });
     }
     endCall();
   }
 
   function handleOffer(data: { sender: string; senderDisplayName: string; offer: { type: 'offer'; sdp: string } }) {
     if (callState !== 'idle' && callState !== 'ended') {
-      socketStore.emit('webrtc:decline', { target: data.sender });
+      socketStore.send('webrtc:decline', { target: data.sender });
       return;
     }
     if (endedResetTimeout) {
@@ -149,7 +149,7 @@
       const answer = await peerConnection.createAnswer();
       await peerConnection.setLocalDescription(answer);
 
-      socketStore.emit('webrtc:answer', {
+      socketStore.send('webrtc:answer', {
         target: incomingSender,
         answer: { type: answer.type, sdp: answer.sdp! }
       });
@@ -166,7 +166,7 @@
 
   function declineCall() {
     if (incomingSender) {
-      socketStore.emit('webrtc:decline', { target: incomingSender });
+      socketStore.send('webrtc:decline', { target: incomingSender });
     }
     resetIncoming();
     callState = 'idle';
@@ -225,7 +225,7 @@
     if (callState === 'connected' || callState === 'calling') {
       const partner = currentUser()?.partner;
       if (partner) {
-        socketStore.emit('webrtc:hangup', { target: partner.username });
+        socketStore.send('webrtc:hangup', { target: partner.username });
       }
     }
 
@@ -290,35 +290,29 @@
 
   // Attach/detach socket listeners
   function attachListeners() {
-    const sock = socketStore.getSocket();
-    if (!sock) return;
-    sock.on('webrtc:offer', handleOffer);
-    sock.on('webrtc:answer', handleAnswer);
-    sock.on('webrtc:ice-candidate', handleIceCandidate);
-    sock.on('webrtc:declined', handleDeclined);
-    sock.on('webrtc:hungup', handleHungup);
+    socketStore.on('webrtc:offer', handleOffer);
+    socketStore.on('webrtc:answer', handleAnswer);
+    socketStore.on('webrtc:ice-candidate', handleIceCandidate);
+    socketStore.on('webrtc:declined', handleDeclined);
+    socketStore.on('webrtc:hungup', handleHungup);
   }
 
   function detachListeners() {
-    const sock = socketStore.getSocket();
-    if (!sock) return;
-    sock.off('webrtc:offer', handleOffer);
-    sock.off('webrtc:answer', handleAnswer);
-    sock.off('webrtc:ice-candidate', handleIceCandidate);
-    sock.off('webrtc:declined', handleDeclined);
-    sock.off('webrtc:hungup', handleHungup);
+    socketStore.off('webrtc:offer', handleOffer);
+    socketStore.off('webrtc:answer', handleAnswer);
+    socketStore.off('webrtc:ice-candidate', handleIceCandidate);
+    socketStore.off('webrtc:declined', handleDeclined);
+    socketStore.off('webrtc:hungup', handleHungup);
   }
 
   onMount(() => {
     loadIceServers();
     attachListeners();
-    socketStore.on('reconnect', attachListeners);
   });
 
   onDestroy(() => {
     endCall();
     detachListeners();
-    socketStore.off('reconnect', attachListeners);
     if (endedResetTimeout) clearTimeout(endedResetTimeout);
   });
 </script>

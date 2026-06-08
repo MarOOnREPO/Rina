@@ -5,23 +5,49 @@
   let partnerUsername = $derived(currentUser()?.username === 'maroon' ? 'rina' : 'maroon');
   let presence = $derived(socketStore.presence[partnerUsername]);
   let status = $derived(presence?.status ?? 'offline');
-  let color = $derived(status === 'online' ? '#22c55e' : status === 'typing' ? '#f59e0b' : status === 'away' ? '#94a3b8' : '#475569');
-  let glowClass = $derived(status === 'typing' ? 'animate-pulse' : status === 'online' ? 'animate-pulse-slow' : '');
+
+  const statusConfig = $derived(() => {
+    switch (status) {
+      case 'online':
+        return { color: '#059669', bg: 'bg-rina-success', label: 'Online' };
+      case 'typing':
+        return { color: '#D97706', bg: 'bg-rina-warning', label: 'Typing...' };
+      case 'away':
+        return { color: '#64748B', bg: 'bg-rina-text-muted', label: 'Away' };
+      default:
+        return { color: '#94A3B8', bg: 'bg-rina-border-strong', label: 'Offline' };
+    }
+  });
+
+  let config = $derived(statusConfig());
+  let isOnline = $derived(status === 'online');
+  let isTyping = $derived(status === 'typing');
 </script>
 
 <div class="relative flex items-center gap-2">
-  <span class="text-xs font-medium text-rina-slate hidden sm:inline">
+  <span class="text-xs font-medium text-rina-text-secondary hidden sm:inline">
     {partnerName() || 'Partner'}
   </span>
-  <div class="relative">
-    <div
-      class="w-3 h-3 rounded-full transition-colors duration-500 {glowClass}"
-      style="background-color: {color}; box-shadow: 0 0 8px {color}, 0 0 16px {color}40;"
-    ></div>
-    {#if status === 'typing'}
+  <div class="relative" title={config.label}>
+    <!-- Soft glow background -->
+    {#if isOnline || isTyping}
       <div
-        class="absolute inset-0 rounded-full animate-ping opacity-75"
-        style="background-color: {color};"
+        class="absolute inset-0 rounded-full animate-pulse-slow"
+        style="background-color: {config.color}; opacity: 0.25; transform: scale(1.6);"
+      ></div>
+    {/if}
+
+    <!-- Core orb -->
+    <div
+      class="w-3 h-3 rounded-full transition-all duration-500 relative z-10"
+      style="background-color: {config.color};"
+    ></div>
+
+    <!-- Typing ping ring -->
+    {#if isTyping}
+      <div
+        class="absolute inset-0 rounded-full animate-ping opacity-40"
+        style="background-color: {config.color};"
       ></div>
     {/if}
   </div>

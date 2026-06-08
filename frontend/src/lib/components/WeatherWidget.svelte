@@ -109,22 +109,22 @@
 
 {#if loading}
   <div class="glass rounded-2xl p-4 md:p-5 animate-pulse">
-    <div class="h-4 bg-white/10 rounded w-1/3 mb-2"></div>
-    <div class="h-8 bg-white/10 rounded w-1/2"></div>
+    <div class="h-4 bg-rina-surface-muted rounded w-1/3 mb-2"></div>
+    <div class="h-8 bg-rina-surface-muted rounded w-1/2"></div>
   </div>
 {:else if data}
   <div class="grid grid-cols-2 gap-3">
     <!-- Today -->
     <button
       onclick={() => openModal('today')}
-      class="glass rounded-2xl p-4 text-left hover:bg-white/5 transition-colors group"
+      class="glass rounded-2xl p-4 text-left hover:bg-rina-glass-strong transition-colors duration-200 group"
     >
-      <p class="text-[10px] font-medium text-rina-slate uppercase tracking-wider mb-1">Today — {label}</p>
+      <p class="text-[10px] font-medium text-rina-text-muted uppercase tracking-wider mb-1">Today — {label}</p>
       <div class="flex items-center gap-2">
-        <span class="text-2xl group-hover:scale-110 transition-transform">{weatherIcon(data.current_weather.weathercode, !!data.current_weather.is_day)}</span>
+        <span class="text-2xl group-hover:scale-110 transition-transform duration-200">{weatherIcon(data.current_weather.weathercode, !!data.current_weather.is_day)}</span>
         <div>
-          <p class="text-xl font-bold">{Math.round(data.current_weather.temperature)}°</p>
-          <p class="text-[10px] text-rina-slate">{weatherLabel(data.current_weather.weathercode)}</p>
+          <p class="text-xl font-bold text-rina-text">{Math.round(data.current_weather.temperature)}°</p>
+          <p class="text-[10px] text-rina-text-muted">{weatherLabel(data.current_weather.weathercode)}</p>
         </div>
       </div>
     </button>
@@ -132,14 +132,14 @@
     <!-- Tomorrow -->
     <button
       onclick={() => openModal('tomorrow')}
-      class="glass rounded-2xl p-4 text-left hover:bg-white/5 transition-colors group"
+      class="glass rounded-2xl p-4 text-left hover:bg-rina-glass-strong transition-colors duration-200 group"
     >
-      <p class="text-[10px] font-medium text-rina-slate uppercase tracking-wider mb-1">Tomorrow — {label}</p>
+      <p class="text-[10px] font-medium text-rina-text-muted uppercase tracking-wider mb-1">Tomorrow — {label}</p>
       <div class="flex items-center gap-2">
-        <span class="text-2xl group-hover:scale-110 transition-transform">{weatherIcon(tCode)}</span>
+        <span class="text-2xl group-hover:scale-110 transition-transform duration-200">{weatherIcon(tCode)}</span>
         <div>
-          <p class="text-xl font-bold">{Math.round(tMax)}° <span class="text-sm text-rina-slate font-normal">/ {Math.round(tMin)}°</span></p>
-          <p class="text-[10px] text-rina-slate">{weatherLabel(tCode)}</p>
+          <p class="text-xl font-bold text-rina-text">{Math.round(tMax)}° <span class="text-sm text-rina-text-muted font-normal">/ {Math.round(tMin)}°</span></p>
+          <p class="text-[10px] text-rina-text-muted">{weatherLabel(tCode)}</p>
         </div>
       </div>
     </button>
@@ -149,36 +149,43 @@
 <!-- Hourly Forecast Modal -->
 {#if showModal}
   <div
-    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-rina-text/20 backdrop-blur-sm"
     transition:fade
+    role="button"
+    tabindex="0"
     onclick={() => showModal = false}
+    onkeydown={(e) => e.key === 'Escape' && (showModal = false)}
   >
     <div
-      class="glass-strong rounded-2xl p-6 w-full max-w-md max-h-[80vh] overflow-y-auto"
+      class="glass-strong rounded-2xl p-6 w-full max-w-md max-h-[80vh] overflow-y-auto border border-rina-border shadow-soft-xl"
       transition:scale
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
       onclick={(e) => e.stopPropagation()}
+      onkeydown={(e) => e.key === 'Escape' && (showModal = false)}
     >
       <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-semibold">
+        <h3 class="text-lg font-display font-semibold text-rina-text">
           {modalDay === 'today' ? 'Today' : 'Tomorrow'} — {label}
         </h3>
-        <button onclick={() => showModal = false} class="text-rina-slate hover:text-white transition-colors text-xl">×</button>
+        <button onclick={() => showModal = false} class="text-rina-text-muted hover:text-rina-text transition-colors text-xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-rina-surface-muted">×</button>
       </div>
 
       <div class="space-y-2">
         {#each modalHourly as h}
-          <div class="flex items-center gap-3 p-2 rounded-lg bg-white/[0.03]">
-            <span class="text-xs text-rina-slate w-10">{h.hour}</span>
+          <div class="flex items-center gap-3 p-2 rounded-xl bg-rina-surface-muted">
+            <span class="text-xs text-rina-text-secondary w-10 font-medium">{h.hour}</span>
             <span class="text-lg">{weatherIcon(h.code)}</span>
             <div class="flex-1">
               <div class="flex items-center gap-2">
-                <div class="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                <div class="flex-1 h-1.5 rounded-full bg-rina-border overflow-hidden">
                   <div
-                    class="h-full rounded-full bg-gradient-to-r from-rina-rose to-rina-indigo"
+                    class="h-full rounded-full bg-gradient-to-r from-rina-primary to-rina-secondary"
                     style="width: {Math.min(100, Math.max(0, (h.temp + 10) / 50 * 100))}%"
                   ></div>
                 </div>
-                <span class="text-sm font-medium w-10 text-right">{Math.round(h.temp)}°</span>
+                <span class="text-sm font-medium w-10 text-right text-rina-text">{Math.round(h.temp)}°</span>
               </div>
             </div>
           </div>

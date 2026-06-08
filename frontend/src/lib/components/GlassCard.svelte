@@ -18,7 +18,7 @@
 </script>
 
 <div
-  class="glass rounded-2xl {paddingClasses[padding]} {hover ? 'hover:bg-white/[0.04] transition-colors' : ''} {className}"
+  class="glass {paddingClasses[padding]} {hover ? 'hover:bg-rina-glass-strong transition-colors duration-200' : ''} {className}"
   {...rest}
 >
   {@render children?.()}

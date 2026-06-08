@@ -54,7 +54,7 @@
   <header class="fixed top-0 left-0 right-0 z-50 glass border-b border-rina-border hidden md:block">
     <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
       <a href="/" class="flex items-center gap-2">
-        <span class="text-xl font-bold text-gradient">Rina</span>
+        <span class="text-xl font-bold text-gradient font-display">Rina</span>
       </a>
 
       <nav class="flex items-center gap-1">
@@ -63,13 +63,13 @@
             href={item.path}
             class="relative px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 touch-target flex items-center gap-2
               {currentPath === item.path
-                ? 'bg-rina-rose/15 text-rina-rose shadow-[0_0_16px_rgba(244,114,182,0.25)]'
-                : 'text-white/70 hover:text-white hover:bg-white/5'}"
+                ? 'bg-rina-primary-soft text-rina-primary shadow-soft'
+                : 'text-rina-text-secondary hover:text-rina-text hover:bg-rina-surface-muted'}"
           >
             <span class="text-base">{item.icon}</span>
             <span>{item.label}</span>
             {#if currentPath === item.path}
-              <span class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full bg-gradient-to-r from-rina-rose to-rina-indigo"></span>
+              <span class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full bg-gradient-to-r from-rina-primary to-rina-secondary"></span>
             {/if}
           </a>
         {/each}
@@ -78,13 +78,13 @@
             href={adminNavItem.path}
             class="relative px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 touch-target flex items-center gap-2
               {currentPath === adminNavItem.path
-                ? 'bg-rina-rose/15 text-rina-rose shadow-[0_0_16px_rgba(244,114,182,0.25)]'
-                : 'text-white/70 hover:text-white hover:bg-white/5'}"
+                ? 'bg-rina-primary-soft text-rina-primary shadow-soft'
+                : 'text-rina-text-secondary hover:text-rina-text hover:bg-rina-surface-muted'}"
           >
             <span class="text-base">{adminNavItem.icon}</span>
             <span>{adminNavItem.label}</span>
             {#if currentPath === adminNavItem.path}
-              <span class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full bg-gradient-to-r from-rina-rose to-rina-indigo"></span>
+              <span class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full bg-gradient-to-r from-rina-primary to-rina-secondary"></span>
             {/if}
           </a>
         {/if}
@@ -94,19 +94,19 @@
             onclick={() => showFeatures = !showFeatures}
             class="relative px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 touch-target flex items-center gap-2
               {showFeatures
-                ? 'bg-rina-rose/15 text-rina-rose shadow-[0_0_16px_rgba(244,114,182,0.25)]'
-                : 'text-white/70 hover:text-white hover:bg-white/5'}"
+                ? 'bg-rina-primary-soft text-rina-primary shadow-soft'
+                : 'text-rina-text-secondary hover:text-rina-text hover:bg-rina-surface-muted'}"
           >
             <span class="text-base">✨</span>
             <span>Features</span>
             {#if showFeatures}
-              <span class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full bg-gradient-to-r from-rina-rose to-rina-indigo"></span>
+              <span class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full bg-gradient-to-r from-rina-primary to-rina-secondary"></span>
             {/if}
           </button>
 
           {#if showFeatures}
             <div
-              class="absolute top-full right-0 mt-3 w-60 glass-strong rounded-2xl p-3 border border-rina-border shadow-2xl"
+              class="absolute top-full right-0 mt-3 w-60 glass-strong rounded-2xl p-3 border border-rina-border shadow-soft-xl"
               transition:scale={{ duration: 150, start: 0.95 }}
             >
               <div class="grid grid-cols-2 gap-2">
@@ -115,8 +115,8 @@
                     href={item.path}
                     class="flex flex-col items-center gap-1.5 p-2.5 rounded-xl transition-all duration-200 touch-target
                       {currentPath === item.path
-                        ? 'bg-rina-rose/15 text-rina-rose shadow-[0_0_10px_rgba(244,114,182,0.2)]'
-                        : 'hover:bg-white/5 text-white/70 hover:text-white'}"
+                        ? 'bg-rina-primary-soft text-rina-primary shadow-soft'
+                        : 'hover:bg-rina-surface-muted text-rina-text-secondary hover:text-rina-text'}"
                     onclick={closeFeatures}
                   >
                     <span class="text-xl">{item.icon}</span>
@@ -138,15 +138,15 @@
   <!-- Mobile Bottom Tab Bar (iOS Style) -->
   <nav class="fixed-mobile bottom-0 z-50 md:hidden">
     <div class="mx-3 mb-[max(0.5rem,env(safe-area-inset-bottom))]">
-      <div class="glass-strong rounded-2xl border border-rina-border shadow-lg backdrop-blur-xl">
+      <div class="glass-strong rounded-2xl border border-rina-border shadow-soft-lg backdrop-blur-xl">
         <div class="flex items-center justify-around h-[4.5rem]">
           {#each mainNavItems as item}
             <a
               href={item.path}
               class="flex flex-col items-center justify-center gap-1 px-3 py-1.5 rounded-xl transition-all duration-200 touch-target min-w-[64px]
                 {currentPath === item.path
-                  ? 'text-rina-rose scale-105 shadow-[0_0_14px_rgba(244,114,182,0.3)] bg-rina-rose/10'
-                  : 'text-white/50 hover:text-white/80'}"
+                  ? 'text-rina-primary scale-105 shadow-soft bg-rina-primary-soft'
+                  : 'text-rina-text-muted hover:text-rina-text-secondary'}"
             >
               <span class="text-xl">{item.icon}</span>
               <span class="text-[10px] font-bold leading-none">{item.label}</span>
@@ -157,8 +157,8 @@
               href={adminNavItem.path}
               class="flex flex-col items-center justify-center gap-1 px-3 py-1.5 rounded-xl transition-all duration-200 touch-target min-w-[64px]
                 {currentPath === adminNavItem.path
-                  ? 'text-rina-rose scale-105 shadow-[0_0_14px_rgba(244,114,182,0.3)] bg-rina-rose/10'
-                  : 'text-white/50 hover:text-white/80'}"
+                  ? 'text-rina-primary scale-105 shadow-soft bg-rina-primary-soft'
+                  : 'text-rina-text-muted hover:text-rina-text-secondary'}"
             >
               <span class="text-xl">{adminNavItem.icon}</span>
               <span class="text-[10px] font-bold leading-none">{adminNavItem.label}</span>
@@ -170,7 +170,7 @@
             bind:this={featuresButtonRef}
             onclick={() => showFeatures = !showFeatures}
             class="flex flex-col items-center justify-center gap-1 px-3 py-1.5 rounded-xl transition-all duration-200 touch-target min-w-[64px]
-              {showFeatures ? 'text-rina-rose scale-105 shadow-[0_0_14px_rgba(244,114,182,0.3)] bg-rina-rose/10' : 'text-white/50 hover:text-white/80'}"
+              {showFeatures ? 'text-rina-primary scale-105 shadow-soft bg-rina-primary-soft' : 'text-rina-text-muted hover:text-rina-text-secondary'}"
             aria-label="Features"
           >
             <span class="text-xl">✨</span>
@@ -187,7 +187,7 @@
         transition:fade={{ duration: 150 }}
       >
         <div
-          class="glass-strong rounded-2xl border border-rina-border p-3 shadow-2xl"
+          class="glass-strong rounded-2xl border border-rina-border p-3 shadow-soft-xl"
           transition:scale={{ duration: 200, start: 0.9 }}
         >
           <div class="grid grid-cols-4 gap-2">
@@ -196,8 +196,8 @@
                 onclick={() => handleFeatureClick(item.path)}
                 class="flex flex-col items-center gap-1.5 p-2.5 rounded-xl transition-all duration-200 touch-target
                   {currentPath === item.path
-                    ? 'bg-rina-rose/15 text-rina-rose shadow-[0_0_10px_rgba(244,114,182,0.2)]'
-                    : 'hover:bg-white/5 text-white/70 hover:text-white'}"
+                    ? 'bg-rina-primary-soft text-rina-primary shadow-soft'
+                    : 'hover:bg-rina-surface-muted text-rina-text-secondary hover:text-rina-text'}"
               >
                 <span class="text-xl">{item.icon}</span>
                 <span class="text-[10px] font-semibold">{item.label}</span>

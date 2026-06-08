@@ -5,7 +5,6 @@
   import { fade, fly, slide, scale } from 'svelte/transition';
   import { calendarApi, type CalendarEvent, cycleApi, type CycleEntry } from '$lib/utils/api';
   import { formatTime, formatDate, getUserTimezone, isoToDatetimeLocal, datetimeLocalToIso } from '$lib/utils/timezone';
-  import GlassCard from '$lib/components/GlassCard.svelte';
   import { socketStore } from '$lib/stores/socket.svelte';
   import CyclePhaseOrb from '$lib/components/CyclePhaseOrb.svelte';
 
@@ -17,7 +16,7 @@
   let error = $state('');
 
   // View toggle: 'agenda' | 'grid'
-  let viewMode = $state<'agenda' | 'grid'>('agenda');
+  let viewMode = $state<'agenda' | 'grid'>('grid');
 
   // Modal states
   let showEventModal = $state(false);
@@ -179,7 +178,12 @@
 
   function getEventColor(type: string, customColor?: string) {
     if (customColor) return customColor;
-    return type === 'WORK' ? '#818cf8' : '#fb7185';
+    return type === 'WORK' ? '#818cf8' : '#BE185D';
+  }
+
+  function getEventBadgeColor(type: string, customColor?: string): string {
+    if (customColor) return '';
+    return type === 'WORK' ? 'badge bg-indigo-50 text-indigo-600' : 'badge-primary';
   }
 
   function formatEventTime(event: CalendarEvent): string {
@@ -226,8 +230,7 @@
       const from = `${year}-${String(month + 1).padStart(2, '0')}-01`;
       const toDate = new Date(year, month + 1, 0);
       const to = `${toDate.getFullYear()}-${String(toDate.getMonth() + 1).padStart(2, '0')}-${String(toDate.getDate()).padStart(2, '0')}`;
-      const { entries } = await cycleApi.list(from, to);
-      cycleEntries = entries;
+      cycleEntries = await cycleApi.list(from, to);
     } catch (err) {
       console.error('[Calendar] loadCycleData failed:', err);
     }
@@ -279,10 +282,31 @@
   function getPhaseBg(info: { phase: string } | null): string {
     if (!info) return '';
     switch (info.phase) {
-      case 'menstrual': return 'bg-rose-500/15';
-      case 'follicular': return 'bg-rose-300/10';
-      case 'ovulation': return 'bg-purple-500/15 shadow-[0_0_6px_rgba(168,85,247,0.25)]';
-      case 'luteal': return 'bg-sky-300/10';
+      case 'menstrual': return 'bg-rose-50';
+      case 'follicular': return 'bg-pink-50';
+      case 'ovulation': return 'bg-purple-50';
+      case 'luteal': return 'bg-sky-50';
+      default: return '';
+    }
+  }
+
+  function getPhaseTextColor(info: { phase: string } | null): string {
+    if (!info) return '';
+    switch (info.phase) {
+      case 'menstrual': return 'text-rose-600';
+      case 'follicular': return 'text-pink-500';
+      case 'ovulation': return 'text-purple-600';
+      case 'luteal': return 'text-sky-600';
+      default: return '';
+    }
+  }
+
+  function getPhaseEmoji(phase: string): string {
+    switch (phase) {
+      case 'menstrual': return '🩸';
+      case 'follicular': return '💧';
+      case 'ovulation': return '🌱';
+      case 'luteal': return '🌊';
       default: return '';
     }
   }
@@ -339,7 +363,7 @@
 
   $effect(() => {
     const update = socketStore.globalSync;
-    if (update && update.type === 'calendar') {
+    if (update && (update.payload as { type?: string }).type === 'calendar') {
       loadData();
     }
   });
@@ -350,56 +374,68 @@
 </script>
 
 {#if isAuthenticated()}
-  <div class="px-3 py-4 space-y-4" in:fade>
-    <div class="flex items-center justify-between">
-      <h2 class="text-xl font-bold">📅 Calendar</h2>
+  <div class="h-full flex flex-col bg-rina-bg px-4 py-4 space-y-4 overflow-y-auto" in:fade={{ duration: 200 }}>
+    <!-- Header -->
+    <div class="flex items-center justify-between shrink-0">
+      <div>
+        <h2 class="text-2xl font-semibold text-rina-text font-display">📅 Calendar</h2>
+        <p class="text-xs text-rina-text-muted mt-0.5">Plan your moments together</p>
+      </div>
       <div class="flex items-center gap-2">
         <button
           onclick={() => viewMode = viewMode === 'agenda' ? 'grid' : 'agenda'}
-          class="touch-target px-3 py-1.5 rounded-lg glass text-xs font-medium text-rina-slate hover:text-white transition-colors"
+          class="btn-ghost text-xs px-3 py-2"
         >
-          {viewMode === 'agenda' ? 'Grid' : 'Agenda'}
+          {viewMode === 'agenda' ? 'Grid View' : 'Agenda View'}
         </button>
       </div>
     </div>
 
     {#if error}
-      <div class="glass rounded-xl p-3 text-rina-rose text-sm" transition:slide>
+      <div class="card border-rina-accent/20 bg-rina-accent-soft p-3 text-rina-accent text-sm" transition:slide>
         {error}
       </div>
     {/if}
 
     <!-- Up Next -->
     {#if nextUpcomingEvent || daysUntilNextPeriod !== null}
-      <GlassCard class="mb-2">
-        <div class="flex items-center gap-2 mb-2">
-          <span class="text-sm font-semibold text-white">⏭️ Up Next</span>
+      <div class="card-elevated p-4">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="text-sm font-semibold text-rina-text">⏭️ Up Next</span>
         </div>
-        <div class="space-y-1.5 text-xs">
+        <div class="space-y-2.5">
           {#if nextUpcomingEvent}
-            <div class="flex items-center gap-2">
-              <span class="shrink-0">📅</span>
-              <span class="truncate font-medium">{nextUpcomingEvent.title}</span>
-              <span class="text-rina-slate shrink-0 ml-auto">
-                {formatEventDate(nextUpcomingEvent)}
-                {nextUpcomingEvent.allDay ? '' : formatEventTime(nextUpcomingEvent)}
-              </span>
+            <div class="flex items-center gap-3 p-2.5 rounded-xl bg-rina-surface-muted">
+              <div class="w-10 h-10 rounded-xl bg-rina-primary-soft flex items-center justify-center shrink-0">
+                <span class="text-lg">📅</span>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-rina-text truncate">{nextUpcomingEvent.title}</p>
+                <p class="text-xs text-rina-text-muted">
+                  {formatEventDate(nextUpcomingEvent)}
+                  {nextUpcomingEvent.allDay ? '' : formatEventTime(nextUpcomingEvent)}
+                </p>
+              </div>
             </div>
           {/if}
           {#if daysUntilNextPeriod !== null}
-            <div class="flex items-center gap-2">
-              <span class="shrink-0">🩸</span>
-              <span class="text-rina-slate">
-                {#if daysUntilNextPeriod === 0}
-                  Period expected today
-                {:else}
-                  Period in {daysUntilNextPeriod} day{daysUntilNextPeriod === 1 ? '' : 's'}
-                {/if}
-              </span>
+            <div class="flex items-center gap-3 p-2.5 rounded-xl bg-rose-50">
+              <div class="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
+                <span class="text-lg">🩸</span>
+              </div>
+              <div class="flex-1">
+                <p class="text-sm font-medium text-rose-700">
+                  {#if daysUntilNextPeriod === 0}
+                    Period expected today
+                  {:else}
+                    Period in {daysUntilNextPeriod} day{daysUntilNextPeriod === 1 ? '' : 's'}
+                  {/if}
+                </p>
+              </div>
             </div>
           {/if}
         </div>
-      </GlassCard>
+      </div>
     {/if}
 
     {#if viewMode === 'grid'}
@@ -407,17 +443,21 @@
       <CyclePhaseOrb lastPeriodStart={getLastPeriodStart()} {cycleLength} />
 
       <!-- Month Grid -->
-      <GlassCard class="mb-4">
+      <div class="card p-4">
         <div class="flex items-center justify-between mb-4">
-          <button onclick={prevMonth} class="touch-target p-2 rounded-lg hover:bg-white/5 transition-colors text-rina-slate">←</button>
-          <h3 class="text-base font-semibold">{monthName}</h3>
-          <button onclick={nextMonth} class="touch-target p-2 rounded-lg hover:bg-white/5 transition-colors text-rina-slate">→</button>
+          <button onclick={prevMonth} aria-label="Previous month" class="w-10 h-10 rounded-xl bg-rina-surface-muted flex items-center justify-center hover:bg-rina-primary-soft transition-all duration-200 text-rina-text-secondary hover:text-rina-primary">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+          </button>
+          <h3 class="text-base font-semibold text-rina-text font-display">{monthName}</h3>
+          <button onclick={nextMonth} aria-label="Next month" class="w-10 h-10 rounded-xl bg-rina-surface-muted flex items-center justify-center hover:bg-rina-primary-soft transition-all duration-200 text-rina-text-secondary hover:text-rina-primary">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+          </button>
         </div>
 
         {#if currentCycleInfo}
-          <div class="mb-3 rounded-xl px-3 py-2 text-xs font-medium flex items-center gap-2 {getPhaseBg(currentCycleInfo)} {currentCycleInfo.phase === 'menstrual' ? 'text-rose-300' : currentCycleInfo.phase === 'follicular' ? 'text-rose-200' : currentCycleInfo.phase === 'ovulation' ? 'text-purple-300' : 'text-sky-300'}">
+          <div class="mb-4 rounded-xl px-3 py-2.5 text-xs font-medium flex items-center gap-2 {getPhaseBg(currentCycleInfo)} {getPhaseTextColor(currentCycleInfo)}">
+            <span class="text-base">{getPhaseEmoji(currentCycleInfo.phase)}</span>
             <span>
-              {currentCycleInfo.phase === 'menstrual' ? '🩸' : currentCycleInfo.phase === 'follicular' ? '🌸' : currentCycleInfo.phase === 'ovulation' ? '💜' : '🌙'}
               {currentCycleInfo.phase.charAt(0).toUpperCase() + currentCycleInfo.phase.slice(1)} phase – Day {currentCycleInfo.day}/{cycleLength}
             </span>
           </div>
@@ -425,7 +465,7 @@
 
         <div class="grid grid-cols-7 gap-1 mb-2">
           {#each ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as day}
-            <div class="text-center text-[10px] font-medium text-rina-slate py-1">{day}</div>
+            <div class="text-center text-[11px] font-semibold text-rina-text-muted py-2">{day}</div>
           {/each}
         </div>
 
@@ -434,14 +474,17 @@
             {#if cell}
               {@const { day, dateStr, events: dayEvents } = cell}
               {@const phaseInfo = getPhaseInfo(dateStr)}
-              <button
+              <div
+                role="button"
+                tabindex="0"
                 onclick={() => openCreateModal(dateStr)}
+                onkeydown={(e) => e.key === 'Enter' && openCreateModal(dateStr)}
                 class="relative aspect-square rounded-xl p-1 flex flex-col items-start gap-0.5
-                  hover:bg-white/5 transition-colors text-left touch-target
-                  {isToday(day) ? 'ring-2 ring-rina-rose ring-offset-2 ring-offset-rina-bg' : ''}
+                  hover:bg-rina-surface-muted transition-all duration-200 text-left touch-target
+                  {isToday(day) ? 'ring-2 ring-rina-primary ring-offset-2 ring-offset-rina-bg' : ''}
                   {getPhaseBg(phaseInfo)}"
               >
-                <span class="text-xs font-medium {isToday(day) ? 'text-rina-rose' : phaseInfo?.phase === 'menstrual' ? 'text-rose-300' : 'text-white'}">
+                <span class="text-xs font-medium {isToday(day) ? 'text-rina-primary' : phaseInfo?.phase === 'menstrual' ? 'text-rose-600' : 'text-rina-text'}">
                   {day}
                 </span>
                 {#if dayEvents.length > 0}
@@ -449,64 +492,75 @@
                     {#each dayEvents.slice(0, 2) as event}
                       <button
                         onclick={(e) => { e.stopPropagation(); openEditModal(event); }}
-                        class="h-1 rounded-full w-full cursor-pointer hover:opacity-80"
+                        class="h-1.5 rounded-full w-full cursor-pointer hover:opacity-80 transition-opacity"
                         style="background-color: {getEventColor(event.type, event.color)}"
                         aria-label={event.title}
                       ></button>
                     {/each}
                     {#if dayEvents.length > 2}
-                      <span class="text-[7px] text-rina-slate pl-0.5">+{dayEvents.length - 2}</span>
+                      <span class="text-[8px] text-rina-text-muted pl-0.5">+{dayEvents.length - 2}</span>
                     {/if}
                   </div>
                 {/if}
-              </button>
+              </div>
             {:else}
               <div class="aspect-square"></div>
             {/if}
           {/each}
         </div>
 
-        <div class="flex items-center justify-between mt-3 text-[10px] text-rina-slate">
-          <div class="flex items-center gap-2 flex-wrap">
-            <div class="flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-full bg-rina-rose"></div>Shared</div>
-            <div class="flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-full bg-rina-indigo"></div>Work</div>
-            <div class="flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-sm bg-rose-500/60"></div>Menstrual</div>
-            <div class="flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-sm bg-rose-300/40"></div>Follicular</div>
-            <div class="flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-sm bg-purple-400/50"></div>Ovulation</div>
-            <div class="flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-sm bg-sky-300/40"></div>Luteal</div>
+        <div class="flex items-center justify-between mt-4 pt-3 border-t border-rina-border">
+          <div class="flex items-center gap-3 flex-wrap">
+            <div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-rina-primary"></div><span class="text-[10px] text-rina-text-muted">Shared</span></div>
+            <div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-indigo-400"></div><span class="text-[10px] text-rina-text-muted">Work</span></div>
+            <div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-sm bg-rose-400"></div><span class="text-[10px] text-rina-text-muted">Menstrual</span></div>
+            <div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-sm bg-pink-300"></div><span class="text-[10px] text-rina-text-muted">Follicular</span></div>
+            <div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-sm bg-purple-400"></div><span class="text-[10px] text-rina-text-muted">Ovulation</span></div>
+            <div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-sm bg-sky-300"></div><span class="text-[10px] text-rina-text-muted">Luteal</span></div>
           </div>
-          <button onclick={() => showCycleSettings = true} class="hover:text-rina-rose transition-colors">⚙️ Cycle</button>
+          <button onclick={() => showCycleSettings = true} class="text-xs text-rina-text-secondary hover:text-rina-primary transition-colors flex items-center gap-1">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            Cycle
+          </button>
         </div>
-      </GlassCard>
+      </div>
     {:else}
-      <!-- iOS Agenda View -->
-      <GlassCard>
-        <div class="flex items-center justify-between mb-3">
-          <h3 class="text-base font-semibold">Upcoming</h3>
-          <span class="text-xs text-rina-slate">{monthName}</span>
+      <!-- Agenda View -->
+      <div class="card p-4">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-base font-semibold text-rina-text font-display">Upcoming Events</h3>
+          <span class="text-xs text-rina-text-muted">{monthName}</span>
         </div>
 
         {#if loading}
-          <p class="text-rina-slate text-sm">Loading...</p>
+          <div class="flex items-center justify-center py-8 gap-3">
+            <div class="w-6 h-6 rounded-full border-2 border-rina-border border-t-rina-primary animate-spin"></div>
+            <p class="text-sm text-rina-text-muted">Loading events...</p>
+          </div>
         {:else if upcomingEvents.length === 0}
-          <p class="text-rina-slate-dark text-sm">No upcoming events. Tap + to add one.</p>
+          <div class="flex flex-col items-center justify-center py-10 text-center">
+            <div class="w-12 h-12 rounded-full bg-rina-primary-soft flex items-center justify-center mb-3">
+              <span class="text-xl">📆</span>
+            </div>
+            <p class="text-sm text-rina-text-muted">No upcoming events. Tap + to add one.</p>
+          </div>
         {:else}
-          <div class="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+          <div class="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
             {#each upcomingEvents as event (event.id)}
               {@const eventDate = new Date(event.startTime)}
               <button
                 onclick={() => openEditModal(event)}
-                class="w-full flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] transition-colors text-left"
+                class="w-full flex items-center gap-3 p-3 rounded-xl bg-rina-surface-muted hover:bg-rina-primary-soft transition-all duration-200 text-left group"
                 transition:slide
               >
                 <div class="flex flex-col items-center min-w-[3rem]">
-                  <span class="text-[10px] text-rina-slate uppercase">{eventDate.toLocaleDateString('en-GB', { month: 'short', timeZone: getUserTimezone() })}</span>
-                  <span class="text-xl font-bold">{eventDate.toLocaleDateString('en-GB', { day: 'numeric', timeZone: getUserTimezone() })}</span>
+                  <span class="text-[10px] font-semibold text-rina-text-muted uppercase">{eventDate.toLocaleDateString('en-GB', { month: 'short', timeZone: getUserTimezone() })}</span>
+                  <span class="text-xl font-bold text-rina-text font-display">{eventDate.toLocaleDateString('en-GB', { day: 'numeric', timeZone: getUserTimezone() })}</span>
                 </div>
-                <div class="w-1 h-8 rounded-full shrink-0" style="background-color: {getEventColor(event.type, event.color)}"></div>
+                <div class="w-1 h-10 rounded-full shrink-0" style="background-color: {getEventColor(event.type, event.color)}"></div>
                 <div class="flex-1 min-w-0">
-                  <p class="text-sm font-medium truncate">{event.title}</p>
-                  <p class="text-[11px] text-rina-slate">
+                  <p class="text-sm font-medium text-rina-text truncate group-hover:text-rina-primary transition-colors">{event.title}</p>
+                  <p class="text-[11px] text-rina-text-muted">
                     {formatEventDate(event)}
                     {event.allDay ? '' : formatEventTime(event)}
                     {#if event.endTime}
@@ -514,31 +568,31 @@
                     {/if}
                   </p>
                 </div>
-                <span class="text-xs text-rina-slate-dark shrink-0">→</span>
+                <svg class="w-4 h-4 text-rina-text-muted group-hover:text-rina-primary transition-colors shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
               </button>
             {/each}
           </div>
         {/if}
-      </GlassCard>
+      </div>
     {/if}
 
     <!-- Cycle Settings Modal -->
     {#if showCycleSettings}
-      <div class="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 bg-black/60 backdrop-blur-sm" transition:fade role="button" tabindex="0" onclick={() => showCycleSettings = false} onkeydown={(e) => e.key === 'Escape' && (showCycleSettings = false)}>
-        <div class="glass-strong rounded-t-2xl md:rounded-2xl p-5 w-full max-w-sm" transition:fly={{ y: 20 }} onclick={(e) => e.stopPropagation()}>
-          <h3 class="text-lg font-semibold mb-4">Cycle Settings</h3>
+      <div class="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 bg-rina-text/20 backdrop-blur-sm" transition:fade role="dialog" aria-modal="true" tabindex="-1" onclick={(e) => { if (e.target === e.currentTarget) showCycleSettings = false; }} onkeydown={(e) => e.key === 'Escape' && (showCycleSettings = false)}>
+        <div class="glass-strong rounded-t-2xl md:rounded-2xl p-5 w-full max-w-sm" transition:fly={{ y: 20 }}>
+          <h3 class="text-lg font-semibold text-rina-text font-display mb-4">Cycle Settings</h3>
           <div class="space-y-4">
             <div>
-              <label class="block text-xs text-rina-slate mb-1">Last Period Start</label>
-              <input type="date" bind:value={cycleStartStr} class="input-safe w-full px-3 py-2.5 rounded-xl bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50" />
+              <label for="cycleStart" class="block text-xs font-medium text-rina-text-secondary mb-1.5">Last Period Start</label>
+              <input id="cycleStart" type="date" bind:value={cycleStartStr} class="input" />
             </div>
             <div>
-              <label class="block text-xs text-rina-slate mb-1">Cycle Length (days)</label>
-              <input type="number" bind:value={cycleLength} min="20" max="40" class="input-safe w-full px-3 py-2.5 rounded-xl bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50" />
+              <label for="cycleLength" class="block text-xs font-medium text-rina-text-secondary mb-1.5">Cycle Length (days)</label>
+              <input id="cycleLength" type="number" bind:value={cycleLength} min="20" max="40" class="input" />
             </div>
             <div class="flex gap-2 pt-2">
-              <button onclick={() => showCycleSettings = false} class="touch-target flex-1 py-2.5 rounded-xl border border-rina-border text-sm hover:bg-white/5 transition-colors">Cancel</button>
-              <button onclick={saveCycleSettings} class="touch-target flex-1 py-2.5 rounded-xl bg-rina-rose text-white text-sm font-medium hover:opacity-90 transition-opacity">Save</button>
+              <button onclick={() => showCycleSettings = false} class="btn-ghost flex-1">Cancel</button>
+              <button onclick={saveCycleSettings} class="btn-primary flex-1">Save</button>
             </div>
           </div>
         </div>
@@ -547,53 +601,53 @@
 
     <!-- Event Modal (Create/Edit) -->
     {#if showEventModal}
-      <div class="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 bg-black/60 backdrop-blur-sm" transition:fade role="button" tabindex="0" onclick={() => showEventModal = false} onkeydown={(e) => e.key === 'Escape' && (showEventModal = false)}>
-        <div class="glass-strong rounded-t-2xl md:rounded-2xl p-5 w-full max-w-md max-h-[90vh] overflow-y-auto" transition:fly={{ y: 20 }} onclick={(e) => e.stopPropagation()}>
-          <h3 class="text-lg font-semibold mb-4">
-            {modalMode === 'edit' ? 'Edit Event' : 'Add Event'} — {selectedDate}
+      <div class="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 bg-rina-text/20 backdrop-blur-sm" transition:fade role="dialog" aria-modal="true" tabindex="-1" onclick={(e) => { if (e.target === e.currentTarget) showEventModal = false; }} onkeydown={(e) => e.key === 'Escape' && (showEventModal = false)}>
+        <div class="glass-strong rounded-t-2xl md:rounded-2xl p-5 w-full max-w-md max-h-[90vh] overflow-y-auto" transition:fly={{ y: 20 }}>
+          <h3 class="text-lg font-semibold text-rina-text font-display mb-4">
+            {modalMode === 'edit' ? 'Edit Event' : 'Add Event'} – {selectedDate}
           </h3>
           <div class="space-y-4">
             <div>
-              <label class="block text-xs text-rina-slate mb-1">Title *</label>
-              <input bind:value={formEvent.title} class="input-safe w-full px-3 py-2.5 rounded-xl bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50" />
+              <label for="eventTitle" class="block text-xs font-medium text-rina-text-secondary mb-1.5">Title *</label>
+              <input id="eventTitle" bind:value={formEvent.title} class="input" placeholder="Event title" />
             </div>
             <div>
-              <label class="block text-xs text-rina-slate mb-1">Description</label>
-              <textarea bind:value={formEvent.description} rows={2} class="input-safe w-full px-3 py-2.5 rounded-xl bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50 resize-none"></textarea>
+              <label for="eventDesc" class="block text-xs font-medium text-rina-text-secondary mb-1.5">Description</label>
+              <textarea id="eventDesc" bind:value={formEvent.description} rows={2} class="input resize-none" placeholder="Add details..."></textarea>
             </div>
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="block text-xs text-rina-slate mb-1">Start *</label>
-                <input type="datetime-local" bind:value={formEvent.startTime} class="input-safe w-full px-3 py-2.5 rounded-xl bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50" />
+                <label for="eventStart" class="block text-xs font-medium text-rina-text-secondary mb-1.5">Start *</label>
+                <input id="eventStart" type="datetime-local" bind:value={formEvent.startTime} class="input" />
               </div>
               <div>
-                <label class="block text-xs text-rina-slate mb-1">End</label>
-                <input type="datetime-local" bind:value={formEvent.endTime} class="input-safe w-full px-3 py-2.5 rounded-xl bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50" />
+                <label for="eventEnd" class="block text-xs font-medium text-rina-text-secondary mb-1.5">End</label>
+                <input id="eventEnd" type="datetime-local" bind:value={formEvent.endTime} class="input" />
               </div>
             </div>
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="block text-xs text-rina-slate mb-1">Type</label>
-                <select bind:value={formEvent.type} class="input-safe w-full px-3 py-2.5 rounded-xl bg-rina-bg border border-rina-border text-white text-sm focus:outline-none focus:border-rina-rose/50">
+                <label for="eventType" class="block text-xs font-medium text-rina-text-secondary mb-1.5">Type</label>
+                <select id="eventType" bind:value={formEvent.type} class="input">
                   <option value="SHARED">Shared</option>
                   <option value="WORK">Work</option>
                 </select>
               </div>
               <div>
-                <label class="block text-xs text-rina-slate mb-1">Color</label>
-                <input type="color" bind:value={formEvent.color} class="input-safe w-full h-[42px] px-1 py-1 rounded-xl bg-rina-bg border border-rina-border text-white text-sm" />
+                <label for="eventColor" class="block text-xs font-medium text-rina-text-secondary mb-1.5">Color</label>
+                <input id="eventColor" type="color" bind:value={formEvent.color} class="input h-[46px] px-1 py-1" />
               </div>
             </div>
             <div class="flex items-center gap-2">
-              <input type="checkbox" bind:checked={formEvent.allDay} id="allDay" class="rounded w-4 h-4" />
-              <label for="allDay" class="text-sm text-rina-slate">All day</label>
+              <input type="checkbox" bind:checked={formEvent.allDay} id="allDay" class="rounded w-4 h-4 accent-rina-primary" />
+              <label for="allDay" class="text-sm text-rina-text-secondary">All day</label>
             </div>
             <div class="flex gap-2 pt-2">
               {#if modalMode === 'edit' && editingEvent}
-                <button onclick={() => deleteEvent(editingEvent!.id)} class="touch-target px-4 py-2.5 rounded-xl bg-red-500/20 text-red-400 text-sm hover:bg-red-500/30 transition-colors">Delete</button>
+                <button onclick={() => deleteEvent(editingEvent!.id)} class="btn text-rina-accent hover:bg-rina-accent-soft">Delete</button>
               {/if}
-              <button onclick={() => showEventModal = false} class="touch-target flex-1 py-2.5 rounded-xl border border-rina-border text-sm hover:bg-white/5 transition-colors">Cancel</button>
-              <button onclick={saveEvent} disabled={saving} class="touch-target flex-1 py-2.5 rounded-xl bg-rina-rose text-white text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed">
+              <button onclick={() => showEventModal = false} class="btn-ghost flex-1">Cancel</button>
+              <button onclick={saveEvent} disabled={saving} class="btn-primary flex-1">
                 {saving ? 'Saving...' : 'Save'}
               </button>
             </div>
@@ -609,10 +663,10 @@
       <div class="relative w-full h-0">
         <button
           onclick={() => openCreateModal()}
-          class="absolute right-4 -top-6 w-12 h-12 rounded-full bg-rina-rose text-white shadow-lg flex items-center justify-center text-xl hover:scale-105 active:scale-95 transition-transform pointer-events-auto"
+          class="absolute right-4 -top-6 w-14 h-14 rounded-full bg-rina-primary text-white shadow-soft-lg flex items-center justify-center text-2xl hover:scale-105 active:scale-95 transition-transform pointer-events-auto"
           aria-label="Add event"
         >
-          +
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
         </button>
       </div>
     </div>

@@ -39,15 +39,15 @@
 </script>
 
 <svelte:head>
-  <meta name="theme-color" content="#0f0f1a" />
+  <meta name="theme-color" content="#BE185D" />
 </svelte:head>
 
 <!-- Strict mobile viewport wrapper -->
-<div class="mobile-viewport shadow-2xl" id="app-root">
+<div class="mobile-viewport shadow-soft-xl" id="app-root">
   <MobileHeader />
   <GlassNav />
 
-  <main class="min-h-screen pt-[7.5rem] md:pt-14 md:pb-0 pb-[calc(4rem+env(safe-area-inset-bottom,0px))]">
+  <main class="min-h-screen pt-16 md:pt-14 md:pb-0 pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))]">
     {@render children()}
   </main>
 

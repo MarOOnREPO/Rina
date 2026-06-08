@@ -19,7 +19,7 @@
     title,
     subtitle = '',
     size = 'md',
-    color = 'from-white/5 to-white/[0.02]',
+    color = 'from-rina-primary-soft to-transparent',
     delay = 0,
     children
   }: Props = $props();
@@ -34,29 +34,29 @@
 
 <a
   {href}
-  class="group relative glass rounded-2xl p-4 md:p-5 flex flex-col
+  class="group relative glass-strong rounded-2xl p-4 md:p-5 flex flex-col
     bg-gradient-to-br {color}
-    hover:bg-white/[0.06] hover:scale-[1.01] hover:shadow-lg hover:shadow-black/20
+    hover:bg-rina-surface-warm hover:scale-[1.01] hover:shadow-soft-lg hover:-translate-y-0.5
     active:scale-[0.98] transition-all duration-300 overflow-hidden
     {sizeClasses[size]}"
   in:scale={{ duration: 400, delay, easing: cubicOut, start: 0.9 }}
 >
-  <!-- Glow effect on hover -->
-  <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-br from-white/5 to-transparent pointer-events-none"></div>
+  <!-- Subtle glow effect on hover -->
+  <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-br from-rina-primary-soft to-transparent pointer-events-none"></div>
 
   <!-- Header -->
   <div class="relative flex items-start justify-between mb-2">
     <span class="text-2xl md:text-3xl group-hover:scale-110 transition-transform duration-300">{icon}</span>
-    <svg class="w-4 h-4 text-rina-slate-dark group-hover:text-rina-slate group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <svg class="w-4 h-4 text-rina-text-muted group-hover:text-rina-text-secondary group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 17L17 7M17 7H7M17 7v10"/>
     </svg>
   </div>
 
   <!-- Title -->
   <div class="relative mt-auto">
-    <h3 class="font-semibold text-sm md:text-base group-hover:text-white transition-colors">{title}</h3>
+    <h3 class="font-semibold text-sm md:text-base text-rina-text group-hover:text-rina-primary transition-colors">{title}</h3>
     {#if subtitle}
-      <p class="text-xs text-rina-slate-dark mt-0.5 line-clamp-1">{subtitle}</p>
+      <p class="text-xs text-rina-text-muted mt-0.5 line-clamp-1">{subtitle}</p>
     {/if}
   </div>
 

@@ -30,9 +30,17 @@
   >
     <!-- Soft screen glow -->
     <div
-      class="absolute inset-0 bg-rina-rose/10 animate-pulse-slow"
+      class="absolute inset-0 bg-rina-primary/5 animate-pulse-slow"
       style="backdrop-filter: blur(2px);"
     ></div>
+
+    <!-- Heart pulse rings -->
+    <div class="absolute inset-0 flex items-center justify-center">
+      <div class="w-32 h-32 rounded-full bg-rina-primary/10 animate-heart-beat"></div>
+    </div>
+    <div class="absolute inset-0 flex items-center justify-center">
+      <div class="w-48 h-48 rounded-full bg-rina-secondary/5 animate-heart-beat" style="animation-delay: 0.2s;"></div>
+    </div>
 
     <!-- Heart -->
     <div
@@ -46,15 +54,15 @@
         viewBox="0 0 24 24"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
-        class="drop-shadow-[0_0_30px_rgba(251,113,133,0.6)]"
+        class="drop-shadow-glow-strong animate-heart-beat"
       >
         <path
           d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
-          fill="#fb7185"
+          fill="#BE185D"
         />
       </svg>
-      <p class="text-center mt-4 text-rina-rose font-semibold text-lg drop-shadow-lg">
-        {ping.from} is thinking of you
+      <p class="text-center mt-4 text-rina-primary font-display font-semibold text-lg drop-shadow-sm">
+        {ping.from} is thinking of you 💕
       </p>
     </div>
   </div>

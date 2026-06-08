@@ -1,11 +1,11 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
   import { goto } from '$app/navigation';
-  import { isAuthenticated, isLoading, currentUser } from '$lib/stores/auth.svelte';
+  import { isAuthenticated, isLoading, currentUser, partnerName } from '$lib/stores/auth.svelte';
   import { socketStore } from '$lib/stores/socket.svelte';
   import { fly, fade, slide } from 'svelte/transition';
   import { messageApi, type ChatMessage } from '$lib/utils/api';
-  import { formatTime } from '$lib/utils/timezone';
+  import { formatTime, formatDate } from '$lib/utils/timezone';
 
   let messages: ChatMessage[] = $state([]);
   let input = $state('');
@@ -13,6 +13,11 @@
   let loading = $state(true);
   let typingTimeout: ReturnType<typeof setTimeout>;
   let sendError = $state('');
+
+  // Edit state
+  let editingId = $state<string | null>(null);
+  let editInput = $state('');
+  let showActionsFor = $state<string | null>(null);
 
   async function loadHistory() {
     try {
@@ -52,7 +57,7 @@
       messages = [...messages, msg];
       await tick();
       scrollToBottom();
-      socketStore.emit('chat:message', msg);
+      socketStore.send('chat:message', msg);
       sendError = '';
     } catch (err: unknown) {
       sendError = (err as { message?: string }).message || 'Failed to send message';
@@ -66,135 +71,329 @@
     }
   }
 
-  function handleChatMessage(msg: ChatMessage) {
+  function handleChatMessage(payload: unknown) {
+    const msg = payload as ChatMessage;
     messages = [...messages, msg];
     tick().then(scrollToBottom);
+  }
+
+  function startEdit(msg: ChatMessage) {
+    if (msg.senderId !== currentUser()?.id) return;
+    editingId = msg.id;
+    editInput = msg.content;
+    showActionsFor = null;
+  }
+
+  function cancelEdit() {
+    editingId = null;
+    editInput = '';
+  }
+
+  async function saveEdit() {
+    if (!editingId || !editInput.trim()) {
+      cancelEdit();
+      return;
+    }
+    try {
+      const updated = await messageApi.edit(editingId, editInput.trim());
+      messages = messages.map((m) => (m.id === editingId ? updated : m));
+      editingId = null;
+      editInput = '';
+    } catch (err: unknown) {
+      sendError = (err as { message?: string }).message || 'Failed to edit message';
+    }
+  }
+
+  function handleEditKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      saveEdit();
+    } else if (e.key === 'Escape') {
+      cancelEdit();
+    }
+  }
+
+  async function deleteMessage(id: string) {
+    if (!confirm('Delete this message?')) return;
+    try {
+      await messageApi.remove(id);
+      messages = messages.filter((m) => m.id !== id);
+      showActionsFor = null;
+    } catch (err: unknown) {
+      sendError = (err as { message?: string }).message || 'Failed to delete message';
+    }
+  }
+
+  function toggleActions(id: string) {
+    showActionsFor = showActionsFor === id ? null : id;
+  }
+
+  function formatMessageDate(dateStr: string): string {
+    const d = new Date(dateStr);
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const isYesterday = d.toDateString() === yesterday.toDateString();
+    if (isToday) return 'Today';
+    if (isYesterday) return 'Yesterday';
+    return formatDate(dateStr);
+  }
+
+  function groupMessagesByDate(msgs: ChatMessage[]) {
+    const groups: { date: string; items: ChatMessage[] }[] = [];
+    let currentGroup: { date: string; items: ChatMessage[] } | null = null;
+    for (const msg of msgs) {
+      const dateLabel = formatMessageDate(msg.createdAt);
+      if (!currentGroup || currentGroup.date !== dateLabel) {
+        currentGroup = { date: dateLabel, items: [] };
+        groups.push(currentGroup);
+      }
+      currentGroup.items.push(msg);
+    }
+    return groups;
   }
 
   // Redirect if not authenticated (wait for auth loading to finish)
   $effect(() => {
     if (!isLoading() && !isAuthenticated() && typeof window !== 'undefined') {
-    goto('/login');
+      goto('/login');
     }
   });
 
   $effect(() => {
     const update = socketStore.globalSync;
-    if (update && update.type === 'message') {
+    if (update && (update.payload as { type?: string }).type === 'message') {
       loadHistory();
     }
   });
 
   onMount(() => {
     loadHistory();
-
-    const sock = socketStore.getSocket();
-    if (sock) {
-      sock.on('chat:message', handleChatMessage);
-    }
+    socketStore.on('chat:message', handleChatMessage);
   });
 
   onDestroy(() => {
     clearTimeout(typingTimeout);
-    const sock = socketStore.getSocket();
-    if (sock) {
-      sock.off('chat:message', handleChatMessage);
-    }
+    socketStore.off('chat:message', handleChatMessage);
   });
 
   let partnerTyping = $derived(socketStore.typing);
+  let messageGroups = $derived(groupMessagesByDate(messages));
 </script>
 
 {#if isAuthenticated()}
-  <div class="h-full flex flex-col px-3 py-4" in:fade>
+  <div class="h-full flex flex-col bg-rina-bg" in:fade={{ duration: 200 }}>
     <!-- Chat Header -->
-    <div class="glass rounded-2xl p-4 mb-3 flex items-center justify-between shrink-0">
-      <div>
-        <h2 class="text-lg font-semibold">💬 Chat</h2>
-        <p class="text-xs text-rina-slate">
-          {#if partnerTyping}
-            <span in:slide class="text-rina-rose">{partnerTyping.displayName} is typing...</span>
-          {:else}
-            Encrypted • End-to-end
-          {/if}
-        </p>
+    <div class="shrink-0 px-4 pt-4 pb-3">
+      <div class="card flex items-center justify-between px-4 py-3">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-full bg-rina-primary-soft flex items-center justify-center">
+            <span class="text-lg">💕</span>
+          </div>
+          <div>
+            <h2 class="text-base font-semibold text-rina-text font-display">{partnerName() || 'Partner'}</h2>
+            <p class="text-xs text-rina-text-muted flex items-center gap-1">
+              {#if partnerTyping}
+                <span in:slide class="text-rina-primary flex items-center gap-1">
+                  <span class="flex gap-0.5">
+                    <span class="w-1 h-1 rounded-full bg-rina-primary animate-bounce" style="animation-delay: 0ms;"></span>
+                    <span class="w-1 h-1 rounded-full bg-rina-primary animate-bounce" style="animation-delay: 150ms;"></span>
+                    <span class="w-1 h-1 rounded-full bg-rina-primary animate-bounce" style="animation-delay: 300ms;"></span>
+                  </span>
+                  typing...
+                </span>
+              {:else}
+                <span class="flex items-center gap-1">
+                  <span class="w-1.5 h-1.5 rounded-full bg-rina-success"></span>
+                  Online
+                </span>
+              {/if}
+            </p>
+          </div>
+        </div>
+        <button
+          onclick={() => goto('/video')}
+          class="w-10 h-10 rounded-xl bg-rina-surface-muted flex items-center justify-center hover:bg-rina-primary-soft transition-all duration-200 group"
+          aria-label="Start video call"
+        >
+          <svg class="w-5 h-5 text-rina-text-secondary group-hover:text-rina-primary transition-colors" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+          </svg>
+        </button>
       </div>
-      <button
-        onclick={() => goto('/video')}
-        class="relative group w-9 h-9 rounded-full glass flex items-center justify-center hover:bg-white/10 transition-colors"
-        aria-label="Start video call"
-      >
-        <svg class="w-5 h-5 text-rina-slate group-hover:text-white transition-colors" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-        </svg>
-        <span class="absolute -bottom-8 left-1/2 -translate-x-1/2 text-[10px] bg-rina-bg border border-rina-border px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-          Start video call
-        </span>
-      </button>
     </div>
 
     <!-- Messages -->
     <div
       bind:this={containerRef}
-      class="flex-1 overflow-y-auto space-y-3 px-1 pb-2"
+      class="flex-1 overflow-y-auto px-4 pb-2 space-y-4"
       style="scroll-behavior: smooth;"
+      role="log"
+      aria-live="polite"
+      aria-label="Chat messages"
     >
       {#if loading}
-        <div class="text-center text-rina-slate py-8">Loading messages...</div>
+        <div class="flex flex-col items-center justify-center py-12 gap-3">
+          <div class="w-8 h-8 rounded-full border-2 border-rina-border border-t-rina-primary animate-spin"></div>
+          <p class="text-sm text-rina-text-muted">Loading your love notes...</p>
+        </div>
       {:else if messages.length === 0}
-        <div class="text-center text-rina-slate-dark py-12">
-          <p class="text-4xl mb-3">💌</p>
-          <p>No messages yet. Say something sweet.</p>
+        <div class="flex flex-col items-center justify-center py-16 text-center">
+          <div class="w-16 h-16 rounded-full bg-rina-primary-soft flex items-center justify-center mb-4">
+            <span class="text-3xl">💌</span>
+          </div>
+          <h3 class="text-lg font-semibold text-rina-text font-display mb-1">No messages yet</h3>
+          <p class="text-sm text-rina-text-muted max-w-[16rem]">Say something sweet to start the conversation.</p>
         </div>
       {:else}
-        {#each messages as msg (msg.id)}
-          {@const isMe = msg.senderId === currentUser()?.id}
-          <div
-            class="flex {isMe ? 'justify-end' : 'justify-start'}"
-            in:fly={{ y: 10, duration: 200 }}
-          >
-            <div
-              class="max-w-[75%] px-4 py-2.5 rounded-2xl text-sm
-                {isMe
-                  ? 'bg-rina-rose/20 text-white rounded-br-md'
-                  : 'glass text-white rounded-bl-md'}"
-            >
-              <p class="break-words">{msg.content}</p>
-              <p class="text-[10px] mt-1 opacity-50 text-right">
-                {formatTime(msg.createdAt)}
-              </p>
-            </div>
+        {#each messageGroups as group (group.date)}
+          <!-- Date Separator -->
+          <div class="flex items-center justify-center gap-3 py-2">
+            <div class="h-px flex-1 bg-rina-border"></div>
+            <span class="text-[11px] font-medium text-rina-text-muted uppercase tracking-wider">{group.date}</span>
+            <div class="h-px flex-1 bg-rina-border"></div>
           </div>
+
+          {#each group.items as msg (msg.id)}
+            {@const isMe = msg.senderId === currentUser()?.id}
+            {@const showActions = showActionsFor === msg.id}
+            <div
+              class="flex {isMe ? 'justify-end' : 'justify-start'}"
+              in:fly={{ y: 8, duration: 200 }}
+            >
+              <div class="relative group max-w-[80%]">
+                <!-- Actions dropdown for own messages -->
+                {#if isMe && !editingId}
+                  <button
+                    onclick={() => toggleActions(msg.id)}
+                    class="absolute -top-2 right-0 opacity-0 group-hover:opacity-100 transition-opacity z-10 w-6 h-6 rounded-full bg-rina-surface shadow-soft flex items-center justify-center"
+                    aria-label="Message actions"
+                  >
+                    <svg class="w-3 h-3 text-rina-text-muted" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+                    </svg>
+                  </button>
+                {/if}
+
+                {#if showActions && isMe}
+                  <div
+                    class="absolute -top-1 right-6 z-20 bg-rina-surface rounded-xl shadow-soft-lg border border-rina-border py-1 min-w-[6rem]"
+                    transition:fly={{ y: -4, duration: 150 }}
+                  >
+                    <button
+                      onclick={() => startEdit(msg)}
+                      class="w-full px-3 py-2 text-left text-xs text-rina-text-secondary hover:bg-rina-primary-soft hover:text-rina-primary transition-colors flex items-center gap-2"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                      Edit
+                    </button>
+                    <button
+                      onclick={() => deleteMessage(msg.id)}
+                      class="w-full px-3 py-2 text-left text-xs text-rina-text-secondary hover:bg-rina-accent-soft hover:text-rina-accent transition-colors flex items-center gap-2"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                      Delete
+                    </button>
+                  </div>
+                {/if}
+
+                <!-- Message bubble -->
+                {#if editingId === msg.id}
+                  <div class="bg-rina-surface border border-rina-border rounded-2xl rounded-br-md px-4 py-3 shadow-soft">
+                    <input
+                      bind:value={editInput}
+                      onkeydown={handleEditKeydown}
+                      class="w-full bg-transparent text-sm text-rina-text focus:outline-none"
+                    />
+                    <div class="flex items-center justify-end gap-2 mt-2">
+                      <button onclick={cancelEdit} class="text-[11px] text-rina-text-muted hover:text-rina-text transition-colors px-2 py-1">Cancel</button>
+                      <button onclick={saveEdit} class="text-[11px] font-medium text-rina-primary hover:text-rina-primary/80 transition-colors px-2 py-1">Save</button>
+                    </div>
+                  </div>
+                {:else}
+                  <div
+                    class="px-4 py-2.5 rounded-2xl text-sm shadow-soft
+                      {isMe
+                        ? 'bg-rina-primary text-white rounded-br-md'
+                        : 'bg-rina-surface border border-rina-border text-rina-text rounded-bl-md'}"
+                  >
+                    <p class="break-words leading-relaxed">{msg.content}</p>
+                    <div class="flex items-center justify-end gap-1 mt-1">
+                      <span class="text-[10px] {isMe ? 'text-white/70' : 'text-rina-text-muted'}">
+                        {formatTime(msg.createdAt)}
+                      </span>
+                      {#if isMe}
+                        <!-- Message status -->
+                        <span class="flex items-center" aria-label="Message delivered">
+                          <svg class="w-3 h-3 {isMe ? 'text-white/70' : 'text-rina-text-muted'}" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                          </svg>
+                        </span>
+                      {/if}
+                    </div>
+                    {#if msg.editedAt}
+                      <p class="text-[9px] {isMe ? 'text-white/50' : 'text-rina-text-muted'} text-right mt-0.5">edited</p>
+                    {/if}
+                  </div>
+                {/if}
+              </div>
+            </div>
+          {/each}
         {/each}
       {/if}
     </div>
 
+    <!-- Typing Indicator (when partner is typing and no messages yet in current session) -->
+    {#if partnerTyping && messages.length > 0}
+      <div class="px-4 pb-1" in:fly={{ y: 4, duration: 150 }} out:fly={{ y: 4, duration: 150 }}>
+        <div class="flex items-end gap-2">
+          <div class="w-7 h-7 rounded-full bg-rina-primary-soft flex items-center justify-center text-xs">
+            💕
+          </div>
+          <div class="bg-rina-surface border border-rina-border rounded-2xl rounded-bl-md px-4 py-2.5 shadow-soft flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-rina-primary/40 animate-bounce" style="animation-delay: 0ms;"></span>
+            <span class="w-1.5 h-1.5 rounded-full bg-rina-primary/40 animate-bounce" style="animation-delay: 150ms;"></span>
+            <span class="w-1.5 h-1.5 rounded-full bg-rina-primary/40 animate-bounce" style="animation-delay: 300ms;"></span>
+          </div>
+        </div>
+      </div>
+    {/if}
+
     <!-- Input -->
-    <div class="mt-3 shrink-0 space-y-2">
+    <div class="shrink-0 px-4 pb-4 pt-2">
       {#if sendError}
-        <p class="text-rina-rose text-xs px-1" transition:fade>{sendError}</p>
+        <p class="text-rina-accent text-xs px-1 mb-2" transition:fade>{sendError}</p>
       {/if}
-      <div class="glass rounded-2xl p-3 flex gap-2">
+      <div class="card flex items-center gap-2 px-3 py-2">
         <input
           bind:value={input}
           oninput={handleInput}
           onkeydown={handleKeydown}
-          placeholder="Type a message..."
-          class="flex-1 bg-transparent border-none text-white placeholder-rina-slate-dark text-sm
-            focus:outline-none px-2"
+          placeholder="Type a sweet message..."
+          class="flex-1 bg-transparent border-none text-sm text-rina-text placeholder:text-rina-text-muted focus:outline-none px-2 min-h-[44px]"
         />
         <button
           onclick={sendMessage}
           disabled={!input.trim()}
-          class="w-9 h-9 rounded-full bg-rina-rose flex items-center justify-center
-            hover:scale-105 active:scale-95 transition-transform disabled:opacity-30"
+          class="w-11 h-11 rounded-xl bg-rina-primary flex items-center justify-center hover:bg-rina-primary/90 active:scale-95 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed shadow-soft"
           aria-label="Send message"
         >
-          <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+          <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
           </svg>
         </button>
       </div>
     </div>
   </div>
 {/if}
+
+<style>
+  @keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+  }
+  .animate-bounce {
+    animation: bounce 0.6s ease-in-out infinite;
+  }
+</style>

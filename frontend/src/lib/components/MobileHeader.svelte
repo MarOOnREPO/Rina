@@ -108,22 +108,22 @@
     <div class="flex items-center justify-between px-4 pt-safe pb-2">
       <!-- Kenitra Clock -->
       <div class="flex-1 min-w-0">
-        <p class="text-[9px] font-medium text-rina-slate uppercase tracking-wider">Kenitra</p>
-        <p class="text-xl font-bold tabular-nums leading-tight">{kenitraTime}</p>
-        <p class="text-[9px] text-rina-slate-dark">{kenitraOffset}</p>
+        <p class="text-[9px] font-medium text-rina-text-muted uppercase tracking-wider">Kenitra</p>
+        <p class="text-xl font-bold tabular-nums leading-tight text-rina-text">{kenitraTime}</p>
+        <p class="text-[9px] text-rina-text-secondary">{kenitraOffset}</p>
       </div>
 
       <!-- Center Welcome -->
       <div class="flex-1 text-center px-2">
-        <p class="text-[9px] font-medium text-rina-slate uppercase tracking-wider">Bienvenue</p>
+        <p class="text-[9px] font-medium text-rina-text-muted uppercase tracking-wider">Bienvenue</p>
         <p class="text-sm font-bold text-gradient truncate">{currentUser()?.displayName || 'Love'}</p>
       </div>
 
       <!-- Perm Clock -->
       <div class="flex-1 min-w-0 text-right">
-        <p class="text-[9px] font-medium text-rina-slate uppercase tracking-wider">Perm</p>
-        <p class="text-xl font-bold tabular-nums leading-tight">{permTime}</p>
-        <p class="text-[9px] text-rina-slate-dark">{permOffset}</p>
+        <p class="text-[9px] font-medium text-rina-text-muted uppercase tracking-wider">Perm</p>
+        <p class="text-xl font-bold tabular-nums leading-tight text-rina-text">{permTime}</p>
+        <p class="text-[9px] text-rina-text-secondary">{permOffset}</p>
       </div>
     </div>
 
@@ -131,23 +131,23 @@
     <div class="px-4 pb-2">
       {#if weatherLoading}
         <div class="flex items-center justify-center gap-4 py-1">
-          <div class="h-3 bg-white/10 rounded w-16 animate-pulse"></div>
-          <div class="h-3 bg-white/10 rounded w-16 animate-pulse"></div>
+          <div class="h-3 bg-rina-surface-muted rounded w-16 animate-pulse"></div>
+          <div class="h-3 bg-rina-surface-muted rounded w-16 animate-pulse"></div>
         </div>
       {:else}
         <div class="flex items-center justify-between">
           <!-- Today -->
           <div class="flex items-center gap-2">
-            <span class="text-[9px] font-bold text-rina-rose uppercase tracking-wider">Today</span>
+            <span class="text-[9px] font-bold text-rina-primary uppercase tracking-wider">Today</span>
             {#if kenitraToday}
-              <span class="flex items-center gap-0.5 text-xs">
+              <span class="flex items-center gap-0.5 text-xs text-rina-text">
                 <span>{weatherIcon(kenitraToday.code)}</span>
                 <span class="font-medium">{kenitraToday.temp}°</span>
               </span>
             {/if}
             <span class="text-rina-border">|</span>
             {#if permToday}
-              <span class="flex items-center gap-0.5 text-xs">
+              <span class="flex items-center gap-0.5 text-xs text-rina-text">
                 <span>{weatherIcon(permToday.code)}</span>
                 <span class="font-medium">{permToday.temp}°</span>
               </span>
@@ -156,16 +156,16 @@
 
           <!-- Tomorrow -->
           <div class="flex items-center gap-2">
-            <span class="text-[9px] font-bold text-rina-indigo uppercase tracking-wider">Tomorrow</span>
+            <span class="text-[9px] font-bold text-rina-secondary uppercase tracking-wider">Tomorrow</span>
             {#if kenitraTomorrow}
-              <span class="flex items-center gap-0.5 text-xs">
+              <span class="flex items-center gap-0.5 text-xs text-rina-text">
                 <span>{weatherIcon(kenitraTomorrow.code)}</span>
                 <span class="font-medium">{kenitraTomorrow.temp}°</span>
               </span>
             {/if}
             <span class="text-rina-border">|</span>
             {#if permTomorrow}
-              <span class="flex items-center gap-0.5 text-xs">
+              <span class="flex items-center gap-0.5 text-xs text-rina-text">
                 <span>{weatherIcon(permTomorrow.code)}</span>
                 <span class="font-medium">{permTomorrow.temp}°</span>
               </span>
