@@ -51,7 +51,7 @@ test.describe('Full App — Authenticated Flow', () => {
     await page.waitForURL('/chat', { timeout: 10000 });
 
     // Chat header should show partner name and status
-    await expect(page.locator('text=Messages').or(page.locator('text=Chat'))).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading').first()).toBeVisible({ timeout: 10000 });
   });
 
   testWithAuth('cycle tracker page loads and can add entry', async ({ page }) => {

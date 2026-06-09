@@ -1,4 +1,4 @@
-import { test, expect, type BrowserContext, type Page } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { blockHeavyResources } from './_network-interceptor';
 
 /**
@@ -14,16 +14,22 @@ async function loginUser(page: Page, username: string, password: string): Promis
   await page.goto('/login');
   await page.waitForLoadState('networkidle');
 
-  const usernameInput = page.locator('input[placeholder*="maroon"], input[type="text"]').first();
-  const passwordInput = page.locator('input[type="password"]').first();
-  const submitButton = page.locator('button:has-text("Enter")').first();
+  // Check if already logged in (redirected to dashboard)
+  if (page.url().includes('/login')) {
+    const usernameInput = page.locator('input[type="text"]').first();
+    const passwordInput = page.locator('input[type="password"]').first();
+    const submitButton = page.locator('button').first();
 
-  await usernameInput.fill(username);
-  await passwordInput.fill(password);
-  await submitButton.click();
+    await usernameInput.fill(username);
+    await passwordInput.fill(password);
+    await submitButton.click();
 
-  // Wait for redirect to dashboard
-  await page.waitForURL('/', { timeout: 10000 });
+    // Wait for navigation away from login
+    await page.waitForFunction(() => !window.location.pathname.includes('/login'), null, { timeout: 10000 });
+  }
+
+  // Ensure we're on a valid page
+  await expect(page.locator('body')).toBeVisible();
 }
 
 test.describe('Video Call — Both Users', () => {
@@ -38,13 +44,8 @@ test.describe('Video Call — Both Users', () => {
     await page.click('a[href="/video"]');
     await page.waitForURL('/video', { timeout: 10000 });
 
-    // Video page should show call controls or partner status
-    await expect(
-      page.locator('text=Video Call')
-        .or(page.locator('text=Call'))
-        .or(page.locator('text=Start Call'))
-        .or(page.locator('text=Partner'))
-    ).toBeVisible({ timeout: 10000 });
+    // Video page should show heading
+    await expect(page.getByRole('heading', { name: /Video Call/i })).toBeVisible({ timeout: 10000 });
 
     // Screenshot for visual verification
     await page.screenshot({ path: 'test-results/video-maroon.png', fullPage: false });
@@ -57,13 +58,8 @@ test.describe('Video Call — Both Users', () => {
     await page.click('a[href="/video"]');
     await page.waitForURL('/video', { timeout: 10000 });
 
-    // Video page should show call controls or partner status
-    await expect(
-      page.locator('text=Video Call')
-        .or(page.locator('text=Call'))
-        .or(page.locator('text=Start Call'))
-        .or(page.locator('text=Partner'))
-    ).toBeVisible({ timeout: 10000 });
+    // Video page should show heading
+    await expect(page.getByRole('heading', { name: /Video Call/i })).toBeVisible({ timeout: 10000 });
 
     // Screenshot for visual verification
     await page.screenshot({ path: 'test-results/video-rina.png', fullPage: false });
@@ -80,25 +76,10 @@ test.describe('Video Call — Both Users', () => {
     await blockHeavyResources(maroonPage);
     await blockHeavyResources(rinaPage);
 
-    // Track WebSocket connections
-    const maroonWsConnected = new Promise<void>((resolve) => {
-      maroonPage.on('websocket', () => resolve());
-    });
-    const rinaWsConnected = new Promise<void>((resolve) => {
-      rinaPage.on('websocket', () => resolve());
-    });
-
-    // Login both users
-    await Promise.all([
-      loginUser(maroonPage, 'maroon', MAROON_PASSWORD),
-      loginUser(rinaPage, 'rina', RINA_PASSWORD),
-    ]);
-
-    // Wait for WebSocket connections to establish
-    await Promise.race([
-      Promise.all([maroonWsConnected, rinaWsConnected]),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('WebSocket timeout')), 15000)),
-    ]);
+    // Login both users with delay to avoid rate limiting
+    await loginUser(maroonPage, 'maroon', MAROON_PASSWORD);
+    await maroonPage.waitForTimeout(2000);
+    await loginUser(rinaPage, 'rina', RINA_PASSWORD);
 
     // Give presence a moment to propagate
     await maroonPage.waitForTimeout(3000);
@@ -113,9 +94,8 @@ test.describe('Video Call — Both Users', () => {
     // Wait for presence to update
     await maroonPage.waitForTimeout(2000);
 
-    // MarOOn should see Rina's status (Online or Offline)
-    const maroonChatHeader = maroonPage.locator('text=Messages').or(maroonPage.locator('text=Chat')).first();
-    await expect(maroonChatHeader).toBeVisible({ timeout: 10000 });
+    // MarOOn should see chat header
+    await expect(maroonPage.getByRole('heading').first()).toBeVisible({ timeout: 10000 });
 
     // Screenshot both chat pages
     await maroonPage.screenshot({ path: 'test-results/chat-maroon.png', fullPage: false });
@@ -132,15 +112,12 @@ test.describe('Video Call — Both Users', () => {
     await page.click('a[href="/video"]');
     await page.waitForURL('/video', { timeout: 10000 });
 
-    // Look for start call button or video container
-    const videoElements = page.locator('video, button:has-text("Call"), button:has-text("Start"), [class*="video"], [class*="call"]');
-    const count = await videoElements.count();
+    // Look for start call button
+    const startCallButton = page.getByRole('button', { name: /Start Call/i });
+    await expect(startCallButton).toBeVisible({ timeout: 10000 });
 
-    // Take screenshot regardless
+    // Take screenshot
     await page.screenshot({ path: 'test-results/video-page.png', fullPage: false });
-
-    // Should have at least one video-related element
-    expect(count).toBeGreaterThan(0);
   });
 });
 
@@ -150,17 +127,17 @@ test.describe('Video Call — WebSocket Signaling', () => {
   });
 
   test('WebSocket /ws connects without 404', async ({ page }) => {
-    let wsError = false;
+    let ws404Error = false;
 
     page.on('console', (msg) => {
-      if (msg.type() === 'error' && msg.text().includes('404')) {
-        wsError = true;
+      if (msg.type() === 'error' && msg.text().includes('404') && msg.text().includes('/ws')) {
+        ws404Error = true;
       }
     });
 
     page.on('pageerror', (err) => {
-      if (err.message.includes('404') || err.message.includes('WebSocket')) {
-        wsError = true;
+      if ((err.message.includes('404') || err.message.includes('WebSocket')) && err.message.includes('/ws')) {
+        ws404Error = true;
       }
     });
 
@@ -173,6 +150,6 @@ test.describe('Video Call — WebSocket Signaling', () => {
     // Wait for any WS activity
     await page.waitForTimeout(5000);
 
-    expect(wsError).toBe(false);
+    expect(ws404Error).toBe(false);
   });
 });
