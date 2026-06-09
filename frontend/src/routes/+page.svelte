@@ -49,15 +49,14 @@
 
   function partnerPresence() {
     const user = currentUser();
-    if (!user) return null;
-    const partnerName = user.username === 'maroon' ? 'rina' : 'maroon';
-    return socketStore.presence[partnerName];
+    if (!user?.partner) return null;
+    return socketStore.presence[user.partner.username];
   }
 
   function partnerDisplayName() {
     const user = currentUser();
-    if (!user) return 'Love';
-    return user.username === 'maroon' ? 'Rina' : 'Maroon';
+    if (!user?.partner) return 'Love';
+    return user.partner.displayName || user.partner.username;
   }
 
   function presenceColor(status?: string) {

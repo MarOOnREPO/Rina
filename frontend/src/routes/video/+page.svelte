@@ -494,7 +494,7 @@
       </div>
     {/if}
 
-    <GlassCard padding="none" class="relative aspect-video bg-rina-bg overflow-hidden mb-4">
+    <GlassCard padding="none" class="relative aspect-video max-h-[55vh] bg-rina-bg overflow-hidden mb-4">
       <video
         bind:this={remoteVideo}
         autoplay

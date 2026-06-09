@@ -33,9 +33,8 @@ class SocketStore {
 
   getPartnerPresence() {
     const user = (typeof window !== 'undefined' && (window as any).__user) || null;
-    if (!user) return null;
-    const partnerName = user.username === 'maroon' ? 'rina' : 'maroon';
-    return this.presence[partnerName] || null;
+    if (!user?.partner?.username) return null;
+    return this.presence[user.partner.username] || null;
   }
 
   constructor() {
