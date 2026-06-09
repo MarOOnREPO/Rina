@@ -20,6 +20,7 @@ class SocketStore {
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private url: string;
   private listeners = new Map<string, Set<(payload: unknown) => void>>();
+  private outboundQueue: Array<{ event: string; payload?: unknown }> = [];
 
   connected = $state(false);
   connecting = $state(false);
@@ -51,16 +52,20 @@ class SocketStore {
     this.error = null;
 
     try {
-      this.ws = new WebSocket(this.url);
+      const ws = new WebSocket(this.url);
+      this.ws = ws;
 
-      this.ws.onopen = () => {
+      ws.onopen = () => {
+        if (this.ws !== ws) return;
         this.connected = true;
         this.connecting = false;
         this.error = null;
         this.startHeartbeat();
+        this.flushQueue();
       };
 
-      this.ws.onmessage = (event) => {
+      ws.onmessage = (event) => {
+        if (this.ws !== ws) return;
         try {
           const msg = JSON.parse(event.data) as WSMessage;
           this.handleMessage(msg);
@@ -69,14 +74,16 @@ class SocketStore {
         }
       };
 
-      this.ws.onclose = () => {
+      ws.onclose = () => {
+        if (this.ws !== ws) return;
         this.connected = false;
         this.connecting = false;
         this.stopHeartbeat();
         this.scheduleReconnect();
       };
 
-      this.ws.onerror = () => {
+      ws.onerror = () => {
+        if (this.ws !== ws) return;
         this.error = 'Connection error';
         this.connecting = false;
       };
@@ -103,7 +110,20 @@ class SocketStore {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ event, payload }));
     } else {
-      console.warn(`[Socket] Cannot send "${event}": WebSocket not connected`);
+      this.outboundQueue.push({ event, payload });
+      if (this.outboundQueue.length > 100) {
+        this.outboundQueue.shift();
+      }
+      if (!this.connected && !this.connecting) {
+        this.connect();
+      }
+    }
+  }
+
+  private flushQueue() {
+    while (this.outboundQueue.length > 0 && this.ws?.readyState === WebSocket.OPEN) {
+      const msg = this.outboundQueue.shift()!;
+      this.ws.send(JSON.stringify({ event: msg.event, payload: msg.payload }));
     }
   }
 

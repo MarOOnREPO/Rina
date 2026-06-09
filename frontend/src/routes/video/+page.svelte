@@ -102,6 +102,7 @@
   }
 
   async function startCall() {
+    if (callState !== 'idle' && callState !== 'ended') return;
     let stream: MediaStream | null = null;
     try {
       error = '';
@@ -208,10 +209,6 @@
   }
 
   async function cancelCall() {
-    const partner = currentUser()?.partner;
-    if (partner) {
-      socketStore.send('webrtc:decline', { target: partner.username });
-    }
     endCall();
   }
 
@@ -233,6 +230,7 @@
   async function acceptCall() {
     if (!incomingOffer) return;
     const offer = incomingOffer;
+    incomingOffer = null;
     let stream: MediaStream | null = null;
     try {
       error = '';
@@ -347,9 +345,12 @@
   }
 
   async function handleAnswer(data: { answer: { type: 'answer'; sdp: string } }) {
-    if (peerConnection) {
+    if (!peerConnection || peerConnection.signalingState !== 'have-local-offer') return;
+    try {
       await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
       callState = 'connected';
+    } catch (e) {
+      console.error('[WebRTC] Failed to set remote description:', e);
     }
   }
 
@@ -394,6 +395,8 @@
       if (partner) {
         socketStore.send('webrtc:hangup', { target: partner.username });
       }
+    } else if (callState === 'incoming' && incomingSender) {
+      socketStore.send('webrtc:decline', { target: incomingSender });
     }
 
     iceRestartAttempts = 0;
