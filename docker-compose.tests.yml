@@ -1,0 +1,34 @@
+# ─── Playwright E2E Test Environment ─────────────────────────────────
+# Isolated Docker setup for running Playwright tests in CI/CD pipelines
+#
+# Usage:
+#   docker compose -f docker-compose.tests.yml up --build --abort-on-container-exit
+#
+# After run, results are in ./frontend/test-results/
+#   - HTML report:  frontend/test-results/html-report/index.html
+#   - JSON report:  frontend/test-results/results.json
+#   - Traces:       frontend/test-results/trace/
+#   - Videos:       frontend/test-results/video/
+# ─────────────────────────────────────────────────────────────────────
+
+services:
+  playwright:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.playwright
+    container_name: rina-playwright
+    volumes:
+      - ./frontend/test-results:/app/test-results
+    environment:
+      - CI=true
+      - TEST_BASE_URL=${TEST_BASE_URL:-https://rina.devopsya.com}
+      # Uncomment to run against local docker stack instead of production:
+      # - TEST_BASE_URL=http://nginx:443
+    networks:
+      - rina-test
+    # Use host network if testing against localhost dev servers
+    # network_mode: host
+
+networks:
+  rina-test:
+    driver: bridge

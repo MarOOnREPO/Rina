@@ -1,0 +1,28 @@
+# ─── Playwright Test Runner ─────────────────────────────────────────
+# Isolated Docker environment for E2E testing with Chromium
+# Usage:
+#   docker build -f Dockerfile.playwright -t rina-playwright .
+#   docker run --rm --network host -v $(pwd)/test-results:/app/test-results rina-playwright
+# ─────────────────────────────────────────────────────────────────────
+
+FROM mcr.microsoft.com/playwright:v1.60.0-jammy
+
+WORKDIR /app
+
+# Copy package files and install deps
+COPY package*.json ./
+RUN npm ci
+
+# Copy test code
+COPY . .
+
+# Pre-install Chromium browsers
+RUN npx playwright install chromium
+
+# Environment defaults (override at runtime)
+ENV CI=true
+ENV PLAYWRIGHT_JSON_OUTPUT_NAME=test-results/results.json
+
+# Default: run smoke tests against production
+# Override CMD to run different suites
+CMD ["npx", "playwright", "test", "tests/smoke.spec.ts", "--config=playwright.docker.config.ts"]

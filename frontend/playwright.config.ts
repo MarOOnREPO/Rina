@@ -16,6 +16,11 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:5173',
     trace: 'on-first-retry',
+    video: 'on-first-retry',
+    screenshot: 'only-on-failure',
+    launchOptions: {
+      args: ['--disable-dev-shm-usage'],
+    },
   },
   projects: [
     { name: 'setup', testMatch: /.*\.setup\.ts/ },
