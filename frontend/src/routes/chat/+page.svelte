@@ -225,6 +225,12 @@
   });
 
   let partnerTyping = $derived(socketStore.typing);
+  let partnerStatus = $derived(() => {
+    const user = currentUser();
+    if (!user) return 'offline';
+    const partnerUsername = user.partner?.username || (user.username === 'maroon' ? 'rina' : 'maroon');
+    return socketStore.presence[partnerUsername]?.status || 'offline';
+  });
   let messageGroups = $derived(groupMessagesByDate(messages));
 </script>
 
@@ -287,10 +293,15 @@
                   </span>
                   typing...
                 </span>
-              {:else}
+              {:else if partnerStatus === 'online'}
                 <span class="flex items-center gap-1">
                   <span class="w-1.5 h-1.5 rounded-full bg-rina-success"></span>
                   Online
+                </span>
+              {:else}
+                <span class="flex items-center gap-1">
+                  <span class="w-1.5 h-1.5 rounded-full bg-rina-border-strong"></span>
+                  Offline
                 </span>
               {/if}
             </p>

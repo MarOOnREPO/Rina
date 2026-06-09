@@ -15,6 +15,7 @@
   let symptoms = $state<string[]>([]);
   let temperature = $state<number | undefined>(undefined);
   let notes = $state('');
+  let error = $state('');
   let validationErrors = $state<Record<string, string>>({});
 
   const symptomOptions = ['Cramps', 'Bloating', 'Headache', 'Mood swings', 'Fatigue', 'Acne', 'Cravings', 'Insomnia', 'Backache', 'Nausea'];
@@ -47,7 +48,7 @@
   async function loadEntries() {
     try {
       const data = await cycleApi.list();
-      entries = Array.isArray(data) ? data : (data as unknown as { entries: CycleEntry[] }).entries || [];
+      entries = data.entries || [];
     } catch {
       // ignore
     } finally {
@@ -81,10 +82,10 @@
   function sanitizeFormData() {
     return {
       date,
-      flowIntensity: flowIntensity ?? undefined,
+      flowIntensity: flowIntensity === undefined ? undefined : flowIntensity,
       symptoms: symptoms || [],
-      temperature: temperature === '' || temperature == null ? undefined : Number(temperature),
-      notes: notes || undefined
+      temperature: temperature === '' || temperature == null || temperature === undefined ? null : Number(temperature),
+      notes: notes === '' || notes === null || notes === undefined ? null : notes
     };
   }
 
@@ -98,6 +99,11 @@
       return 'Network error. Please check your connection.';
     }
     return 'Failed to save. Please try again.';
+  }
+
+  function clearError() {
+    error = '';
+    validationErrors = {};
   }
 
   async function saveEntry() {
@@ -298,6 +304,9 @@
           <div>
             <label for="cycleDate" class="block text-xs font-medium text-rina-text-secondary mb-1.5">Date</label>
             <input id="cycleDate" type="date" bind:value={date} class="input" />
+            {#if validationErrors.date}
+              <p class="text-[11px] text-rina-accent mt-1">{validationErrors.date}</p>
+            {/if}
           </div>
 
           <!-- Flow Intensity -->
@@ -363,6 +372,11 @@
             ></textarea>
           </div>
 
+          {#if error}
+            <p class="text-[11px] text-rina-accent bg-rina-accent-soft/50 px-3 py-2 rounded-lg" transition:slide>
+              {error}
+            </p>
+          {/if}
           <button
             onclick={saveEntry}
             class="btn-primary w-full"

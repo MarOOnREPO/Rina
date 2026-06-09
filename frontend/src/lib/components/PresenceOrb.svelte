@@ -2,7 +2,7 @@
   import { socketStore } from '$lib/stores/socket.svelte';
   import { partnerName, currentUser } from '$lib/stores/auth.svelte';
 
-  let partnerUsername = $derived(currentUser()?.username === 'maroon' ? 'rina' : 'maroon');
+  let partnerUsername = $derived(currentUser()?.partner?.username || (currentUser()?.username === 'maroon' ? 'rina' : 'maroon'));
   let presence = $derived(socketStore.presence[partnerUsername]);
   let status = $derived(presence?.status ?? 'offline');
 

@@ -10,6 +10,7 @@ import { Server as SocketIOServer, Socket } from 'socket.io';
 import { prisma } from './src/services/prisma.js';
 import { redis, setupSocketAdapter, presence } from './src/services/redis.js';
 import { createYjsWSS } from './src/services/yjs-server.js';
+import { createWsServer } from './src/services/ws-server.js';
 import { authPlugin, verifyToken, type JWTPayload } from './src/middleware/auth.js';
 import { ensureDefaultPartnership, getPartner } from './src/services/partnership.js';
 import { setBroadcastServer } from './src/services/broadcast.js';
@@ -513,10 +514,9 @@ io.on('connection', async (socket: Socket) => {
 
       // Only mark offline if this was the last socket for the user
       if (remaining === 0) {
-        const currentSocketId = await presence.getSocket(user.username);
-        if (currentSocketId === socket.id) {
-          await presence.delSocket(user.username);
-        }
+        // Always clean up the socket mapping when last tab closes
+        // (setSocket may have been overwritten by a newer connection)
+        await presence.delSocket(user.username);
         await presence.setStatus(user.username, { status: 'offline', lastSeen: new Date().toISOString(), displayName: user.displayName });
 
         socket.broadcast.emit('presence:update', {
@@ -531,6 +531,9 @@ io.on('connection', async (socket: Socket) => {
     }
   });
 });
+
+// ─── Native WebSocket Server (/ws) ─────────────────────────────
+createWsServer(server);
 
 // ─── Yjs WebSocket Server ──────────────────────────────────────
 const yjsWss = createYjsWSS();
@@ -631,6 +634,7 @@ const startServer = async (): Promise<void> => {
     await app.listen({ port: PORT, host: '0.0.0.0' });
     app.log.info(`[Server] HTTP server running on port ${PORT} (${NODE_ENV})`);
     app.log.info('[Socket.io] WebSocket server initialized at path /socket.io');
+    app.log.info('[WS] Native WebSocket server initialized at path /ws');
     app.log.info('[Yjs] WebSocket server initialized at path /yjs');
   } catch (error) {
     app.log.error(`[Fatal] Failed to start server: ${error}`);

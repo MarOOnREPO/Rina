@@ -11,13 +11,13 @@ function isValidDateString(str: string): boolean {
 
 const entrySchema = z.object({
   date: z.string().refine(isValidDateString, { message: 'Invalid date format or value' }),
-  flowIntensity: z.number().int().min(0).max(4).optional(),
-  symptoms: z.array(z.string().max(50)).max(20).optional(),
-  temperature: z.number().min(30).max(45).optional(),
-  notes: z.string().max(1000).optional()
+  flowIntensity: z.number().int().min(0).max(4).optional().nullable(),
+  symptoms: z.array(z.string().max(50)).max(20).optional().nullable(),
+  temperature: z.number().min(30).max(45).optional().nullable(),
+  notes: z.string().max(1000).optional().nullable()
 });
 
-const updateSchema = entrySchema.partial().omit({ date: true });
+const updateSchema = entrySchema.partial();
 
 export default async function cycleRoutes(fastify: FastifyInstance, _opts: FastifyPluginOptions) {
   // List cycle entries for authenticated user
@@ -86,7 +86,7 @@ export default async function cycleRoutes(fastify: FastifyInstance, _opts: Fasti
         },
         update: {
           flowIntensity: data.flowIntensity,
-          symptoms: data.symptoms,
+          symptoms: data.symptoms ?? [],
           temperature: data.temperature,
           notes: data.notes
         },
@@ -94,7 +94,7 @@ export default async function cycleRoutes(fastify: FastifyInstance, _opts: Fasti
           userId: request.user!.id,
           date: new Date(data.date),
           flowIntensity: data.flowIntensity,
-          symptoms: data.symptoms,
+          symptoms: data.symptoms ?? [],
           temperature: data.temperature,
           notes: data.notes
         }
@@ -138,8 +138,9 @@ export default async function cycleRoutes(fastify: FastifyInstance, _opts: Fasti
       const entry = await prisma.cycleEntry.update({
         where: { id: params.id },
         data: {
+          ...(data.date !== undefined && { date: new Date(data.date) }),
           ...(data.flowIntensity !== undefined && { flowIntensity: data.flowIntensity }),
-          ...(data.symptoms !== undefined && { symptoms: data.symptoms }),
+          ...(data.symptoms !== undefined && { symptoms: data.symptoms ? data.symptoms : [] }),
           ...(data.temperature !== undefined && { temperature: data.temperature }),
           ...(data.notes !== undefined && { notes: data.notes })
         }

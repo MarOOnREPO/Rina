@@ -150,7 +150,7 @@ export interface CycleEntry {
 
 export const cycleApi = {
   list: (from?: string, to?: string) =>
-    api.get<CycleEntry[]>(`/cycle?from=${from || ''}&to=${to || ''}`),
+    api.get<{ entries: CycleEntry[] }>(`/cycle?from=${from || ''}&to=${to || ''}`),
   create: (data: Partial<CycleEntry> & { date: string }) => api.post<CycleEntry>('/cycle', data),
   update: (id: string, data: Partial<CycleEntry>) => api.patch<CycleEntry>(`/cycle/${id}`, data),
   remove: (id: string) => api.delete<void>(`/cycle/${id}`)
