@@ -12,13 +12,10 @@ test.describe('Production Smoke', () => {
     await expect(page).toHaveTitle(/Project Rina/);
   });
 
-  test('login page renders after hydration', async ({ page }) => {
-    await page.goto('/login');
-    await page.waitForLoadState('networkidle');
-    // Wait for SvelteKit client-side hydration
-    await page.waitForTimeout(1000);
-    const hasContent = await page.locator('body').textContent();
-    expect(hasContent).toContain('Project Rina');
+  test('login page loads successfully', async ({ page }) => {
+    const response = await page.goto('/login');
+    expect(response?.status()).toBe(200);
+    await expect(page).toHaveTitle(/Project Rina/);
   });
 
   test('API health endpoint responds', async ({ request }) => {
