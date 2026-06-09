@@ -4,6 +4,7 @@ import { defineConfig, devices } from '@playwright/test';
  * Docker-optimized Playwright config
  * - No local dev servers (assumes external URL or docker-compose network)
  * - Single worker for container isolation
+ * - Auth setup project logs in once, saves state, reuses across tests
  * - HTML + JSON reporters for CI pipelines
  */
 
@@ -13,7 +14,7 @@ export default defineConfig({
   testDir: './tests',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  retries: process.env.CI ? 1 : 0,
   workers: 1,
   reporter: [
     ['list'],
@@ -22,13 +23,9 @@ export default defineConfig({
   ],
   use: {
     baseURL: BASE_URL,
-    // ─── Trace Viewer + Video ────────────────────────────────────
-    trace: 'on',                 // Record trace for EVERY test
-    video: 'on',                 // Record video for EVERY test
-    screenshot: 'on',            // Screenshot on failure + success
-    // ─── Network interception ────────────────────────────────────
-    // Blocks images, external fonts, tracking scripts globally
-    // See tests/_network-interceptor.ts for route definitions
+    trace: 'on',
+    video: 'on',
+    screenshot: 'on',
     extraHTTPHeaders: {
       'Accept-Language': 'en-US,en;q=0.9',
     },
@@ -44,13 +41,34 @@ export default defineConfig({
   },
   projects: [
     {
+      name: 'setup',
+      testMatch: /auth\.setup\.ts/,
+    },
+    {
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
-        // Container-optimized viewport
         viewport: { width: 1280, height: 720 },
       },
+      dependencies: ['setup'],
+    },
+    {
+      name: 'chromium-maroon',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 720 },
+        storageState: 'playwright/.auth/maroon.json',
+      },
+      dependencies: ['setup'],
+    },
+    {
+      name: 'chromium-rina',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 720 },
+        storageState: 'playwright/.auth/rina.json',
+      },
+      dependencies: ['setup'],
     },
   ],
-  // No webServer — assumes app is already running (docker-compose or deployed)
 });

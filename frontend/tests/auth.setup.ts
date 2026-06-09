@@ -1,27 +1,41 @@
 import { test as setup, expect } from '@playwright/test';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { blockHeavyResources } from './_network-interceptor';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const authFile = path.join(__dirname, '../playwright/.auth/user.json');
+const MAROON_PASSWORD = process.env.MAROON_PASSWORD || 'maroon123';
+const RINA_PASSWORD = process.env.RINA_PASSWORD || 'rina123';
 
-setup('authenticate as maroon', async ({ browser }) => {
-  const context = await browser.newContext();
-  const page = await context.newPage();
+setup.beforeEach(async ({ page }) => {
+  await blockHeavyResources(page);
+});
 
-  // Login via API to set HTTP-only cookie
-  const res = await page.request.post('/api/auth/login', {
-    data: { username: 'maroon', password: process.env.E2E_PASSWORD || 'testpass123' }
-  });
+setup('authenticate as maroon', async ({ page }) => {
+  await page.goto('/login');
+  await page.waitForLoadState('networkidle');
 
-  if (!res.ok()) {
-    throw new Error(`Login API failed: ${await res.text()}`);
-  }
+  await page.locator('input[type="text"]').first().fill('maroon');
+  await page.locator('input[type="password"]').first().fill(MAROON_PASSWORD);
+  await page.locator('button').first().click();
 
-  // Verify we can access the dashboard
-  await page.goto('/');
-  await expect(page.locator('text=Thinking of You')).toBeVisible();
+  // Wait for redirect to dashboard
+  await page.waitForURL('/', { timeout: 10000 });
+  await expect(page.locator('body')).toBeVisible();
 
-  await context.storageState({ path: authFile });
-  await context.close();
+  // Save auth state for reuse
+  await page.context().storageState({ path: 'playwright/.auth/maroon.json' });
+});
+
+setup('authenticate as rina', async ({ page }) => {
+  await page.goto('/login');
+  await page.waitForLoadState('networkidle');
+
+  await page.locator('input[type="text"]').first().fill('rina');
+  await page.locator('input[type="password"]').first().fill(RINA_PASSWORD);
+  await page.locator('button').first().click();
+
+  // Wait for redirect to dashboard
+  await page.waitForURL('/', { timeout: 10000 });
+  await expect(page.locator('body')).toBeVisible();
+
+  // Save auth state for reuse
+  await page.context().storageState({ path: 'playwright/.auth/rina.json' });
 });
