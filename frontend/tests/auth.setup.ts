@@ -14,7 +14,7 @@ setup('authenticate as maroon', async ({ page }) => {
 
   await page.locator('input[type="text"]').first().fill('maroon');
   await page.locator('input[type="password"]').first().fill(MAROON_PASSWORD);
-  await page.locator('button').first().click();
+  await page.locator('button:has-text("Enter")').click();
 
   // Wait for redirect to dashboard
   await page.waitForURL('/', { timeout: 10000 });
@@ -30,7 +30,7 @@ setup('authenticate as rina', async ({ page }) => {
 
   await page.locator('input[type="text"]').first().fill('rina');
   await page.locator('input[type="password"]').first().fill(RINA_PASSWORD);
-  await page.locator('button').first().click();
+  await page.locator('button:has-text("Enter")').click();
 
   // Wait for redirect to dashboard
   await page.waitForURL('/', { timeout: 10000 });
