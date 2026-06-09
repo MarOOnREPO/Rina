@@ -33,7 +33,6 @@ kimi-backup/
 g
 
 # Generated configs
-nginx/default.conf
 
 # Local backups
 backups/

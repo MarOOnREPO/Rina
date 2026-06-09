@@ -18,30 +18,49 @@
   let audioEnabled = $state(true);
   let videoEnabled = $state(true);
 
+  // Default to TURN-over-TLS relay on port 443.
+  // Credentials are injected by loadIceServers() from the backend.
   let iceServers: RTCIceServer[] = [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' }
+    { urls: 'turns:turn.devopsya.com:443?transport=tcp' }
   ];
 
   let incomingOffer = $state<RTCSessionDescriptionInit | null>(null);
   let incomingSender = $state('');
   let incomingDisplayName = $state('');
   let endedResetTimeout = $state<ReturnType<typeof setTimeout> | null>(null);
+  let iceRestartAttempts = $state(0);
 
   async function loadIceServers() {
     try {
       const config = await api.get<{ iceServers: RTCIceServer[] }>('/rtc/ice-servers');
       iceServers = config.iceServers;
     } catch (err) {
-      console.warn('[WebRTC] Failed to load TURN config, using STUN only');
+      console.warn('[WebRTC] Failed to load TURN config, using default TURN-over-TLS relay');
     }
   }
 
+  function scheduleIceRestart(pc: RTCPeerConnection) {
+    const delay = Math.min(1000 * 2 ** iceRestartAttempts, 8000);
+    iceRestartAttempts++;
+    console.warn(`[WebRTC] ICE failed. Scheduling restart in ${delay}ms (attempt ${iceRestartAttempts})`);
+    setTimeout(() => {
+      if (pc.signalingState !== 'closed') {
+        pc.restartIce();
+      }
+    }, delay);
+  }
+
   function createPeerConnection() {
-    const pc = new RTCPeerConnection({ iceServers });
+    const pc = new RTCPeerConnection({
+      iceServers,
+      iceTransportPolicy: 'relay',
+      bundlePolicy: 'max-bundle',
+      rtcpMuxPolicy: 'require'
+    });
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
+        console.log('[WebRTC] ICE candidate:', event.candidate.candidate.substring(0, 60) + '...');
         const partner = currentUser()?.partner;
         if (!partner) return;
         socketStore.send('webrtc:ice-candidate', {
@@ -55,19 +74,28 @@
       if (event.streams[0]) {
         remoteStream = event.streams[0];
         callState = 'connected';
+        iceRestartAttempts = 0;
       }
     };
 
     pc.onconnectionstatechange = () => {
+      console.log('[WebRTC] Connection state:', pc.connectionState);
       if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
         endCall();
       }
     };
 
     pc.oniceconnectionstatechange = () => {
+      console.log('[WebRTC] ICE connection state:', pc.iceConnectionState);
       if (pc.iceConnectionState === 'failed') {
-        pc.restartIce();
+        scheduleIceRestart(pc);
+      } else if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+        iceRestartAttempts = 0;
       }
+    };
+
+    pc.onsignalingstatechange = () => {
+      console.log('[WebRTC] Signaling state:', pc.signalingState);
     };
 
     return pc;
@@ -229,6 +257,7 @@
       }
     }
 
+    iceRestartAttempts = 0;
     if (peerConnection) {
       peerConnection.close();
       peerConnection = null;

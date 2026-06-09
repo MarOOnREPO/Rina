@@ -2,7 +2,6 @@ import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { authenticateJWT } from '../middleware/auth.js';
 import crypto from 'crypto';
 
-const COTURN_REALM = process.env.COTURN_REALM || '';
 const COTURN_SECRET = process.env.COTURN_SECRET || '';
 
 interface IceServer {
@@ -28,28 +27,26 @@ function generateTurnCredentials(username: string): { username: string; credenti
 
 export default async function rtcRoutes(fastify: FastifyInstance, _opts: FastifyPluginOptions) {
   fastify.get('/ice-servers', { preValidation: [authenticateJWT] }, async (request, reply) => {
-    const iceServers: IceServer[] = [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' }
-    ];
+    const iceServers: IceServer[] = [];
 
     if (COTURN_SECRET) {
       const turnCreds = generateTurnCredentials(request.user!.username);
       if (turnCreds) {
-        iceServers.push(
-          {
-            urls: `turn:${COTURN_REALM}:3478`,
-            username: turnCreds.username,
-            credential: turnCreds.credential
-          },
-          {
-            urls: `turns:${COTURN_REALM}:5349`,
-            username: turnCreds.username,
-            credential: turnCreds.credential
-          }
-        );
+        // TURN-over-TLS on port 443 — multiplexed with HTTPS via Nginx SNI.
+        // transport=tcp forces TCP even inside the TLS tunnel, ensuring
+        // all media flows over the single TCP 443 connection.
+        iceServers.push({
+          urls: 'turns:turn.devopsya.com:443?transport=tcp',
+          username: turnCreds.username,
+          credential: turnCreds.credential
+        });
       }
     }
+
+    // NOTE: STUN servers are intentionally omitted here.
+    // The frontend sets iceTransportPolicy: 'relay', which ignores STUN
+    // candidates anyway. Removing STUN prevents the client from leaking
+    // direct (host/srflx) candidates that DPI could fingerprint.
 
     return reply.send({ iceServers });
   });
