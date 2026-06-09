@@ -141,6 +141,153 @@ export default async function movieRoutes(fastify: FastifyInstance, _opts: Fasti
     }
   });
 
+  // ─── Upload a movie from S3 ──────────────────────────────────────
+  fastify.post('/upload', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const schema = z.object({
+        title: z.string().min(1).max(200),
+        s3Key: z.string().min(1),
+        posterPath: z.string().nullable().optional(),
+        backdropPath: z.string().nullable().optional(),
+        trailerUrl: z.string().nullable().optional(),
+        tmdbId: z.number().int().positive().optional()
+      });
+      const data = schema.parse(request.body);
+
+      const movie = await prisma.movie.create({
+        data: {
+          title: data.title,
+          s3Key: data.s3Key,
+          posterPath: data.posterPath ?? null,
+          backdropPath: data.backdropPath ?? null,
+          sourceUrl: data.trailerUrl ?? null,
+          tmdbId: data.tmdbId ?? null,
+          addedBy: request.user!.id
+        }
+      });
+      await broadcastToPartner(request.user!.id, { type: 'movie', action: 'created', data: movie });
+      return reply.status(201).send(movie);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
+      console.error('[Movie Upload Error]', error);
+      return reply.status(500).send({ error: 'Failed to upload movie' });
+    }
+  });
+
+  // ─── Get single movie ────────────────────────────────────────────
+  fastify.get('/:id', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const paramsSchema = z.object({ id: z.string().cuid() });
+      const { id } = paramsSchema.parse(request.params);
+
+      const movie = await prisma.movie.findUnique({ where: { id } });
+      if (!movie) {
+        return reply.status(404).send({ error: 'Movie not found' });
+      }
+      if (movie.addedBy !== request.user!.id) {
+        return reply.status(403).send({ error: 'Not authorized' });
+      }
+      return reply.send(movie);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
+      console.error('[Movie Error]', error);
+      return reply.status(500).send({ error: 'Failed to fetch movie' });
+    }
+  });
+
+  // ─── Update movie metadata ───────────────────────────────────────
+  fastify.patch('/:id', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const paramsSchema = z.object({ id: z.string().cuid() });
+      const { id } = paramsSchema.parse(request.params);
+      const bodySchema = z.object({
+        title: z.string().min(1).optional(),
+        posterPath: z.string().nullable().optional(),
+        backdropPath: z.string().nullable().optional(),
+        sourceUrl: z.string().nullable().optional(),
+        overview: z.string().nullable().optional()
+      });
+      const data = bodySchema.parse(request.body);
+
+      const existing = await prisma.movie.findUnique({ where: { id } });
+      if (!existing) {
+        return reply.status(404).send({ error: 'Movie not found' });
+      }
+      if (existing.addedBy !== request.user!.id) {
+        return reply.status(403).send({ error: 'Not authorized' });
+      }
+
+      const movie = await prisma.movie.update({
+        where: { id },
+        data
+      });
+      await broadcastToPartner(request.user!.id, { type: 'movie', action: 'updated', data: movie });
+      return reply.send(movie);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
+      console.error('[Movie Error]', error);
+      return reply.status(500).send({ error: 'Failed to update movie' });
+    }
+  });
+
+  // ─── Download movie (presigned S3 URL) ───────────────────────────
+  fastify.get('/:id/download', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const paramsSchema = z.object({ id: z.string().cuid() });
+      const { id } = paramsSchema.parse(request.params);
+
+      const movie = await prisma.movie.findUnique({ where: { id } });
+      if (!movie) {
+        return reply.status(404).send({ error: 'Movie not found' });
+      }
+      if (movie.addedBy !== request.user!.id) {
+        return reply.status(403).send({ error: 'Not authorized' });
+      }
+      if (!movie.s3Key) {
+        return reply.status(404).send({ error: 'No file available for download' });
+      }
+
+      const { getPresignedDownloadUrl } = await import('../services/s3.js');
+      const url = await getPresignedDownloadUrl(movie.s3Key, 300);
+      return reply.send({ url });
+    } catch (error) {
+      console.error('[Movie Download Error]', error);
+      return reply.status(500).send({ error: 'Failed to generate download URL' });
+    }
+  });
+
+  // ─── Watch movie (presigned S3 URL) ──────────────────────────────
+  fastify.get('/:id/watch', { preValidation: [authenticateJWT] }, async (request, reply) => {
+    try {
+      const paramsSchema = z.object({ id: z.string().cuid() });
+      const { id } = paramsSchema.parse(request.params);
+
+      const movie = await prisma.movie.findUnique({ where: { id } });
+      if (!movie) {
+        return reply.status(404).send({ error: 'Movie not found' });
+      }
+      if (movie.addedBy !== request.user!.id) {
+        return reply.status(403).send({ error: 'Not authorized' });
+      }
+      if (!movie.s3Key) {
+        return reply.status(404).send({ error: 'No file available for streaming' });
+      }
+
+      const { getPresignedDownloadUrl } = await import('../services/s3.js');
+      const url = await getPresignedDownloadUrl(movie.s3Key, 3600);
+      return reply.send({ url });
+    } catch (error) {
+      console.error('[Movie Watch Error]', error);
+      return reply.status(500).send({ error: 'Failed to generate watch URL' });
+    }
+  });
+
   // ─── Discover movies from TMDB ─────────────────────────────────
   fastify.get('/discover/:category', { preValidation: [authenticateJWT] }, async (request, reply) => {
     try {

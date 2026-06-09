@@ -243,6 +243,7 @@
 
   async function acceptCall() {
     if (!incomingOffer) return;
+    const offer = incomingOffer;
     let stream: MediaStream | null = null;
     try {
       error = '';
@@ -254,7 +255,7 @@
         peerConnection!.addTrack(track, localStream!);
       });
 
-      await peerConnection.setRemoteDescription(new RTCSessionDescription(incomingOffer));
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
       const answer = await peerConnection.createAnswer();
       await peerConnection.setLocalDescription(answer);
 
@@ -285,7 +286,7 @@
             peerConnection!.addTrack(track, localStream!);
           });
 
-          await peerConnection.setRemoteDescription(new RTCSessionDescription(incomingOffer));
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
           const answer = await peerConnection.createAnswer();
           await peerConnection.setLocalDescription(answer);
 

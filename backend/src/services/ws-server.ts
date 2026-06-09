@@ -130,21 +130,7 @@ async function handleMessage(client: WSClient, msg: { event: string; payload: un
 
     case 'chat:message': {
       const msgData = msg.payload as { id: string; content?: string; type?: string; mediaUrl?: string; replyToId?: string };
-      if (msgData.content && user.id) {
-        try {
-          await prisma.message.create({
-            data: {
-              senderId: user.id,
-              content: msgData.content,
-              type: (msgData.type as any) || 'TEXT',
-              mediaUrl: msgData.mediaUrl || null,
-              replyToId: msgData.replyToId || null
-            }
-          });
-        } catch (err) {
-          console.error('[WS] Failed to persist message:', err);
-        }
-      }
+      // Message is already persisted by REST API; just relay to partner via WS
       await sendToPartner(user.id, 'chat:message', msgData);
       break;
     }

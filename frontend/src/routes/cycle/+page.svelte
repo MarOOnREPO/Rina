@@ -10,7 +10,8 @@
   let showForm = $state(false);
   let editingId = $state<string | null>(null);
 
-  let date = $state(new Date().toISOString().split('T')[0]);
+  const now = new Date();
+  let date = $state(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`);
   let flowIntensity = $state<number | undefined>(undefined);
   let symptoms = $state<string[]>([]);
   let temperature = $state<number | undefined>(undefined);
@@ -82,10 +83,10 @@
   function sanitizeFormData() {
     return {
       date,
-      flowIntensity: flowIntensity === undefined ? undefined : flowIntensity,
+      flowIntensity: flowIntensity == null ? undefined : flowIntensity,
       symptoms: symptoms || [],
-      temperature: temperature === '' || temperature == null || temperature === undefined ? null : Number(temperature),
-      notes: notes === '' || notes === null || notes === undefined ? null : notes
+      temperature: temperature == null ? undefined : Number(temperature),
+      notes: notes === '' || notes === null || notes === undefined ? undefined : notes
     };
   }
 

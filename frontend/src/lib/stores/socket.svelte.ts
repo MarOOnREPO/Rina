@@ -102,6 +102,8 @@ class SocketStore {
   send(event: string, payload?: unknown) {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ event, payload }));
+    } else {
+      console.warn(`[Socket] Cannot send "${event}": WebSocket not connected`);
     }
   }
 

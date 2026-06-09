@@ -73,7 +73,7 @@
             {/if}
           </a>
         {/each}
-        {#if currentUser()?.username === 'maroon'}
+        {#if currentUser()}
           <a
             href={adminNavItem.path}
             class="relative px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 touch-target flex items-center gap-2
@@ -152,7 +152,7 @@
               <span class="text-[10px] font-bold leading-none">{item.label}</span>
             </a>
           {/each}
-          {#if currentUser()?.username === 'maroon'}
+          {#if currentUser()}
             <a
               href={adminNavItem.path}
               class="flex flex-col items-center justify-center gap-1 px-3 py-1.5 rounded-xl transition-all duration-200 touch-target min-w-[64px]

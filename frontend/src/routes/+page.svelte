@@ -30,7 +30,7 @@
   }
 
   function sendPing() {
-    // TODO: implement ping via WebSocket
+    socketStore.send('ping:partner');
   }
 
   const quickActions = [

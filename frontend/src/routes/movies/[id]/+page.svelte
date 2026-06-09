@@ -56,12 +56,12 @@
     }
   }
 
-  function download() {
-    window.location.href = movieApi.download(id);
+  async function download() {
+    window.location.href = await movieApi.download(id);
   }
 
-  function watch() {
-    window.location.href = movieApi.watch(id);
+  async function watch() {
+    window.location.href = await movieApi.watch(id);
   }
 
   onMount(() => {

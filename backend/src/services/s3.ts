@@ -5,21 +5,24 @@ const AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID;
 const AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY;
 const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
 
-if (!AWS_ACCESS_KEY_ID || !AWS_SECRET_ACCESS_KEY) {
-  console.error('[Fatal] AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be set');
-  process.exit(1);
+export const isS3Configured = !!(AWS_ACCESS_KEY_ID && AWS_SECRET_ACCESS_KEY);
+
+if (!isS3Configured) {
+  console.warn('[S3] AWS credentials not configured — S3 features disabled');
 }
 
 const BUCKET_NAME = process.env.S3_BUCKET_NAME || 'rina-uploads';
 
 // ─── AWS S3 Client ───────────────────────────────────────────────
-export const s3Client = new S3Client({
-  region: AWS_REGION,
-  credentials: {
-    accessKeyId: AWS_ACCESS_KEY_ID,
-    secretAccessKey: AWS_SECRET_ACCESS_KEY
-  }
-});
+export const s3Client = isS3Configured
+  ? new S3Client({
+      region: AWS_REGION,
+      credentials: {
+        accessKeyId: AWS_ACCESS_KEY_ID!,
+        secretAccessKey: AWS_SECRET_ACCESS_KEY!
+      }
+    })
+  : null as any; // Cast for type compatibility; guard with isS3Configured before use
 
 // ─── Presigned URL Helpers ───────────────────────────────────────
 export async function getPresignedUploadUrl(

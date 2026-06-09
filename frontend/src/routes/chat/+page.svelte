@@ -293,7 +293,7 @@
                   </span>
                   typing...
                 </span>
-              {:else if partnerStatus === 'online'}
+              {:else if partnerStatus() === 'online'}
                 <span class="flex items-center gap-1">
                   <span class="w-1.5 h-1.5 rounded-full bg-rina-success"></span>
                   Online

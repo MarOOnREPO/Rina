@@ -21,7 +21,7 @@
   // Default to TURN-over-TLS relay on port 443.
   // Credentials are injected by loadIceServers() from the backend.
   let iceServers: RTCIceServer[] = [
-    { urls: 'turns:turn.devopsya.com:443?transport=tcp' }
+    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }
   ];
 
   let incomingOffer = $state<RTCSessionDescriptionInit | null>(null);
@@ -53,7 +53,7 @@
   function createPeerConnection() {
     const pc = new RTCPeerConnection({
       iceServers,
-      iceTransportPolicy: 'relay',
+      iceTransportPolicy: 'all',
       bundlePolicy: 'max-bundle',
       rtcpMuxPolicy: 'require'
     });
@@ -232,6 +232,7 @@
 
   async function acceptCall() {
     if (!incomingOffer) return;
+    const offer = incomingOffer;
     let stream: MediaStream | null = null;
     try {
       error = '';
@@ -243,7 +244,7 @@
         peerConnection!.addTrack(track, localStream!);
       });
 
-      await peerConnection.setRemoteDescription(new RTCSessionDescription(incomingOffer));
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
       const answer = await peerConnection.createAnswer();
       await peerConnection.setLocalDescription(answer);
 
@@ -274,7 +275,7 @@
             peerConnection!.addTrack(track, localStream!);
           });
 
-          await peerConnection.setRemoteDescription(new RTCSessionDescription(incomingOffer));
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
           const answer = await peerConnection.createAnswer();
           await peerConnection.setLocalDescription(answer);
 
@@ -472,8 +473,11 @@
     socketStore.off('webrtc:hungup', handleHungup);
   }
 
-  onMount(() => {
-    loadIceServers();
+  onMount(async () => {
+    if (!socketStore.connected) {
+      socketStore.connect();
+    }
+    await loadIceServers();
     attachListeners();
   });
 

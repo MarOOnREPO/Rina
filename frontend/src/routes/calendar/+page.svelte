@@ -278,9 +278,11 @@
       const from = `${year}-${String(month + 1).padStart(2, '0')}-01`;
       const toDate = new Date(year, month + 1, 0);
       const to = `${toDate.getFullYear()}-${String(toDate.getMonth() + 1).padStart(2, '0')}-${String(toDate.getDate()).padStart(2, '0')}`;
-      cycleEntries = await cycleApi.list(from, to);
+      const data = await cycleApi.list(from, to);
+      cycleEntries = data.entries || [];
     } catch (err) {
       console.error('[Calendar] loadCycleData failed:', err);
+      cycleEntries = [];
     }
   }
 

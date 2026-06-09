@@ -198,12 +198,14 @@ export const movieApi = {
   list: (source?: 'uploaded' | 'watchlist' | 'all') =>
     api.get<Movie[]>(`/movies${source && source !== 'all' ? `?source=${source}` : ''}`),
   get: (id: string) => api.get<Movie>(`/movies/${id}`),
-  create: (formData: FormData) => api.post<Movie>('/movies', formData, { headers: {} }),
+  create: (body: Partial<Movie>) => api.post<Movie>('/movies', body),
+  upload: (body: { title: string; s3Key: string; posterPath?: string | null; backdropPath?: string | null; trailerUrl?: string | null; tmdbId?: number }) =>
+    api.post<Movie>('/movies/upload', body),
   update: (id: string, body: Partial<Movie>) => api.patch<Movie>(`/movies/${id}`, body),
-  addToWatchlist: (tmdbId: number) => api.post<Movie>('/movies/watchlist', { tmdbId }),
+  addToWatchlist: (tmdbId: number) => api.post<Movie>('/movies', { tmdbId }),
   remove: (id: string) => api.delete<void>(`/movies/${id}`),
-  download: (id: string) => `${API_BASE}/api/movies/${id}/download`,
-  watch: (id: string) => `${API_BASE}/api/movies/${id}/watch`
+  download: (id: string) => api.get<{ url: string }>(`/movies/${id}/download`).then(r => r.url),
+  watch: (id: string) => api.get<{ url: string }>(`/movies/${id}/watch`).then(r => r.url)
 };
 
 // ─── TMDB API ────────────────────────────────────────────────────

@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { isAuthenticated, isLoading, currentUser } from '$lib/stores/auth.svelte';
   import { movieApi, type Movie } from '$lib/utils/api';
+  import { createUpload } from '$lib/utils/upload';
   import { fade, fly, scale } from 'svelte/transition';
 
   let movies: Movie[] = $state([]);
@@ -68,68 +69,61 @@
     const totalSize = file.size;
     uploadTotal = formatBytes(totalSize);
 
-    const formData = new FormData();
-    formData.append('title', title);
-    if (posterUrl) formData.append('posterPath', posterUrl);
-    if (trailerUrl) formData.append('trailerUrl', trailerUrl);
-    if (backdropUrl) formData.append('backdropPath', backdropUrl);
-    if (tmdbId) formData.append('tmdbId', tmdbId);
-    formData.append('file', file);
-
     let lastLoaded = 0;
     let lastTime = Date.now();
+    let uploadUrl = '';
 
     try {
+      // Step 1: Upload file via TUS to S3
       await new Promise<void>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        uploadAbort = () => { xhr.abort(); };
+        const tusUpload = createUpload({
+          file,
+          metadata: { filename: file.name, filetype: file.type, title },
+          onProgress: (bytesUploaded, bytesTotal) => {
+            uploadProgress = Math.round((bytesUploaded / bytesTotal) * 100);
+            uploadBytes = formatBytes(bytesUploaded);
 
-        xhr.upload.addEventListener('progress', (e) => {
-          if (!e.lengthComputable) return;
-          uploadProgress = Math.round((e.loaded / e.total) * 100);
-          uploadBytes = formatBytes(e.loaded);
-
-          const now = Date.now();
-          const dt = (now - lastTime) / 1000;
-          if (dt > 0.5) {
-            const speed = (e.loaded - lastLoaded) / dt;
-            uploadSpeed = formatBytes(speed) + '/s';
-            const remaining = e.total - e.loaded;
-            uploadEta = speed > 0 ? formatTime(remaining / speed) : '';
-            lastLoaded = e.loaded;
-            lastTime = now;
-          }
-        });
-
-        xhr.addEventListener('load', () => {
-          uploadAbort = null;
-          if (xhr.status >= 200 && xhr.status < 300) {
-            resolve();
-          } else {
-            let msg = 'Upload failed';
-            try {
-              const data = JSON.parse(xhr.responseText);
-              msg = data.error || data.message || msg;
-            } catch {
-              msg = `HTTP ${xhr.status}`;
+            const now = Date.now();
+            const dt = (now - lastTime) / 1000;
+            if (dt > 0.5) {
+              const speed = (bytesUploaded - lastLoaded) / dt;
+              uploadSpeed = formatBytes(speed) + '/s';
+              const remaining = bytesTotal - bytesUploaded;
+              uploadEta = speed > 0 ? formatTime(remaining / speed) : '';
+              lastLoaded = bytesUploaded;
+              lastTime = now;
             }
-            reject(new Error(msg));
+          },
+          onSuccess: (url) => {
+            uploadUrl = url;
+            resolve();
+          },
+          onError: (error) => {
+            reject(error);
           }
         });
 
-        xhr.addEventListener('error', () => {
-          uploadAbort = null;
-          reject(new Error('Network error'));
-        });
+        uploadAbort = () => {
+          tusUpload.abort();
+        };
 
-        xhr.addEventListener('abort', () => {
-          uploadAbort = null;
-          reject(new Error('Upload cancelled'));
-        });
+        tusUpload.start();
+      });
 
-        xhr.open('POST', '/api/movies');
-        xhr.withCredentials = true;
-        xhr.send(formData);
+      // Step 2: Extract S3 key from TUS upload URL
+      const s3Key = uploadUrl.split('/').pop() || '';
+      if (!s3Key) {
+        throw new Error('Could not determine upload key');
+      }
+
+      // Step 3: Create movie record with metadata
+      await movieApi.upload({
+        title,
+        s3Key,
+        posterPath: posterUrl || null,
+        backdropPath: backdropUrl || null,
+        trailerUrl: trailerUrl || null,
+        tmdbId: tmdbId ? parseInt(tmdbId, 10) : undefined
       });
 
       await loadMovies();
@@ -182,12 +176,12 @@
     }
   }
 
-  function downloadMovie(id: string) {
-    window.location.href = movieApi.download(id);
+  async function downloadMovie(id: string) {
+    window.location.href = await movieApi.download(id);
   }
 
-  function watchMovie(id: string) {
-    window.location.href = movieApi.watch(id);
+  async function watchMovie(id: string) {
+    window.location.href = await movieApi.watch(id);
   }
 
   async function toggleWatched(movie: Movie, e: Event) {

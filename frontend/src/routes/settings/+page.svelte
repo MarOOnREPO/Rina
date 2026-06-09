@@ -1,6 +1,6 @@
 <script lang="ts">
   import { fade, scale, slide } from 'svelte/transition';
-  import { currentUser, auth, partnerName } from '$lib/stores/auth.svelte';
+  import { currentUser, auth, partnerName, isLoading } from '$lib/stores/auth.svelte';
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
 
@@ -196,9 +196,9 @@
     }
   });
 
-  // Redirect if not logged in
+  // Redirect if not logged in (wait for auth to finish loading first)
   $effect(() => {
-    if (!configLoading && !currentUser()) {
+    if (!isLoading() && !configLoading && !currentUser()) {
       goto('/login');
     }
   });
