@@ -69,7 +69,14 @@ export default async function cycleRoutes(fastify: FastifyInstance, _opts: Fasti
   // Create or upsert cycle entry (one per day per user)
   fastify.post('/', { preValidation: [authenticateJWT] }, async (request, reply) => {
     try {
-      const data = entrySchema.parse(request.body);
+      const rawBody = (typeof request.body === 'object' && request.body !== null ? request.body : {}) as Record<string, unknown>;
+      const sanitizedBody = {
+        ...rawBody,
+        temperature: rawBody.temperature === '' || rawBody.temperature === null ? undefined : rawBody.temperature,
+        flowIntensity: rawBody.flowIntensity === '' || rawBody.flowIntensity === null ? undefined : rawBody.flowIntensity,
+        symptoms: rawBody.symptoms === undefined || rawBody.symptoms === null ? [] : rawBody.symptoms,
+      };
+      const data = entrySchema.parse(sanitizedBody);
       const entry = await prisma.cycleEntry.upsert({
         where: {
           userId_date: {
@@ -96,10 +103,14 @@ export default async function cycleRoutes(fastify: FastifyInstance, _opts: Fasti
       return reply.status(201).send({ entry });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return reply.status(400).send({ error: error.errors });
+        const fields: Record<string, string> = {};
+        for (const issue of error.errors) {
+          fields[issue.path.join('.')] = issue.message;
+        }
+        return reply.status(400).send({ error: 'Validation failed', fields });
       }
-      console.error('[Cycle Error]', error);
-      return reply.status(500).send({ error: 'Failed to create cycle entry' });
+      console.error(`[Cycle Error][req:${request.id}][${new Date().toISOString()}]`, error);
+      return reply.status(500).send({ error: 'Internal server error', code: 'CYCLE_CREATE_ERROR' });
     }
   });
 
@@ -108,7 +119,14 @@ export default async function cycleRoutes(fastify: FastifyInstance, _opts: Fasti
     try {
       const paramsSchema = z.object({ id: z.string().cuid() });
       const params = paramsSchema.parse(request.params);
-      const data = updateSchema.parse(request.body);
+      const rawBody = (typeof request.body === 'object' && request.body !== null ? request.body : {}) as Record<string, unknown>;
+      const sanitizedBody = {
+        ...rawBody,
+        temperature: rawBody.temperature === '' || rawBody.temperature === null ? undefined : rawBody.temperature,
+        flowIntensity: rawBody.flowIntensity === '' || rawBody.flowIntensity === null ? undefined : rawBody.flowIntensity,
+        symptoms: rawBody.symptoms === undefined || rawBody.symptoms === null ? [] : rawBody.symptoms,
+      };
+      const data = updateSchema.parse(sanitizedBody);
 
       const existing = await prisma.cycleEntry.findFirst({
         where: { id: params.id, userId: request.user!.id }
@@ -130,10 +148,14 @@ export default async function cycleRoutes(fastify: FastifyInstance, _opts: Fasti
       return reply.send({ entry });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return reply.status(400).send({ error: error.errors });
+        const fields: Record<string, string> = {};
+        for (const issue of error.errors) {
+          fields[issue.path.join('.')] = issue.message;
+        }
+        return reply.status(400).send({ error: 'Validation failed', fields });
       }
-      console.error('[Cycle Error]', error);
-      return reply.status(500).send({ error: 'Failed to update cycle entry' });
+      console.error(`[Cycle Error][req:${request.id}][${new Date().toISOString()}]`, error);
+      return reply.status(500).send({ error: 'Internal server error', code: 'CYCLE_UPDATE_ERROR' });
     }
   });
 

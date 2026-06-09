@@ -143,9 +143,77 @@
     } catch (err) {
       if (stream) {
         stream.getTracks().forEach((track) => track.stop());
+        stream = null;
       }
       localStream = null;
-      error = 'Could not access camera/microphone. Please check permissions.';
+
+      // Audio-only fallback for video-specific hardware errors
+      if (err instanceof DOMException && (err.name === 'NotReadableError' || err.name === 'NotFoundError')) {
+        try {
+          error = 'Video unavailable. Starting audio-only call...';
+          stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+          localStream = stream;
+
+          peerConnection = createPeerConnection();
+          localStream.getTracks().forEach((track) => {
+            peerConnection!.addTrack(track, localStream!);
+          });
+
+          const offer = await peerConnection.createOffer();
+          await peerConnection.setLocalDescription(offer);
+
+          const partner = currentUser()?.partner;
+          if (!partner) {
+            error = 'No partner found. Please check your partnership setup.';
+            endCall();
+            return;
+          }
+
+          socketStore.send('webrtc:offer', {
+            target: partner.username,
+            offer: { type: offer.type, sdp: offer.sdp! }
+          });
+
+          callState = 'calling';
+          return;
+        } catch (audioErr) {
+          if (stream) {
+            stream.getTracks().forEach((track) => track.stop());
+            stream = null;
+          }
+          localStream = null;
+          err = audioErr;
+        }
+      }
+
+      let message: string;
+      if (err instanceof DOMException) {
+        switch (err.name) {
+          case 'NotAllowedError':
+            message = 'Camera/microphone permission was denied. Please check your browser settings and allow access.';
+            break;
+          case 'NotFoundError':
+            message = 'No camera or microphone found on this device.';
+            break;
+          case 'NotReadableError':
+            message = 'Your camera or microphone is already in use by another application (e.g., Zoom, Teams). Please close other apps and try again.';
+            break;
+          case 'AbortError':
+            message = 'The request was cancelled. Please try again.';
+            break;
+          case 'SecurityError':
+            message = 'Camera access requires a secure HTTPS connection. Please ensure you are using https://rina.devopsya.com';
+            break;
+          default:
+            message = 'Could not access camera/microphone. Error: ' + err.message;
+        }
+      } else if (err instanceof Error) {
+        message = 'Could not access camera/microphone. Error: ' + err.message;
+      } else {
+        message = 'Could not access camera/microphone. Please check permissions.';
+      }
+
+      error = message;
       console.error('[WebRTC]', err);
     }
   }
@@ -175,9 +243,11 @@
 
   async function acceptCall() {
     if (!incomingOffer) return;
+    let stream: MediaStream | null = null;
     try {
       error = '';
-      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localStream = stream;
 
       peerConnection = createPeerConnection();
       localStream.getTracks().forEach((track) => {
@@ -197,7 +267,75 @@
       incomingSender = '';
       callState = 'connected';
     } catch (err) {
-      error = 'Failed to accept call.';
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+        stream = null;
+      }
+      localStream = null;
+
+      // Audio-only fallback for video-specific hardware errors
+      if (err instanceof DOMException && (err.name === 'NotReadableError' || err.name === 'NotFoundError')) {
+        try {
+          error = 'Video unavailable. Starting audio-only call...';
+          stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+          localStream = stream;
+
+          peerConnection = createPeerConnection();
+          localStream.getTracks().forEach((track) => {
+            peerConnection!.addTrack(track, localStream!);
+          });
+
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(incomingOffer));
+          const answer = await peerConnection.createAnswer();
+          await peerConnection.setLocalDescription(answer);
+
+          socketStore.send('webrtc:answer', {
+            target: incomingSender,
+            answer: { type: answer.type, sdp: answer.sdp! }
+          });
+
+          incomingOffer = null;
+          incomingSender = '';
+          callState = 'connected';
+          return;
+        } catch (audioErr) {
+          if (stream) {
+            stream.getTracks().forEach((track) => track.stop());
+            stream = null;
+          }
+          localStream = null;
+          err = audioErr;
+        }
+      }
+
+      let message: string;
+      if (err instanceof DOMException) {
+        switch (err.name) {
+          case 'NotAllowedError':
+            message = 'Camera/microphone permission was denied. Please check your browser settings and allow access.';
+            break;
+          case 'NotFoundError':
+            message = 'No camera or microphone found on this device.';
+            break;
+          case 'NotReadableError':
+            message = 'Your camera or microphone is already in use by another application (e.g., Zoom, Teams). Please close other apps and try again.';
+            break;
+          case 'AbortError':
+            message = 'The request was cancelled. Please try again.';
+            break;
+          case 'SecurityError':
+            message = 'Camera access requires a secure HTTPS connection. Please ensure you are using https://rina.devopsya.com';
+            break;
+          default:
+            message = 'Failed to accept call. Error: ' + err.message;
+        }
+      } else if (err instanceof Error) {
+        message = 'Failed to accept call. Error: ' + err.message;
+      } else {
+        message = 'Failed to accept call.';
+      }
+
+      error = message;
       console.error('[WebRTC]', err);
       endCall();
     }

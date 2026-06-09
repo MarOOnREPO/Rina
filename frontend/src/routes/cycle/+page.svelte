@@ -15,6 +15,7 @@
   let symptoms = $state<string[]>([]);
   let temperature = $state<number | undefined>(undefined);
   let notes = $state('');
+  let validationErrors = $state<Record<string, string>>({});
 
   const symptomOptions = ['Cramps', 'Bloating', 'Headache', 'Mood swings', 'Fatigue', 'Acne', 'Cravings', 'Insomnia', 'Backache', 'Nausea'];
   const flowLabels = ['None', 'Light', 'Medium', 'Heavy', 'Very Heavy'];
@@ -77,15 +78,40 @@
     showForm = true;
   }
 
+  function sanitizeFormData() {
+    return {
+      date,
+      flowIntensity: flowIntensity ?? undefined,
+      symptoms: symptoms || [],
+      temperature: temperature === '' || temperature == null ? undefined : Number(temperature),
+      notes: notes || undefined
+    };
+  }
+
+  function getSaveErrorMessage(err: unknown): string {
+    if (err && typeof err === 'object' && 'message' in err) {
+      const msg = String((err as { message?: string }).message);
+      if (msg.includes('400') || msg.includes('Validation')) return msg;
+      return 'Failed to save: ' + msg;
+    }
+    if (err instanceof TypeError) {
+      return 'Network error. Please check your connection.';
+    }
+    return 'Failed to save. Please try again.';
+  }
+
   async function saveEntry() {
+    error = '';
+    validationErrors = {};
+
+    if (!date) {
+      validationErrors.date = 'Please select a date.';
+      return;
+    }
+
+    const data = sanitizeFormData();
+
     try {
-      const data = {
-        date,
-        flowIntensity,
-        symptoms,
-        temperature,
-        notes: notes || undefined
-      };
       if (editingId) {
         await cycleApi.update(editingId, data);
       } else {
@@ -94,8 +120,9 @@
       await loadEntries();
       showForm = false;
       resetForm();
-    } catch {
-      alert('Failed to save');
+    } catch (err) {
+      error = getSaveErrorMessage(err);
+      console.error('[Cycle] Save failed:', err);
     }
   }
 
@@ -104,8 +131,9 @@
     try {
       await cycleApi.remove(id);
       entries = entries.filter((e) => e.id !== id);
-    } catch {
-      alert('Failed to delete');
+    } catch (err) {
+      error = err instanceof Error ? 'Failed to delete: ' + err.message : 'Failed to delete. Please try again.';
+      console.error('[Cycle] Delete failed:', err);
     }
   }
 
