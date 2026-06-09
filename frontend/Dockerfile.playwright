@@ -25,4 +25,4 @@ ENV PLAYWRIGHT_JSON_OUTPUT_NAME=playwright-report/results.json
 
 # Default: run smoke tests against production
 # Override CMD to run different suites
-CMD ["npx", "playwright", "test", "tests/smoke.spec.ts", "tests/full-app.spec.ts", "--config=playwright.docker.config.ts"]
+CMD ["npx", "playwright", "test", "tests/smoke.spec.ts", "tests/full-app.spec.ts", "tests/video-call.spec.ts", "--config=playwright.docker.config.ts"]

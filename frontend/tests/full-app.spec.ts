@@ -9,8 +9,9 @@ import { blockHeavyResources } from './_network-interceptor';
 const BASE_URL = process.env.TEST_BASE_URL || 'https://rina.devopsya.com';
 
 // Skip these tests in CI unless credentials are provided
-const E2E_PASSWORD = process.env.E2E_PASSWORD;
-const testWithAuth = E2E_PASSWORD ? test : test.skip;
+const MAROON_PASSWORD = process.env.MAROON_PASSWORD || 'maroon123';
+const RINA_PASSWORD = process.env.RINA_PASSWORD || 'rina123';
+const testWithAuth = test;
 
 test.describe('Full App — Authenticated Flow', () => {
   test.beforeEach(async ({ page }) => {
@@ -23,7 +24,7 @@ test.describe('Full App — Authenticated Flow', () => {
 
     // Fill login form
     await page.locator('input[placeholder*="maroon"], input[type="text"]').first().fill('maroon');
-    await page.locator('input[type="password"]').first().fill(E2E_PASSWORD!);
+    await page.locator('input[type="password"]').first().fill(MAROON_PASSWORD);
     await page.locator('button:has-text("Enter")').first().click();
 
     // Wait for dashboard to load
@@ -41,7 +42,7 @@ test.describe('Full App — Authenticated Flow', () => {
     await page.goto('/login');
     await page.waitForLoadState('networkidle');
     await page.locator('input[placeholder*="maroon"], input[type="text"]').first().fill('maroon');
-    await page.locator('input[type="password"]').first().fill(E2E_PASSWORD!);
+    await page.locator('input[type="password"]').first().fill(MAROON_PASSWORD);
     await page.locator('button:has-text("Enter")').first().click();
     await page.waitForURL('/', { timeout: 10000 });
 
@@ -57,7 +58,7 @@ test.describe('Full App — Authenticated Flow', () => {
     await page.goto('/login');
     await page.waitForLoadState('networkidle');
     await page.locator('input[placeholder*="maroon"], input[type="text"]').first().fill('maroon');
-    await page.locator('input[type="password"]').first().fill(E2E_PASSWORD!);
+    await page.locator('input[type="password"]').first().fill(MAROON_PASSWORD);
     await page.locator('button:has-text("Enter")').first().click();
     await page.waitForURL('/', { timeout: 10000 });
 
