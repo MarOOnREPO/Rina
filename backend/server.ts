@@ -131,23 +131,25 @@ await app.register(cookie, {
   parseOptions: {}
 });
 
-await app.register(rateLimit, {
-  max: 100,
-  timeWindow: '15 minutes',
-  redis,
-  keyGenerator: (req) => {
-    const forwarded = req.headers['x-forwarded-for'];
-    if (typeof forwarded === 'string') {
-      return forwarded.split(',')[0].trim();
-    }
-    return req.ip;
-  },
-  errorResponseBuilder: (_req, context) => ({
-    statusCode: 429,
-    error: 'Too Many Requests',
-    message: `Rate limit exceeded. Retry in ${context.after}`
-  })
-});
+if (process.env.DISABLE_RATE_LIMIT !== 'true') {
+  await app.register(rateLimit, {
+    max: 100,
+    timeWindow: '15 minutes',
+    redis,
+    keyGenerator: (req) => {
+      const forwarded = req.headers['x-forwarded-for'];
+      if (typeof forwarded === 'string') {
+        return forwarded.split(',')[0].trim();
+      }
+      return req.ip;
+    },
+    errorResponseBuilder: (_req, context) => ({
+      statusCode: 429,
+      error: 'Too Many Requests',
+      message: `Rate limit exceeded. Retry in ${context.after}`
+    })
+  });
+}
 
 await app.register(authPlugin);
 

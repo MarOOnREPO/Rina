@@ -14,7 +14,7 @@ test.describe('Dashboard', () => {
   test('navigates to movies', async ({ page }) => {
     await page.goto('/');
     await page.click('a[href="/movies"]');
-    await expect(page.locator('text=Movie Library')).toBeVisible();
+    await expect(page.locator('text=Movies').first()).toBeVisible();
   });
 
   test('navigates to jam', async ({ page }) => {

@@ -16,9 +16,8 @@ test.describe('Debug Bug Areas', () => {
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
 
-    // Capture any error text
-    const errorText = await page.locator('text=/could not load|error|failed/i').first().textContent().catch(() => 'no error');
-    console.log('Movies browse error:', errorText);
+    // Verify page loaded successfully (TMDB routes now fixed)
+    await expect(page.locator('text=Discover Movies')).toBeVisible();
 
     await page.screenshot({ path: 'test-results/debug-movies-browse.png' });
   });

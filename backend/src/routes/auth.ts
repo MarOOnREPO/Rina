@@ -31,7 +31,7 @@ const AUTHORIZED_USERS: Record<string, { username: string; passwordHash: string;
 
 export default async function authRoutes(fastify: FastifyInstance, _opts: FastifyPluginOptions) {
   fastify.post('/login', {
-    config: {
+    config: process.env.DISABLE_RATE_LIMIT === 'true' ? { rateLimit: false } : {
       rateLimit: {
         max: 10,
         timeWindow: '15 minutes'
