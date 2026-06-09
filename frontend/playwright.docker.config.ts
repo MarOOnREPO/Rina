@@ -45,28 +45,11 @@ export default defineConfig({
       testMatch: /auth\.setup\.ts/,
     },
     {
-      name: 'chromium',
-      use: {
-        ...devices['Desktop Chrome'],
-        viewport: { width: 1280, height: 720 },
-      },
-      dependencies: ['setup'],
-    },
-    {
       name: 'chromium-maroon',
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 1280, height: 720 },
         storageState: 'playwright/.auth/maroon.json',
-      },
-      dependencies: ['setup'],
-    },
-    {
-      name: 'chromium-rina',
-      use: {
-        ...devices['Desktop Chrome'],
-        viewport: { width: 1280, height: 720 },
-        storageState: 'playwright/.auth/rina.json',
       },
       dependencies: ['setup'],
     },
