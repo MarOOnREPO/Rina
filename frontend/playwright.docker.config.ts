@@ -17,8 +17,8 @@ export default defineConfig({
   workers: 1,
   reporter: [
     ['list'],
-    ['html', { outputFolder: 'test-results/html-report', open: 'never' }],
-    ['json', { outputFile: 'test-results/results.json' }],
+    ['html', { outputFolder: 'test-results/report', open: 'never' }],
+    ['json', { outputFile: 'test-results/report/results.json' }],
   ],
   use: {
     baseURL: BASE_URL,
