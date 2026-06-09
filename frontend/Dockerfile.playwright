@@ -21,7 +21,7 @@ RUN npx playwright install chromium
 
 # Environment defaults (override at runtime)
 ENV CI=true
-ENV PLAYWRIGHT_JSON_OUTPUT_NAME=test-results/results.json
+ENV PLAYWRIGHT_JSON_OUTPUT_NAME=playwright-report/results.json
 
 # Default: run smoke tests against production
 # Override CMD to run different suites

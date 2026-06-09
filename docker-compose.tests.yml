@@ -19,6 +19,7 @@ services:
     container_name: rina-playwright
     volumes:
       - ./frontend/test-results:/app/test-results
+      - ./frontend/playwright-report:/app/playwright-report
     environment:
       - CI=true
       - TEST_BASE_URL=${TEST_BASE_URL:-https://rina.devopsya.com}
